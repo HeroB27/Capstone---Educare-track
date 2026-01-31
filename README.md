@@ -31,6 +31,19 @@ This project uses Supabase as its backend. To seed the database with sample data
 - **Parent**: Monitoring app for real-time child status tracking.
 - **PWA/Offline**: Service worker support and local CSS fallback for offline resilience.
 
+## 🐍 Python Analytics Module
+The project includes a Python-based analytics engine for advanced data processing.
+
+### Setup
+1. Navigate to the scripts folder: `cd scripts`
+2. Install dependencies: `pip install -r requirements.txt`
+3. Create a `.env` file based on `.env.example` and add your Supabase credentials.
+4. Run the analysis: `python analytics_engine.py`
+
+### Features
+- **Attendance Risk Detection**: Automatically identifies students with absence rates exceeding 15%.
+- **CSV Export**: Generates `attendance_risk_report.csv` for school administration use.
+
 ## 🔑 Default Credentials
 - **Admin**: `admin1` / `password123`
 - **Teacher**: `teacher1` / `password123`
