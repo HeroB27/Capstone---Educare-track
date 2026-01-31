@@ -35,7 +35,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const { data, error } = await supabase
                 .from('announcements')
                 .select('*, profiles(full_name)')
-                .order('is_pinned', { ascending: false })
+                .order('priority', { ascending: false })
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         list.innerHTML = anns.map(a => `
             <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-all relative">
-                ${a.is_pinned ? `
+                ${a.priority === 'high' ? `
                     <div class="absolute -top-2 -right-2 bg-amber-500 text-white p-1.5 rounded-lg shadow-lg z-10">
                         <i data-lucide="pin" class="w-3 h-3"></i>
                     </div>
@@ -77,8 +77,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <span class="text-xs text-gray-400">${utils.formatDate(a.created_at)} at ${utils.formatTime(a.created_at)}</span>
                     </div>
                     <div class="flex space-x-2">
-                        <button onclick="togglePinAnnouncement('${a.id}', ${!a.is_pinned})" class="text-gray-400 hover:text-amber-500 transition-all p-2 hover:bg-amber-50 rounded-lg" title="${a.is_pinned ? 'Unpin' : 'Pin to Top'}">
-                            <i data-lucide="${a.is_pinned ? 'pin-off' : 'pin'}" class="w-5 h-5"></i>
+                        <button onclick="togglePinAnnouncement('${a.id}', '${a.priority === 'high' ? 'medium' : 'high'}')" class="text-gray-400 hover:text-amber-500 transition-all p-2 hover:bg-amber-50 rounded-lg" title="${a.priority === 'high' ? 'Lower Priority' : 'Set High Priority'}">
+                            <i data-lucide="${a.priority === 'high' ? 'pin-off' : 'pin'}" class="w-5 h-5"></i>
                         </button>
                         <button onclick="deleteAnnouncement('${a.id}')" class="text-gray-400 hover:text-red-600 transition-all p-2 hover:bg-red-50 rounded-lg">
                             <i data-lucide="trash-2" class="w-5 h-5"></i>
@@ -129,19 +129,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    window.togglePinAnnouncement = async (id, isPinned) => {
+    window.togglePinAnnouncement = async (id, priority) => {
         try {
             const { error } = await supabase
                 .from('announcements')
-                .update({ is_pinned: isPinned })
+                .update({ priority: priority })
                 .eq('id', id);
 
             if (error) throw error;
             
-            utils.showNotification(isPinned ? 'Announcement pinned' : 'Announcement unpinned', 'success');
+            utils.showNotification(priority === 'high' ? 'Announcement set to high priority' : 'Announcement priority lowered', 'success');
             fetchAnnouncements();
         } catch (err) {
-            console.error('Error pinning announcement:', err);
+            console.error('Error updating announcement priority:', err);
             utils.showNotification(err.message, 'error');
         }
     };

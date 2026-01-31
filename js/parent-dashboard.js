@@ -161,7 +161,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         supabase.channel('public:notifications')
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, payload => {
                 const n = payload.new;
-                if (n.recipient_id === state.user.id) {
+                if (n.target_users && n.target_users.includes(state.user.id)) {
                     renderNotifications([n], true);
                     utils.showNotification('New notification received', 'success');
                 }
@@ -198,7 +198,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const { data } = await supabase
             .from('notifications')
             .select('*')
-            .eq('recipient_id', state.user.id)
+            .contains('target_users', [state.user.id])
             .order('created_at', { ascending: false })
             .limit(20);
         renderNotifications(data || []);
@@ -213,12 +213,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const items = (list || []).map(n => `
             <div class="flex items-center justify-between p-2 bg-white rounded-lg border border-gray-50">
                 <div class="flex items-center space-x-2">
-                    <span class="w-2 h-2 rounded-full ${n.read ? 'bg-gray-300' : 'bg-green-500'}"></span>
+                    <span class="w-2 h-2 rounded-full ${n.read_by && n.read_by.includes(state.user.id) ? 'bg-gray-300' : 'bg-green-500'}"></span>
                     <span class="text-xs text-gray-500">${utils.formatTime(n.created_at)}</span>
                 </div>
                 <div class="flex-1 ml-3">
-                    <p class="text-sm font-medium text-gray-900">${n.verb}</p>
-                    <p class="text-xs text-gray-500">${n.object?.full_name || ''} ${n.object?.remarks ? `- ${n.object.remarks}` : ''}</p>
+                    <p class="text-sm font-medium text-gray-900">${n.title}</p>
+                    <p class="text-xs text-gray-500">${n.message}</p>
                 </div>
                 <button class="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200" onclick="markRead('${n.id}')">Mark read</button>
             </div>
@@ -230,10 +230,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
     window.markRead = async (id) => {
-        await supabase.from('notifications').update({ read: true }).eq('id', id);
+        await supabase.from('notifications').update({ read_by: supabase.raw('array_append(read_by, ?)', [state.user.id]) }).eq('id', id);
     };
     document.getElementById('markAllRead')?.addEventListener('click', async () => {
-        await supabase.from('notifications').update({ read: true }).eq('recipient_id', state.user.id);
+        await supabase.from('notifications').update({ read_by: supabase.raw('array_append(read_by, ?)', [state.user.id]) }).contains('target_users', [state.user.id]);
         fetchNotifications();
     });
 

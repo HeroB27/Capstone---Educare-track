@@ -96,7 +96,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     .order('timestamp', { ascending: false }),
                 supabase
                     .from('clinic_visits')
-                    .select('*, students(full_name, grade_level, strand), profiles:treated_by(full_name)')
+                    .select('*, students(full_name, grade_level, strand)')
                     .order('visit_time', { ascending: false })
             ]);
 
