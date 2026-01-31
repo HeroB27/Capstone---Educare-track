@@ -63,10 +63,16 @@ Welcome to the **Educare Track** project! This is a production-grade school moni
 ---
 
 ## 🔑 Credentials (Sample Data)
--   **Admin**: `admin1` / `password123`
--   **Teacher**: `teacher1` / `password123`
--   **Guard**: `guard1` / `password123`
--   **Nurse**: `nurse1` / `password123`
--   **Parent**: `parent1` / `password123`
+- **Admin**: `admin1` / `password123`
+- **Teacher**: `teacher1` / `password123`
+- **Guard**: `guard1` / `password123`
+- **Nurse**: `nurse1` / `password123`
+- **Parent**: `parent1` / `password123`
+
+## 🔗 Supabase Connection (Backend)
+- **Project Name**: Educare Track
+- **URL**: `https://tkwjxmhnroqprmjfoaua.supabase.co`
+- **DB Password**: `idxn+9%NV2v+9Eg`
+- **Service Worker / Python**: Requires the `SERVICE_ROLE_KEY` from the Supabase dashboard to perform administrative tasks. / `password123`
 
 Good luck! This system is built to feel like a real school information system. Reach out if you have questions!
