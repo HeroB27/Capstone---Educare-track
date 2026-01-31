@@ -175,23 +175,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         const user = utils.getCurrentUser();
 
         try {
-            // Fetch unread notifications for current user
-            const { data, count } = await supabase
+            // Fetch notifications where current user is in target_users and not in read_by
+            const { data, error } = await supabase
                 .from('notifications')
-                .select('*', { count: 'exact' })
-                .eq('recipient_id', user.id)
-                .eq('read', false);
+                .select('*')
+                .contains('target_users', [user.id])
+                .not('read_by', 'cs', `{"${user.id}"}`);
+
+            if (error) throw error;
+
+            const unreadCount = data?.length || 0;
 
             if (badge) {
-                badge.innerText = count || '0';
-                badge.classList.toggle('hidden', !count);
+                badge.innerText = unreadCount.toString();
+                badge.classList.toggle('hidden', unreadCount === 0);
             }
 
             bellBtn?.addEventListener('click', () => {
-                if (count > 0) {
-                    const list = data.map(n => `${n.verb.replace(/_/g, ' ').toUpperCase()}: ${JSON.stringify(n.object)}`).join('\n\n');
+                if (unreadCount > 0) {
+                    const list = data.map(n => `${n.type?.toUpperCase() || 'NOTIFICATION'}: ${n.title}`).join('\n\n');
                     alert(`Recent Notifications:\n\n${list}`);
-                    markNotificationsRead(user.id);
+                    markNotificationsRead(user.id, data.map(n => n.id));
                 } else {
                     utils.showNotification('No new notifications', 'info');
                 }
@@ -202,13 +206,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    async function markNotificationsRead(userId) {
-        await supabase
-            .from('notifications')
-            .update({ read: true })
-            .eq('recipient_id', userId)
-            .eq('read', false);
-        
-        initializeNotifications(); // Refresh badge
+    async function markNotificationsRead(userId, notificationIds) {
+        try {
+            // Add user ID to read_by array for each notification using PostgreSQL array_append
+            const { error } = await supabase
+                .from('notifications')
+                .update({ 
+                    read_by: supabase.raw(`array_append(read_by, '${userId}')`)
+                })
+                .in('id', notificationIds);
+
+            if (error) throw error;
+            
+            initializeNotifications(); // Refresh badge
+        } catch (err) {
+            console.error('Error marking notifications as read:', err);
+        }
     }
 });
