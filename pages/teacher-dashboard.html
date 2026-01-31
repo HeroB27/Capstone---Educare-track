@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Dashboard - EducareTrack</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Tailwind Fallback
+        window.addEventListener('error', function(e) {
+            if (e.target.tagName === 'LINK' || e.target.tagName === 'SCRIPT') {
+                if (e.target.src?.includes('tailwindcss') || e.target.href?.includes('tailwindcss')) {
+                    const fallback = document.createElement('link');
+                    fallback.rel = 'stylesheet';
+                    fallback.href = '../css/offline-fallback.css';
+                    document.head.appendChild(fallback);
+                }
+            }
+        }, true);
+    </script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body class="bg-gray-50 min-h-screen flex">
+    <!-- Sidebar -->
+    <aside id="sidebar" class="w-64 bg-white border-r border-gray-200 fixed h-full z-40">
+        <!-- Injected by utils.renderTeacherLayout -->
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 ml-64 p-8">
+        <header class="flex justify-between items-center mb-8">
+            <!-- Injected by utils.renderTeacherLayout -->
+        </header>
+
+        <!-- Quick Stats Overview -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Homeroom Status</p>
+                <h3 id="statHomeroom" class="text-2xl font-bold text-gray-900">Loading...</h3>
+                <p id="statHomeroomGrade" class="text-xs text-gray-500 mt-1"></p>
+            </div>
+            <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Today's Sessions</p>
+                <h3 id="statSessions" class="text-2xl font-bold text-blue-600">0</h3>
+                <p class="text-xs text-gray-500 mt-1">Active subjects</p>
+            </div>
+            <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Pending Letters</p>
+                <h3 id="statExcuses" class="text-2xl font-bold text-amber-600">0</h3>
+                <p class="text-xs text-gray-500 mt-1">Awaiting review</p>
+            </div>
+            <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Homeroom Attendance</p>
+                <h3 id="statAttendance" class="text-2xl font-bold text-emerald-600">--%</h3>
+                <p class="text-xs text-gray-500 mt-1">Monthly average</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Left Column: Homeroom Quick Monitor -->
+            <div class="lg:col-span-2 space-y-8">
+                <div class="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm">
+                    <div class="flex justify-between items-center mb-6">
+                        <h4 class="font-bold text-gray-900 flex items-center space-x-2">
+                            <i data-lucide="home" class="text-blue-600 w-5 h-5"></i>
+                            <span>Homeroom Quick Monitor</span>
+                        </h4>
+                        <a href="teacher-homeroom.html" class="text-xs font-bold text-blue-600 hover:underline">View Full List</a>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        <div class="p-3 bg-gray-50 rounded-xl border border-gray-100 text-center">
+                            <p class="text-[10px] text-gray-400 font-bold uppercase mb-1">On Time</p>
+                            <p id="hrOnTime" class="text-lg font-bold text-emerald-600">0</p>
+                        </div>
+                        <div class="p-3 bg-gray-50 rounded-xl border border-gray-100 text-center">
+                            <p class="text-[10px] text-gray-400 font-bold uppercase mb-1">Late</p>
+                            <p id="hrLate" class="text-lg font-bold text-amber-600">0</p>
+                        </div>
+                        <div class="p-3 bg-gray-50 rounded-xl border border-gray-100 text-center">
+                            <p class="text-[10px] text-gray-400 font-bold uppercase mb-1">Absent</p>
+                            <p id="hrAbsent" class="text-lg font-bold text-red-600">0</p>
+                        </div>
+                        <div class="p-3 bg-gray-50 rounded-xl border border-gray-100 text-center">
+                            <p class="text-[10px] text-gray-400 font-bold uppercase mb-1">Out</p>
+                            <p id="hrOut" class="text-lg font-bold text-gray-600">0</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3" id="recentStatusChanges">
+                        <!-- Recent scanner/nurse/teacher updates injected here -->
+                        <p class="text-center py-8 text-gray-400 text-sm">No recent status updates</p>
+                    </div>
+                </div>
+
+                <!-- Upcoming Subject Sessions -->
+                <div class="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm">
+                    <h4 class="font-bold text-gray-900 mb-6 flex items-center space-x-2">
+                        <i data-lucide="calendar" class="text-emerald-600 w-5 h-5"></i>
+                        <span>Today's Subject Sessions</span>
+                    </h4>
+                    <div class="space-y-4" id="sessionsGrid">
+                        <!-- Session cards injected here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Alerts & Feedback -->
+            <div class="space-y-8">
+                <!-- Clinic Feedback -->
+                <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                    <h4 class="font-bold text-gray-900 mb-4 flex items-center space-x-2">
+                        <i data-lucide="activity" class="text-red-600 w-5 h-5"></i>
+                        <span>Clinic Feedback</span>
+                    </h4>
+                    <div id="clinicFeedbackList" class="space-y-4">
+                        <p class="text-center py-4 text-gray-400 text-xs">No recent medical feedback</p>
+                    </div>
+                </div>
+
+                <!-- Recent Announcements -->
+                <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                    <h4 class="font-bold text-gray-900 mb-4 flex items-center space-x-2">
+                        <i data-lucide="megaphone" class="text-amber-600 w-5 h-5"></i>
+                        <span>Class Alerts</span>
+                    </h4>
+                    <div id="classAnnouncements" class="space-y-4">
+                        <p class="text-center py-4 text-gray-400 text-xs">No recent class alerts</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script type="module" src="../js/teacher-dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guard Dashboard - EducareTrack</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Tailwind Fallback
+        window.addEventListener('error', function(e) {
+            if (e.target.tagName === 'LINK' || e.target.tagName === 'SCRIPT') {
+                if (e.target.src?.includes('tailwindcss') || e.target.href?.includes('tailwindcss')) {
+                    const fallback = document.createElement('link');
+                    fallback.rel = 'stylesheet';
+                    fallback.href = '../css/offline-fallback.css';
+                    document.head.appendChild(fallback);
+                    console.warn('Tailwind CDN down, loading local fallback CSS');
+                }
+            }
+        }, true);
+    </script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body class="bg-gray-50 theme-guard min-h-screen">
+    <!-- Mobile Navigation (Top Bar) -->
+    <header class="bg-white border-b border-gray-200 p-4 sticky top-0 z-40 flex justify-between items-center lg:hidden">
+        <div class="flex items-center space-x-2">
+            <div class="bg-yellow-100 p-1.5 rounded-lg">
+                <i data-lucide="graduation-cap" class="text-yellow-600 w-5 h-5"></i>
+            </div>
+            <span class="font-bold text-gray-900">Educare Guard</span>
+        </div>
+        <button id="logoutBtnMobile" class="text-red-600">
+            <i data-lucide="log-out" class="w-6 h-6"></i>
+        </button>
+    </header>
+
+    <div class="flex">
+        <!-- Sidebar (Hidden on mobile) -->
+        <aside class="hidden lg:flex flex-col w-64 bg-white border-r border-gray-200 h-screen sticky top-0">
+            <div class="p-6">
+                <div class="flex items-center space-x-3 mb-8">
+                    <div class="bg-yellow-100 p-2 rounded-lg">
+                        <i data-lucide="shield-check" class="text-yellow-600 w-6 h-6"></i>
+                    </div>
+                    <span class="text-xl font-bold text-gray-900">Educare</span>
+                </div>
+                <nav class="space-y-1">
+                    <a href="#" class="flex items-center space-x-3 px-4 py-3 rounded-xl bg-yellow-50 text-yellow-600 font-medium">
+                        <i data-lucide="qr-code" class="w-5 h-5"></i>
+                        <span>Scanner</span>
+                    </a>
+                </nav>
+            </div>
+            <div class="mt-auto p-6 border-t border-gray-100">
+                <button id="logoutBtn" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-red-600 hover:bg-red-50 transition-all">
+                    <i data-lucide="log-out" class="w-5 h-5"></i>
+                    <span>Logout</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 p-4 lg:p-8">
+            <div class="max-w-4xl mx-auto">
+                <div class="flex flex-col lg:flex-row gap-8">
+                    <!-- Scanner Side -->
+                    <div class="flex-1 space-y-6">
+                        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 overflow-hidden">
+                            <h2 class="text-xl font-bold text-gray-900 mb-4 flex items-center space-x-2">
+                                <i data-lucide="scan" class="text-yellow-600 w-6 h-6"></i>
+                                <span>Entrance/Exit Scanner</span>
+                            </h2>
+                            
+                            <!-- QR Scanner -->
+                            <div id="reader" class="rounded-xl overflow-hidden border-2 border-dashed border-gray-200 bg-gray-50"></div>
+                            
+                            <!-- Manual Input for USB Scanner -->
+                            <div class="mt-6">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Manual ID Entry (for PC/USB Scanner)</label>
+                                <div class="flex space-x-2">
+                                    <input type="text" id="manualID" placeholder="EDU-YYYY-LRN-XXXX" 
+                                        class="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-yellow-500 outline-none">
+                                    <button id="processManualID" class="bg-yellow-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-yellow-700 transition-all">Process</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Scan Status Card (Dynamic) -->
+                        <div id="statusCard" class="hidden bg-white rounded-2xl shadow-xl border-4 border-gray-100 p-8 text-center transform transition-all scale-95 opacity-0">
+                            <div id="statusIcon" class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <!-- Icon will be injected -->
+                            </div>
+                            <h3 id="statusTitle" class="text-2xl font-bold mb-2"></h3>
+                            <p id="statusStudent" class="text-gray-600 text-lg mb-1"></p>
+                            <p id="statusTime" class="text-gray-400 text-sm"></p>
+                            <div id="statusDetails" class="mt-4 p-3 bg-gray-50 rounded-lg text-sm font-medium text-gray-600"></div>
+                        </div>
+                    </div>
+
+                    <!-- History Side -->
+                    <div class="w-full lg:w-80 space-y-6">
+                        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                            <h3 class="font-bold text-gray-900 mb-4">Recent Scans</h3>
+                            <div id="scanHistory" class="space-y-4 max-h-[600px] overflow-y-auto pr-2">
+                                <!-- History items will be injected -->
+                                <p class="text-gray-400 text-sm text-center py-10">No scans recorded yet</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Audio Alerts -->
+    <audio id="successSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"></audio>
+    <audio id="errorSound" src="https://assets.mixkit.co/active_storage/sfx/2868/2868-preview.mp3"></audio>
+
+    <script type="module" src="../js/guard-dashboard.js"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>

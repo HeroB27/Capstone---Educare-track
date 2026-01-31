@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Educare Track</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Tailwind Fallback
+        window.addEventListener('error', function(e) {
+            if (e.target.tagName === 'LINK' || e.target.tagName === 'SCRIPT') {
+                if (e.target.src?.includes('tailwindcss') || e.target.href?.includes('tailwindcss')) {
+                    const fallback = document.createElement('link');
+                    fallback.rel = 'stylesheet';
+                    fallback.href = '../css/offline-fallback.css';
+                    document.head.appendChild(fallback);
+                }
+            }
+        }, true);
+    </script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body class="bg-gray-50 theme-admin min-h-screen flex">
+    <!-- Sidebar -->
+    <aside id="sidebar" class="w-64 bg-white border-r border-gray-200 sidebar-transition fixed h-full z-40"></aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 ml-64 p-8">
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-8"></header>
+
+        <!-- Dashboard Section -->
+        <section id="dashboardSection" class="section-content">
+            <!-- Quick Actions -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                <a href="admin-users.html" class="p-4 bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all group">
+                    <div class="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-blue-600 transition-all">
+                        <i data-lucide="user-plus" class="text-blue-600 w-5 h-5 group-hover:text-white"></i>
+                    </div>
+                    <p class="text-sm font-bold text-gray-900">Add User</p>
+                    <p class="text-[10px] text-gray-500">Staff or Parent</p>
+                </a>
+                <a href="admin-ids.html" class="p-4 bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all group">
+                    <div class="w-10 h-10 bg-violet-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-violet-600 transition-all">
+                        <i data-lucide="credit-card" class="text-violet-600 w-5 h-5 group-hover:text-white"></i>
+                    </div>
+                    <p class="text-sm font-bold text-gray-900">Issue ID</p>
+                    <p class="text-[10px] text-gray-500">Preview & Print</p>
+                </a>
+                <a href="admin-classes.html" class="p-4 bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all group">
+                    <div class="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-indigo-600 transition-all">
+                        <i data-lucide="layout-grid" class="text-indigo-600 w-5 h-5 group-hover:text-white"></i>
+                    </div>
+                    <p class="text-sm font-bold text-gray-900">Manage Classes</p>
+                    <p class="text-[10px] text-gray-500">Assign Teachers</p>
+                </a>
+                <a href="admin-announcements.html" class="p-4 bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all group">
+                    <div class="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-amber-600 transition-all">
+                        <i data-lucide="megaphone" class="text-amber-600 w-5 h-5 group-hover:text-white"></i>
+                    </div>
+                    <p class="text-sm font-bold text-gray-900">Announce</p>
+                    <p class="text-[10px] text-gray-500">School-wide Alert</p>
+                </a>
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-8">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="bg-blue-100 p-2.5 rounded-xl">
+                            <i data-lucide="users" class="text-blue-600 w-5 h-5"></i>
+                        </div>
+                    </div>
+                    <p class="text-gray-500 text-xs mb-1">Total Students</p>
+                    <h3 id="totalStudents" class="text-xl font-bold text-gray-900">0</h3>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="bg-indigo-100 p-2.5 rounded-xl">
+                            <i data-lucide="user-cog" class="text-indigo-600 w-5 h-5"></i>
+                        </div>
+                    </div>
+                    <p class="text-gray-500 text-xs mb-1">Total Teachers</p>
+                    <h3 id="totalTeachers" class="text-xl font-bold text-gray-900">0</h3>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="bg-green-100 p-2.5 rounded-xl">
+                            <i data-lucide="user-check" class="text-green-600 w-5 h-5"></i>
+                        </div>
+                    </div>
+                    <p class="text-gray-500 text-xs mb-1">Present Today</p>
+                    <h3 id="presentCount" class="text-xl font-bold text-gray-900">0</h3>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="bg-yellow-100 p-2.5 rounded-xl">
+                            <i data-lucide="clock" class="text-yellow-600 w-5 h-5"></i>
+                        </div>
+                    </div>
+                    <p class="text-gray-500 text-xs mb-1">Late Today</p>
+                    <h3 id="lateCount" class="text-xl font-bold text-gray-900">0</h3>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="bg-red-100 p-2.5 rounded-xl">
+                            <i data-lucide="user-x" class="text-red-600 w-5 h-5"></i>
+                        </div>
+                    </div>
+                    <p class="text-gray-500 text-xs mb-1">Absent Today</p>
+                    <h3 id="absentCount" class="text-xl font-bold text-gray-900">0</h3>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="bg-purple-100 p-2.5 rounded-xl">
+                            <i data-lucide="clipboard-check" class="text-purple-600 w-5 h-5"></i>
+                        </div>
+                    </div>
+                    <p class="text-gray-500 text-xs mb-1">Excused Today</p>
+                    <h3 id="excusedCount" class="text-xl font-bold text-gray-900">0</h3>
+                </div>
+            </div>
+
+            <!-- Charts Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                <!-- Trend Line -->
+                <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <div class="flex justify-between items-center mb-6">
+                        <h4 class="text-lg font-bold text-gray-900">Performance Rate Over Time</h4>
+                        <select class="text-xs border-none bg-gray-50 rounded-lg px-2 py-1 outline-none">
+                            <option>Last 7 Days</option>
+                            <option>Last 30 Days</option>
+                        </select>
+                    </div>
+                    <div class="h-[300px] relative">
+                        <canvas id="performanceTrendChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Distribution Pie -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h4 class="text-lg font-bold text-gray-900 mb-6">Attendance Distribution</h4>
+                    <div class="h-[300px] relative">
+                        <canvas id="attendanceDistChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Class Performance Bar -->
+                <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h4 class="text-lg font-bold text-gray-900 mb-6">Performance Per Class</h4>
+                    <div class="h-[300px] relative">
+                        <canvas id="classPerformanceChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Announcements -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h4 class="text-lg font-bold text-gray-900 mb-6">Recent Announcements</h4>
+                    <div id="recentAnnouncements" class="space-y-4">
+                        <div class="flex items-center justify-center py-20 text-gray-400">
+                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
+                        </div>
+                    </div>
+                    <a href="admin-announcements.html" class="block text-center text-violet-600 font-bold text-sm mt-6 hover:text-violet-700">View All</a>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script type="module" src="../js/admin-dashboard.js"></script>
+</body>
+</html>

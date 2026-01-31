@@ -1,0 +1,72 @@
+# 🎓 EDUCARE TRACK - HANDOVER GUIDE
+
+Welcome to the **Educare Track** project! This is a production-grade school monitoring system built with **Supabase**, **Tailwind CSS**, and **PWA** capabilities.
+
+---
+
+## 🚀 How to Open & Run the Project
+
+1.  **Local Server (Recommended)**:
+    - Open your terminal in the project root.
+    - Run: `python -m http.server 8000`
+    - Open your browser to: `http://localhost:8000`
+2.  **Direct Access**: You can also just open `index.html` directly in your browser, but PWA features (Service Workers) require a local server to function correctly.
+3.  **Database Setup**:
+    - Open `data-initializer.html` in your browser.
+    - Click **"Wipe & Seed Production Data"**. This will populate the Supabase database with all roles, classes, and students needed for testing.
+
+---
+
+## 🛠 Project Structure
+
+-   `/pages`: Role-specific HTML dashboards (Admin, Teacher, Guard, Parent, Clinic).
+-   `/js`: Business logic, real-time listeners, and Supabase integrations.
+-   `utils.js`: Core utilities for ID generation, layout rendering, and offline monitoring.
+-   `service-worker.js`: Handles caching and offline queuing for the PWA.
+
+---
+
+## 🏗 Core Workflows to Understand
+
+### 1. Guard (Gatekeeper)
+-   **Gate Scans**: Scans student QRs. Detects `entry` or `exit`.
+-   **Tap Logic**: Identifies `late`, `morning_absent` (afternoon entry), and `early_exit`.
+-   **Offline Mode**: Scans are queued in LocalStorage if the internet is down and synced automatically when back online.
+
+### 2. Clinic (Medical)
+-   **The Chain**: Teacher Pass → Nurse Approval → QR Check-in → Nurse Findings → Teacher Approval → Parent Alert.
+-   **Accountability**: No student enters the clinic without a teacher's pass.
+
+### 3. Admin (Operator)
+-   **Management**: Multi-step modals for creating Staff (Teacher, Guard, Clinic) and linking Students to Parents.
+-   **Analytics**: Visual charts for attendance trends and "Critical Absence" (20+) alerts.
+
+---
+
+## 🎯 What to Do Next (Upgrades)
+
+1.  **PWA Push Notifications**: Implement real-world push alerts using the Web Push API (currently uses an internal notification system).
+2.  **Photo Uploads**: Integrate a real storage solution (Supabase Storage) for student ID photos (currently uses Base64 strings).
+3.  **Report Generation**: Add a "Generate PDF" feature for student attendance reports and clinic history.
+4.  **Admin Calendar**: Link the school calendar more deeply into the attendance engine (e.g., auto-marking holidays as non-school days).
+
+---
+
+## 🧪 Testing Checklist
+
+-   [ ] **Tailwind Fallback**: Disable internet and verify that `css/offline-fallback.css` loads if the CDN fails.
+-   [ ] **Offline Scanning**: Toggle "Offline" in DevTools, scan a student, and verify it syncs when back "Online".
+-   [ ] **ID Generation**: Create a new student and verify the ID matches `EDU-2026-LRN-RAND`.
+-   [ ] **Clinic Gating**: Try to check a student into the clinic without a teacher-issued pass (should be blocked).
+-   [ ] **Parent Notifications**: Verify parents only receive clinic results AFTER the teacher approves the findings.
+
+---
+
+## 🔑 Credentials (Sample Data)
+-   **Admin**: `admin1` / `password123`
+-   **Teacher**: `teacher1` / `password123`
+-   **Guard**: `guard1` / `password123`
+-   **Nurse**: `nurse1` / `password123`
+-   **Parent**: `parent1` / `password123`
+
+Good luck! This system is built to feel like a real school information system. Reach out if you have questions!

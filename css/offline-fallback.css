@@ -1,0 +1,106 @@
+/* EDUCARE TRACK - Offline Fallback Styles */
+/* A lightweight CSS backup for when Tailwind CDN is down */
+
+:root {
+    --primary-violet: #7c3aed;
+    --primary-blue: #2563eb;
+    --primary-green: #16a34a;
+    --primary-yellow: #ca8a04;
+    --primary-red: #dc2626;
+    --slate-50: #f8fafc;
+    --slate-100: #f1f5f9;
+    --slate-200: #e2e8f0;
+    --slate-300: #cbd5e1;
+    --slate-400: #94a3b8;
+    --slate-500: #64748b;
+    --slate-600: #475569;
+    --slate-700: #334155;
+    --slate-800: #1e293b;
+    --slate-900: #0f172a;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; font-family: 'Inter', system-ui, sans-serif; background-color: var(--slate-50); color: var(--slate-900); }
+
+/* Layout */
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.justify-center { justify-content: center; }
+.space-x-4 > * + * { margin-left: 1rem; }
+.space-y-4 > * + * { margin-top: 1rem; }
+.grid { display: grid; }
+.grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+.gap-6 { gap: 1.5rem; }
+
+/* Dimensions */
+.h-screen { height: 100vh; }
+.w-64 { width: 16rem; }
+.flex-1 { flex: 1 1 0%; }
+.p-6 { padding: 1.5rem; }
+.p-8 { padding: 2rem; }
+
+/* Components */
+.bg-white { background-color: #ffffff; }
+.border-r { border-right: 1px solid var(--slate-200); }
+.rounded-xl { border-radius: 0.75rem; }
+.rounded-2xl { border-radius: 1rem; }
+.shadow-sm { box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
+
+/* Typography */
+.text-xl { font-size: 1.25rem; }
+.text-2xl { font-size: 1.5rem; }
+.font-bold { font-weight: 700; }
+.font-black { font-weight: 900; }
+.text-gray-900 { color: var(--slate-900); }
+.text-gray-500 { color: var(--slate-500); }
+
+/* Sidebar Fallback */
+#sidebar {
+    background: white;
+    min-height: 100vh;
+}
+
+.nav-link {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    text-decoration: none;
+    color: var(--slate-600);
+    border-radius: 0.75rem;
+    margin-bottom: 0.25rem;
+}
+
+.nav-link.active {
+    background-color: var(--slate-100);
+    font-weight: bold;
+}
+
+/* Offline Banner */
+#offline-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: #fef2f2;
+    color: #991b1b;
+    padding: 0.5rem;
+    text-align: center;
+    font-size: 0.75rem;
+    font-weight: bold;
+    z-index: 9999;
+    border-bottom: 1px solid #fee2e2;
+    display: none;
+}
+
+body.is-offline #offline-banner {
+    display: block;
+}
+
+body.is-offline {
+    padding-top: 2rem;
+}
+
+/* Utilities */
+.hidden { display: none !important; }

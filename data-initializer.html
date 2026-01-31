@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Seeding Agent - Educare Track</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .log-container {
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .progress-bar {
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen p-8">
+    <div class="max-w-4xl mx-auto">
+        <div class="flex items-center space-x-4 mb-8">
+            <div class="bg-emerald-600 p-3 rounded-2xl shadow-lg shadow-emerald-500/20">
+                <i data-lucide="sprout" class="w-8 h-8 text-white"></i>
+            </div>
+            <div>
+                <h1 class="text-3xl font-bold">🌱 Data Seeding Agent</h1>
+                <p class="text-slate-400">Strict, Schema-Bound Database Population for EDUCARE TRACK</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <!-- Configuration Card -->
+            <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
+                <h2 class="text-lg font-bold mb-4 flex items-center">
+                    <i data-lucide="shield-check" class="w-5 h-5 mr-2 text-emerald-400"></i>
+                    Seeding Scope (Locked)
+                </h2>
+                <ul class="space-y-3 text-sm text-slate-300">
+                    <li class="flex justify-between">
+                        <span>Admins & Guards</span>
+                        <span class="text-emerald-400 font-bold">2 each</span>
+                    </li>
+                    <li class="flex justify-between">
+                        <span>Teachers (Homeroom/Subject)</span>
+                        <span class="text-emerald-400 font-bold">20</span>
+                    </li>
+                    <li class="flex justify-between">
+                        <span>Classes (No Sections)</span>
+                        <span class="text-emerald-400 font-bold">13 (K-12)</span>
+                    </li>
+                    <li class="flex justify-between">
+                        <span>Students (5 per class)</span>
+                        <span class="text-emerald-400 font-bold">65</span>
+                    </li>
+                    <li class="flex justify-between">
+                        <span>Attendance & Validations</span>
+                        <span class="text-emerald-400 font-bold">Nov 2025 - Present</span>
+                    </li>
+                </ul>
+
+                <div class="mt-8 space-y-4">
+                    <button id="startBtn" class="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-all shadow-lg shadow-emerald-600/20 flex items-center justify-center space-x-2">
+                        <i data-lucide="play" class="w-5 h-5"></i>
+                        <span>Begin Seeding</span>
+                    </button>
+                    <button id="clearDataBtn" class="w-full py-3 bg-slate-700 hover:bg-red-600 text-slate-300 hover:text-white rounded-xl font-bold transition-all flex items-center justify-center space-x-2 border border-slate-600 hover:border-red-500">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        <span>Clear All Data</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Status Card -->
+            <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
+                <h2 class="text-lg font-bold mb-4 flex items-center">
+                    <i data-lucide="activity" class="w-5 h-5 mr-2 text-blue-400"></i>
+                    Status
+                </h2>
+                
+                <div class="space-y-6">
+                    <div>
+                        <div class="flex justify-between text-xs mb-2">
+                            <span class="text-slate-400">Overall Progress</span>
+                            <span id="progressPercent" class="text-blue-400 font-bold">0%</span>
+                        </div>
+                        <div class="w-full h-3 bg-slate-700 rounded-full overflow-hidden">
+                            <div id="progressBar" class="progress-bar h-full bg-blue-500 w-0"></div>
+                        </div>
+                    </div>
+
+                    <div id="currentAction" class="text-sm font-medium text-slate-200">
+                        Ready to seed...
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50 text-center">
+                            <p class="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Validations</p>
+                            <p id="countValidations" class="text-xl font-bold">0</p>
+                        </div>
+                        <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50 text-center">
+                            <p class="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Audit Logs</p>
+                            <p id="countAudit" class="text-xl font-bold">0</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs -->
+        <div class="bg-slate-800 rounded-2xl border border-slate-700 shadow-xl overflow-hidden">
+            <div class="p-4 bg-slate-700/30 border-b border-slate-700 flex justify-between items-center">
+                <h3 class="text-sm font-bold uppercase tracking-widest text-slate-400">Seeding Logs</h3>
+                <button id="clearLogs" class="text-[10px] text-slate-500 hover:text-slate-300 uppercase font-bold">Clear</button>
+            </div>
+            <div id="logs" class="log-container p-4 text-slate-400">
+                <div>[SYSTEM] Awaiting user command...</div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import _supabase from './js/supabase-config.js';
+
+        const state = {
+            progress: 0,
+            profilesCreated: 0,
+            validationsCreated: 0,
+            auditCreated: 0,
+            logsCreated: 0
+        };
+
+        const firstNames = ['Juan', 'Maria', 'Jose', 'Elena', 'Ricardo', 'Liza', 'Antonio', 'Teresita', 'Gabriel', 'Carmelita', 'Mateo', 'Angelita', 'Dominador', 'Priscila', 'Ramon', 'Imelda', 'Felipe', 'Corazon', 'Emilio', 'Lourdes'];
+        const lastNames = ['Pascua', 'Bautista', 'Cariño', 'Domogan', 'Molintas', 'Fianza', 'Aliping', 'Cosalan', 'Vergara', 'Mauricio', 'Tabora', 'Bugnosen', 'Hamada', 'Okubo', 'Bello', 'Perez', 'Garcia', 'Dimalanta', 'Santos', 'Reyes'];
+        const grades = ['Kinder', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+        const strands = ['STEM', 'ABM', 'HUMSS', 'TVL-ICT'];
+        const subjects = ['MATH', 'SCI', 'ENG', 'FIL', 'MAPEH', 'ICT'];
+
+        const log = (msg, type = 'info') => {
+            const el = document.getElementById('logs');
+            const div = document.createElement('div');
+            const color = type === 'error' ? 'text-red-400' : type === 'success' ? 'text-emerald-400' : 'text-slate-400';
+            div.className = `mb-1 ${color}`;
+            div.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            el.appendChild(div);
+            el.scrollTop = el.scrollHeight;
+        };
+
+        const updateUI = (action) => {
+            if (action) document.getElementById('currentAction').innerText = action;
+            document.getElementById('progressBar').style.width = `${state.progress}%`;
+            document.getElementById('progressPercent').innerText = `${Math.round(state.progress)}%`;
+            document.getElementById('countValidations').innerText = state.validationsCreated;
+            document.getElementById('countAudit').innerText = state.auditCreated;
+        };
+
+        const generateStaffID = (role, year, phone) => {
+            const prefix = role === 'admin' ? 'ADM' : 
+                           role === 'teacher' ? 'TCH' : 
+                           role === 'clinic' ? 'CLC' : 'GRD';
+            const last4Phone = phone.toString().replace(/\D/g, '').slice(-4);
+            const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
+            return `${prefix}-${year}-${last4Phone}-${randomStr}`;
+        };
+
+        const generateStudentID = (year, LRN) => {
+            const cleanLRN = LRN.toString().replace(/\D/g, '');
+            const last4 = cleanLRN.slice(-4);
+            const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
+            return `EDU-${year}-${last4}-${randomStr}`;
+        };
+
+        async function clearDatabase() {
+            if (!confirm('STRICT MODE: This will wipe all tables. Continue?')) return;
+            
+            try {
+                const tables = [
+                    'audit_logs', 'attendance_validations', 'attendance', 'clinic_visits', 
+                    'qr_codes', 'parent_students', 'students', 'classes', 
+                    'teachers', 'parents', 'guards', 'clinic_staff', 
+                    'admin_staff', 'announcements', 'school_calendar', 
+                    'subjects', 'profiles'
+                ];
+
+                log('Initiating wipe...', 'warning');
+                for (const table of tables) {
+                    const { error } = await _supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+                    if (error) log(`Table ${table} wipe error: ${error.message}`, 'error');
+                }
+                log('Database wiped successfully.', 'success');
+            } catch (err) {
+                log(`Wipe failed: ${err.message}`, 'error');
+            }
+        }
+
+        async function seed() {
+            try {
+                const startBtn = document.getElementById('startBtn');
+                startBtn.disabled = true;
+                log('Starting strict seeding sequence...', 'success');
+
+                // 1. Admin & Guard & Clinic Staff Seeding
+                log('Seeding Admins, Guards, and Clinic Staff...');
+                const adminIds = [];
+                const guardIds = [];
+                const clinicStaffIds = [];
+                const currentYear = new Date().getFullYear();
+
+                for(let i=0; i<2; i++) {
+                    // Admin
+                    const aPhone = `0917000000${i}`;
+                    const { data: ap } = await _supabase.from('profiles').insert([{
+                        id: generateStaffID('admin', currentYear, aPhone),
+                        role: 'admin', full_name: `${firstNames[i]} ${lastNames[i]}`,
+                        username: `admin${i+1}`, password: 'password123', email: `admin${i+1}@educare.edu.ph`,
+                        phone: aPhone, is_active: true
+                    }]).select().single();
+                    if(ap) {
+                        await _supabase.from('admin_staff').insert([{ id: ap.id, position: 'Lead Administrator' }]);
+                        adminIds.push(ap.id);
+                    }
+
+                    // Guard
+                    const gPhone = `0918000000${i}`;
+                    const { data: gp } = await _supabase.from('profiles').insert([{
+                        id: generateStaffID('guard', currentYear, gPhone),
+                        role: 'guard', full_name: `Guard ${firstNames[i+2]}`,
+                        username: `guard${i+1}`, password: 'password123',
+                        phone: gPhone, is_active: true
+                    }]).select().single();
+                    if(gp) {
+                        await _supabase.from('guards').insert([{ id: gp.id, shift: 'Day', assigned_gate: 'Main Gate' }]);
+                        guardIds.push(gp.id);
+                    }
+
+                    // Clinic Staff
+                    const cPhone = `0919000000${i}`;
+                    const { data: cp } = await _supabase.from('profiles').insert([{
+                        id: generateStaffID('clinic', currentYear, cPhone),
+                        role: 'clinic', full_name: `Nurse ${firstNames[i+4]}`,
+                        username: `nurse${i+1}`, password: 'password123',
+                        phone: cPhone, is_active: true
+                    }]).select().single();
+                    if(cp) {
+                        await _supabase.from('clinic_staff').insert([{ id: cp.id }]);
+                        clinicStaffIds.push(cp.id);
+                    }
+                }
+                state.progress = 10; updateUI('Admins, Guards, and Clinic Staff seeded.');
+
+                // 2. Teacher Seeding
+                log('Seeding 20 Teachers...');
+                const teacherIds = [];
+                for(let i=0; i<20; i++) {
+                    const tPhone = `09200000${100+i}`;
+                    const { data: tp } = await _supabase.from('profiles').insert([{
+                        id: generateStaffID('teacher', currentYear, tPhone),
+                        full_name: `${firstNames[i % 20]} ${lastNames[(i+5)%20]}`, role: 'teacher',
+                        username: `teacher${i+1}`, password: 'password123',
+                        phone: tPhone, is_active: true
+                    }]).select().single();
+                    if(tp) {
+                        await _supabase.from('teachers').insert([{ 
+                            id: tp.id, employee_no: `TCH-${currentYear}-${100+i}`, 
+                            is_homeroom: i < 13,
+                            assigned_subjects: [subjects[i % subjects.length], subjects[(i+1) % subjects.length]]
+                        }]);
+                        teacherIds.push(tp.id);
+                    }
+                }
+                state.progress = 20; updateUI('Teachers seeded.');
+
+                // 3. Class Seeding (NO SECTIONS)
+                log('Seeding Classes (No Sections)...');
+                const classes = [];
+                for(let i=0; i<grades.length; i++) {
+                    const grade = grades[i];
+                    const strand = (grade === '11' || grade === '12') ? strands[i % 4] : null;
+                    const classId = `CLS-${grade}${strand ? '-'+strand : ''}`;
+                    const { data: cls } = await _supabase.from('classes').insert([{
+                        id: classId, grade: grade, strand: strand, adviser_id: teacherIds[i],
+                        room: `Room ${101+i}`, level: parseInt(grade) >= 7 || grade === '11' || grade === '12' ? 'High School' : 'Elementary'
+                    }]).select().single();
+                    if(cls) classes.push(cls);
+                }
+                state.progress = 30; updateUI('Classes seeded.');
+
+                // 4. Student & Parent Seeding
+                log('Seeding Students & Linking Parents...');
+                const studentRecords = [];
+                const parentIds = [];
+                for(let i=0; i<classes.length; i++) {
+                    const cls = classes[i];
+                    for(let j=0; j<5; j++) {
+                        const sIdx = i * 5 + j;
+                        const pPhone = `09300000${100+sIdx}`;
+                        // Parent Profile
+                        const { data: pp } = await _supabase.from('profiles').insert([{
+                            full_name: `${firstNames[(sIdx+5)%20]} Parent`, role: 'parent',
+                            username: `parent${sIdx+1}`, password: 'password123',
+                            phone: pPhone, is_active: true
+                        }]).select().single();
+                        if(pp) {
+                            await _supabase.from('parents').insert([{ id: pp.id, address: 'Baguio City' }]);
+                            parentIds.push(pp.id);
+                            // Student Profile
+                            const studentID = generateStudentID(currentYear, `100000${sIdx}`);
+                            const { data: stu } = await _supabase.from('students').insert([{
+                                id: studentID, lrn: `100000${sIdx}`, 
+                                full_name: `${firstNames[(sIdx+10)%20]} ${lastNames[(sIdx+12)%20]}`,
+                                grade_level: cls.grade, strand: cls.strand, class_id: cls.id,
+                                current_status: 'out'
+                            }]).select().single();
+                            if(stu) {
+                                await _supabase.from('parent_students').insert([{ parent_id: pp.id, student_id: stu.id }]);
+                                await _supabase.from('qr_codes').insert([{ student_id: stu.id, qr_hash: stu.id }]);
+                                studentRecords.push(stu);
+                            }
+                        }
+                    }
+                }
+                state.progress = 60; updateUI('Students & Parents seeded.');
+
+                // 5. Attendance & Validation Seeding
+                log('Seeding Variety Attendance...');
+                const dates = ['2026-01-26', '2026-01-27', '2026-01-28', '2026-01-29', '2026-01-30'];
+                for(const date of dates) {
+                    for(const cls of classes) {
+                        const subject = subjects[Math.floor(Math.random()*subjects.length)];
+                        const sessionType = 'AM';
+                        
+                        // Teacher Roll Call Validation
+                        const { data: val } = await _supabase.from('attendance_validations').insert([{
+                            class_id: cls.id, teacher_id: cls.adviser_id, subject: subject,
+                            session: sessionType, attendance_date: date, validated_by: cls.adviser_id,
+                            remarks: 'Daily Roll Call'
+                        }]).select().single();
+                        
+                        if(val) {
+                            state.validationsCreated++;
+                            const classStudents = studentRecords.filter(s => s.class_id === cls.id);
+                            
+                            const attRows = classStudents.map(s => {
+                                const roll = Math.random();
+                                let status = 'present';
+                                let remarks = 'On Time';
+                                let entry_type = 'entry';
+                                let time = '07:15:00';
+
+                                if (roll > 0.9) {
+                                    status = 'absent';
+                                    remarks = 'No show';
+                                } else if (roll > 0.8) {
+                                    status = 'late';
+                                    remarks = 'Entered Late';
+                                    time = '07:45:00';
+                                } else if (roll > 0.7) {
+                                    status = 'morning_absent';
+                                    remarks = 'First scan afternoon';
+                                    time = '13:15:00';
+                                }
+
+                                return {
+                                    student_id: s.id, class_id: cls.id, 
+                                    status, entry_type, session: sessionType, method: 'qr',
+                                    timestamp: `${date}T${time}Z`, recorded_by: guardIds[0],
+                                    remarks
+                                };
+                            });
+                            await _supabase.from('attendance').insert(attRows);
+
+                            // Add some exit scans
+                            const exitRows = classStudents.filter(() => Math.random() > 0.3).map(s => {
+                                const roll = Math.random();
+                                let status = 'present';
+                                let remarks = 'Regular Exit';
+                                let time = '16:45:00';
+
+                                if (roll > 0.9) {
+                                    status = 'early_exit';
+                                    remarks = 'Early Dismissal';
+                                    time = '14:00:00';
+                                } else if (roll > 0.8) {
+                                    status = 'late_exit';
+                                    remarks = 'Late Exit';
+                                    time = '17:30:00';
+                                }
+
+                                return {
+                                    student_id: s.id, class_id: cls.id, 
+                                    status, entry_type: 'exit', session: 'PM', method: 'qr',
+                                    timestamp: `${date}T${time}Z`, recorded_by: guardIds[1],
+                                    remarks
+                                };
+                            });
+                            await _supabase.from('attendance').insert(exitRows);
+                        }
+                    }
+                    updateUI(`Attendance for ${date} seeded.`);
+                }
+                state.progress = 80;
+
+                // 6. Clinic Workflow Seeding
+                log('Seeding Clinic Workflow...');
+                for(let i=0; i<5; i++) {
+                    const student = studentRecords[i];
+                    const teacherId = teacherIds[0];
+                    const nurseId = clinicStaffIds[0];
+                    const date = '2026-01-31';
+
+                    // Step 1: Teacher Pass (Pending Attendance)
+                    const { data: att } = await _supabase.from('attendance').insert([{
+                        student_id: student.id, status: 'pending', entry_type: 'clinic',
+                        method: 'manual', recorded_by: teacherId, timestamp: `${date}T09:00:00Z`,
+                        remarks: 'Headache | Complaining of sharp pain'
+                    }]).select().single();
+
+                    if(att) {
+                        // Step 2: Nurse Approval
+                        await _supabase.from('attendance').update({ status: 'approved' }).eq('id', att.id);
+
+                        // Step 3: QR Check-in (clinic_visits)
+                        const { data: visit } = await _supabase.from('clinic_visits').insert([{
+                            student_id: student.id, treated_by: nurseId, visit_time: `${date}T09:15:00Z`,
+                            reason: 'Severe Headache'
+                        }]).select().single();
+
+                        if(visit) {
+                            // Step 4: Nurse Findings & Decision
+                            const decision = i % 2 === 0 ? 'return_to_class' : 'send_home';
+                            await _supabase.from('clinic_visits').update({ 
+                                notes: 'Provided paracetamol and 15 mins rest.' 
+                            }).eq('id', visit.id);
+
+                            await _supabase.from('attendance').update({ 
+                                status: 'in_clinic',
+                                remarks: `Decision: ${decision} | Nurse Note: Provided paracetamol | Parent Notified` 
+                            }).eq('id', att.id);
+
+                            // Step 5: Checkout
+                            const finalStatus = decision === 'send_home' ? 'sent_home' : 'returned';
+                            await _supabase.from('attendance').update({ status: finalStatus }).eq('id', att.id);
+                            await _supabase.from('students').update({ 
+                                current_status: decision === 'send_home' ? 'sent_home' : 'out' 
+                            }).eq('id', student.id);
+                        }
+                    }
+                }
+                state.progress = 90; updateUI('Clinic workflows seeded.');
+
+                // 7. Audit & Notifications
+                log('Seeding Audit & Notifications...');
+                const sampleStudent = studentRecords[0];
+                const sampleParent = parentIds[0];
+
+                await _supabase.from('notifications').insert([
+                    {
+                        recipient_id: sampleParent, actor_id: guardIds[0],
+                        verb: 'attendance_entry', 
+                        object: { student_name: sampleStudent.full_name, remarks: 'On Time Entry' }
+                    },
+                    {
+                        recipient_id: teacherIds[0], actor_id: clinicStaffIds[0],
+                        verb: 'clinic_findings_ready',
+                        object: { student_name: sampleStudent.full_name, decision: 'return_to_class' }
+                    }
+                ]);
+
+                await _supabase.from('audit_logs').insert([
+                    {
+                        actor_id: guardIds[0], action: 'GATE_ENTRY',
+                        target_table: 'attendance', target_id: sampleStudent.id,
+                        details: { student: sampleStudent.full_name, status: 'present' }
+                    },
+                    {
+                        actor_id: clinicStaffIds[0], action: 'CLINIC_CHECKIN',
+                        target_table: 'clinic_visits', target_id: sampleStudent.id,
+                        details: { student: sampleStudent.full_name }
+                    }
+                ]);
+                state.auditCreated += 2;
+
+                state.progress = 100;
+                updateUI('Seeding Complete!');
+                log('All production-grade sample data seeded successfully.', 'success');
+                startBtn.innerText = 'Seeding Done';
+                startBtn.disabled = false;
+
+            } catch (err) {
+                log(err.message, 'error');
+                document.getElementById('startBtn').disabled = false;
+            }
+        }
+
+        document.getElementById('startBtn').addEventListener('click', seed);
+        document.getElementById('clearDataBtn').addEventListener('click', clearDatabase);
+        document.getElementById('clearLogs').addEventListener('click', () => document.getElementById('logs').innerHTML = '');
+        if (window.lucide) window.lucide.createIcons();
+    </script>
+</body>
+</html>

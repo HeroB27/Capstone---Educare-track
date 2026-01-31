@@ -1,0 +1,49 @@
+/* Custom styles for Educare Track */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+body {
+    font-family: 'Inter', sans-serif;
+}
+
+/* Custom colors based on roles */
+.theme-admin { --role-color: #7c3aed; } /* Violet */
+.theme-teacher { --role-color: #2563eb; } /* Blue */
+.theme-parent { --role-color: #16a34a; } /* Green */
+.theme-guard { --role-color: #ca8a04; } /* Yellow */
+.theme-clinic { --role-color: #dc2626; } /* Red */
+
+/* Sidebar transitions */
+.sidebar-transition {
+    transition: all 0.3s ease-in-out;
+}
+
+/* Modal backdrop */
+.modal-backdrop {
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+}
+
+/* QR Scanner styling */
+#reader {
+    width: 100% !important;
+    border: none !important;
+}
+
+#reader__scan_region {
+    background: #f3f4f6;
+    border-radius: 0.5rem;
+}
+
+/* Print styles for ID Cards */
+@media print {
+    .no-print {
+        display: none !important;
+    }
+    .print-only {
+        display: block !important;
+    }
+    @page {
+        size: 2in 3in;
+        margin: 0;
+    }
+}

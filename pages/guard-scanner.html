@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guard Scanner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="manifest" href="../manifest.json">
+    <meta name="theme-color" content="#f59e0b">
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <header class="bg-white border-b border-gray-200 p-4 sticky top-0 z-40 flex justify-between items-center">
+        <div class="flex items-center space-x-2">
+            <div class="bg-yellow-100 p-1.5 rounded-lg">
+                <i data-lucide="shield-check" class="text-yellow-600 w-5 h-5"></i>
+            </div>
+            <span class="font-bold text-gray-900">Guard Scanner</span>
+        </div>
+        <button id="logoutBtn" class="text-red-600">
+            <i data-lucide="log-out" class="w-6 h-6"></i>
+        </button>
+    </header>
+
+    <main class="max-w-2xl mx-auto p-4">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <h2 class="text-xl font-bold text-gray-900 mb-4 flex items-center space-x-2">
+                <i data-lucide="scan" class="text-yellow-600 w-6 h-6"></i>
+                <span>QR Scanner</span>
+            </h2>
+            <div id="reader" class="rounded-xl overflow-hidden border-2 border-dashed border-gray-200 bg-gray-50"></div>
+            <div class="mt-6">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Manual ID Entry</label>
+                <div class="flex space-x-2">
+                    <input type="text" id="manualID" class="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-yellow-500 outline-none">
+                    <button id="processManualID" class="bg-yellow-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-yellow-700">Process</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="statusCard" class="hidden bg-white rounded-2xl shadow-xl border-4 border-gray-100 p-6 mt-6">
+            <div id="statusIcon" class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"></div>
+            <h3 id="statusTitle" class="text-xl font-bold mb-2"></h3>
+            <p id="statusStudent" class="text-gray-600 text-lg mb-1"></p>
+            <p id="statusTime" class="text-gray-400 text-sm"></p>
+            <div id="statusDetails" class="mt-4 p-3 bg-gray-50 rounded-lg text-sm font-medium text-gray-600"></div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mt-6">
+            <h3 class="font-bold text-gray-900 mb-4">Recent Scans</h3>
+            <div id="scanHistory" class="space-y-4"></div>
+        </div>
+    </main>
+
+    <audio id="successSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"></audio>
+    <audio id="errorSound" src="https://assets.mixkit.co/active_storage/sfx/2868/2868-preview.mp3"></audio>
+
+    <script type="module" src="../js/guard-scanner.js"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>

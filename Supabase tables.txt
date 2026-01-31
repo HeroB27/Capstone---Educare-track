@@ -1,0 +1,275 @@
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE TABLE public.profiles (
+  id uuid DEFAULT gen_random_uuid(),
+  phone text,
+  email text,
+  avatar_url text,
+  full_name text,
+  username text,
+  password text,
+  photo_url text,
+  is_active boolean DEFAULT true,
+  nickname text,
+  gender text,
+  birthdate date,
+  role text,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  PRIMARY KEY (id),
+  CHECK (role IN ('admin','teacher','student','parent','guard','clinic'))
+);
+
+CREATE TABLE public.admin_staff (
+  id uuid,
+  position text,
+  created_at timestamptz DEFAULT now(),
+  PRIMARY KEY (id),
+  FOREIGN KEY (id) REFERENCES public.profiles(id)
+);
+
+CREATE TABLE public.teachers (
+  id uuid,
+  employee_no text UNIQUE,
+  is_homeroom boolean DEFAULT false,
+  is_gatekeeper boolean DEFAULT false,
+  assigned_subjects text[],
+  created_at timestamptz DEFAULT now(),
+  PRIMARY KEY (id),
+  FOREIGN KEY (id) REFERENCES public.profiles(id)
+);
+
+CREATE TABLE public.parents (
+  id uuid,
+  address text,
+  created_at timestamptz DEFAULT now(),
+  PRIMARY KEY (id),
+  FOREIGN KEY (id) REFERENCES public.profiles(id)
+);
+
+CREATE TABLE public.guards (
+  id uuid,
+  shift text,
+  assigned_gate text,
+  created_at timestamptz DEFAULT now(),
+  PRIMARY KEY (id),
+  FOREIGN KEY (id) REFERENCES public.profiles(id)
+);
+
+CREATE TABLE public.clinic_staff (
+  id uuid,
+  license_no text,
+  position text,
+  created_at timestamptz DEFAULT now(),
+  PRIMARY KEY (id),
+  FOREIGN KEY (id) REFERENCES public.profiles(id)
+);
+
+CREATE TABLE public.students (
+  id text,
+  lrn text UNIQUE,
+  full_name text,
+  dob date,
+  gender text,
+  grade_level text,
+  strand text,
+  class_id text,
+  address text,
+  photo_url text,
+  current_status text DEFAULT 'out',
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  PRIMARY KEY (id),
+  FOREIGN KEY (class_id) REFERENCES public.classes(id),
+  CHECK (id <> '')
+);
+
+CREATE TABLE public.parent_students (
+  id uuid DEFAULT gen_random_uuid(),
+  parent_id uuid,
+  student_id text,
+  relationship text,
+  created_at timestamptz DEFAULT now(),
+  PRIMARY KEY (id),
+  FOREIGN KEY (parent_id) REFERENCES public.parents(id),
+  FOREIGN KEY (student_id) REFERENCES public.students(id),
+  UNIQUE (parent_id, student_id)
+);
+
+CREATE TABLE public.classes (
+  id text,
+  grade text,
+  strand text,
+  adviser_id uuid,
+  room text,
+  level text,
+  is_active boolean DEFAULT true,
+  created_at timestamptz DEFAULT now(),
+  PRIMARY KEY (id),
+  FOREIGN KEY (adviser_id) REFERENCES public.teachers(id)
+);
+
+CREATE TABLE public.subjects (
+  code text,
+  name text,
+  grade text NOT NULL,
+  description text,
+  created_at timestamptz DEFAULT now(),
+  PRIMARY KEY (code)
+);
+
+CREATE TABLE public.class_schedules (
+  id uuid DEFAULT gen_random_uuid(),
+  class_id text,
+  subject_code text,
+  teacher_id uuid,
+  day_of_week text,
+  start_time time,
+  end_time time,
+  created_at timestamptz DEFAULT now(),
+  PRIMARY KEY (id),
+  FOREIGN KEY (class_id) REFERENCES public.classes(id),
+  FOREIGN KEY (subject_code) REFERENCES public.subjects(code),
+  FOREIGN KEY (teacher_id) REFERENCES public.teachers(id),
+  CHECK (end_time > start_time)
+);
+
+CREATE TABLE public.attendance (
+  id uuid DEFAULT gen_random_uuid(),
+  student_id text,
+  date date,
+  status text,
+  recorded_by uuid,
+  timestamp timestamptz DEFAULT now(),
+  class_id text,
+  session text,
+  entry_type text,
+  method text,
+  remarks text,
+  PRIMARY KEY (id),
+  FOREIGN KEY (student_id) REFERENCES public.students(id),
+  FOREIGN KEY (recorded_by) REFERENCES public.profiles(id)
+);
+
+CREATE TABLE public.subject_attendance (
+  id uuid DEFAULT gen_random_uuid(),
+  student_id uuid,
+  subject_code text,
+  date date,
+  status text,
+  recorded_by uuid,
+  recorded_at timestamptz DEFAULT now(),
+  PRIMARY KEY (id),
+  FOREIGN KEY (student_id) REFERENCES public.students(id),
+  FOREIGN KEY (subject_code) REFERENCES public.subjects(code),
+  FOREIGN KEY (recorded_by) REFERENCES public.profiles(id)
+);
+
+CREATE TABLE public.attendance_validations (
+  id uuid DEFAULT gen_random_uuid(),
+  attendance_id uuid,
+  validated_by uuid,
+  status text,
+  class_id text,
+  teacher_id uuid,
+  subject text,
+  session text,
+  attendance_date date,
+  remarks text,
+  validated_at timestamptz DEFAULT now(),
+  PRIMARY KEY (id),
+  FOREIGN KEY (attendance_id) REFERENCES public.attendance(id),
+  FOREIGN KEY (validated_by) REFERENCES public.profiles(id),
+  FOREIGN KEY (teacher_id) REFERENCES public.teachers(id),
+  CHECK (session IN ('AM','PM')),
+  UNIQUE (class_id, subject, session, attendance_date)
+);
+
+CREATE TABLE public.excuse_letters (
+  id uuid DEFAULT gen_random_uuid(),
+  student_id uuid,
+  parent_id uuid,
+  issued_at timestamptz DEFAULT now(),
+  reason text,
+  status text,
+  PRIMARY KEY (id),
+  FOREIGN KEY (student_id) REFERENCES public.students(id),
+  FOREIGN KEY (parent_id) REFERENCES public.parents(id)
+);
+
+CREATE TABLE public.clinic_visits (
+  id uuid DEFAULT gen_random_uuid(),
+  student_id uuid,
+  visit_time timestamptz DEFAULT now(),
+  reason text,
+  treated_by uuid,
+  notes text,
+  PRIMARY KEY (id),
+  FOREIGN KEY (student_id) REFERENCES public.students(id),
+  FOREIGN KEY (treated_by) REFERENCES public.clinic_staff(id)
+);
+
+CREATE TABLE public.qr_codes (
+  id uuid DEFAULT gen_random_uuid(),
+  student_id text,
+  qr_hash text UNIQUE,
+  is_active boolean DEFAULT true,
+  created_by uuid,
+  created_at timestamptz DEFAULT now(),
+  PRIMARY KEY (id),
+  FOREIGN KEY (student_id) REFERENCES public.students(id),
+  FOREIGN KEY (created_by) REFERENCES public.profiles(id)
+);
+
+CREATE TABLE public.announcements (
+  id uuid DEFAULT gen_random_uuid(),
+  title text,
+  content text,
+  posted_by uuid,
+  posted_at timestamptz DEFAULT now(),
+  PRIMARY KEY (id),
+  FOREIGN KEY (posted_by) REFERENCES public.profiles(id)
+);
+
+CREATE TABLE public.notifications (
+  id uuid DEFAULT gen_random_uuid(),
+  recipient_id uuid,
+  actor_id uuid,
+  verb text,
+  object jsonb DEFAULT '{}'::jsonb,
+  read boolean DEFAULT false,
+  created_at timestamptz DEFAULT now(),
+  PRIMARY KEY (id),
+  FOREIGN KEY (recipient_id) REFERENCES public.profiles(id),
+  FOREIGN KEY (actor_id) REFERENCES public.profiles(id)
+);
+
+CREATE TABLE public.school_calendar (
+  id uuid DEFAULT gen_random_uuid(),
+  event_date date,
+  title text,
+  description text,
+  created_at timestamptz DEFAULT now(),
+  PRIMARY KEY (id)
+);
+
+CREATE TABLE public.system_settings (
+  id uuid DEFAULT gen_random_uuid(),
+  key text,
+  value jsonb DEFAULT '{}'::jsonb,
+  created_at timestamptz DEFAULT now(),
+  PRIMARY KEY (id),
+  UNIQUE (key)
+);
+
+CREATE TABLE public.audit_logs (
+  id uuid DEFAULT gen_random_uuid(),
+  actor_id uuid,
+  action text,
+  target_table text,
+  target_id text,
+  details jsonb DEFAULT '{}'::jsonb,
+  created_at timestamptz DEFAULT now(),
+  PRIMARY KEY (id),
+  FOREIGN KEY (actor_id) REFERENCES public.profiles(id)
+);
