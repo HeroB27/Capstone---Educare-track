@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excuse Letters - Educare Track</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body class="bg-gray-50 theme-parent min-h-screen flex">
+    <!-- Sidebar -->
+    <aside id="sidebar" class="w-64 bg-white border-r border-gray-200 sidebar-transition fixed h-full z-40"></aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 ml-64 p-8">
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-8"></header>
+
+        <!-- Excuse Letters Section -->
+        <section class="max-w-4xl mx-auto">
+            <div class="flex justify-between items-center mb-8">
+                <h3 class="text-2xl font-black text-gray-900 tracking-tight">Excuse Letters</h3>
+                <button id="openSubmitModal" class="bg-green-600 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-green-700 transition-all shadow-lg shadow-green-100 flex items-center space-x-2">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                    <span>Submit New Letter</span>
+                </button>
+            </div>
+
+            <div id="letterList" class="space-y-4">
+                <!-- Letters injected by JS -->
+                <div class="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-gray-100 text-gray-400">
+                    <div class="animate-spin rounded-full h-8 w-8 border-4 border-green-100 border-t-green-600 mb-4"></div>
+                    <p class="text-xs font-bold uppercase tracking-widest">Loading letters...</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Submit Modal -->
+        <div id="submitModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop">
+            <div class="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-8 relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-2 bg-green-600"></div>
+                
+                <h3 class="text-2xl font-black text-gray-900 mb-6 tracking-tight">New Excuse Letter</h3>
+                
+                <form id="excuseForm" class="space-y-6">
+                    <div>
+                        <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Select Child</label>
+                        <select id="studentSelect" required class="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-sm focus:ring-4 focus:ring-green-500/10 outline-none transition-all appearance-none">
+                            <option value="">Choose student...</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Absent Date</label>
+                        <input type="date" id="absentDate" required class="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-sm focus:ring-4 focus:ring-green-500/10 outline-none transition-all">
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Reason for Absence</label>
+                        <textarea id="reason" required rows="4" placeholder="Please provide a detailed reason..." class="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-sm focus:ring-4 focus:ring-green-500/10 outline-none transition-all resize-none"></textarea>
+                    </div>
+
+                    <div class="flex space-x-3 pt-4">
+                        <button type="button" id="closeSubmitModal" class="flex-1 py-4 bg-gray-100 text-gray-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-200 transition-all">Cancel</button>
+                        <button type="submit" class="flex-1 py-4 bg-green-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-green-700 transition-all shadow-lg shadow-green-100">Submit Letter</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <script src="../js/supabase-config.js"></script>
+    <script src="../js/utils.js"></script>
+    <script type="module">
+        const __BUILD__ = '20260202_1';
+        const __Q__ = (p) => p + (p.includes('?') ? '&' : '?') + 'b=' + encodeURIComponent(__BUILD__);
+        const __BOOT__ = async () => {
+            const key = '__sw_cleaned__' + __BUILD__;
+            if (!sessionStorage.getItem(key) && ('serviceWorker' in navigator || 'caches' in window)) {
+                let regs = [];
+                let keys = [];
+                try { regs = await navigator.serviceWorker.getRegistrations(); } catch (e) {}
+                try { keys = await caches.keys(); } catch (e) {}
+                if ((regs && regs.length) || (keys && keys.length)) {
+                    sessionStorage.setItem(key, '1');
+                    try { await Promise.all((regs || []).map(r => r.unregister().catch(() => false))); } catch (e) {}
+                    try { await Promise.all((keys || []).map(k => caches.delete(k).catch(() => false))); } catch (e) {}
+                    window.location.reload();
+                    return;
+                }
+                sessionStorage.setItem(key, '1');
+            }
+            await import(__Q__('./parent-excuse.js'));
+        };
+        __BOOT__();
+    </script>
+</body>
+</html>

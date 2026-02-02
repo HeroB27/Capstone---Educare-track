@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guard Dashboard - Educare Track</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body class="bg-gray-50 theme-guard min-h-screen flex">
+    <!-- Sidebar -->
+    <aside id="sidebar" class="w-64 bg-white border-r border-gray-200 sidebar-transition fixed h-full z-40"></aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 ml-64 p-8">
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-8"></header>
+
+        <!-- Dashboard Section -->
+        <section id="dashboardSection" class="section-content">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Left Column: Scanner & Recent Activity -->
+                <div class="lg:col-span-2 space-y-8">
+                    <!-- Scan Input Card -->
+                    <div class="bg-yellow-400 p-8 rounded-3xl shadow-lg shadow-yellow-100 relative overflow-hidden group">
+                        <div class="absolute -right-10 -top-10 w-40 h-40 bg-white/20 rounded-full blur-3xl group-hover:scale-110 transition-transform"></div>
+                        <div class="relative z-10">
+                            <div class="flex items-center space-x-3 mb-6">
+                                <div class="bg-white/30 p-2 rounded-xl backdrop-blur-md">
+                                    <i data-lucide="scan-line" class="text-yellow-900 w-6 h-6"></i>
+                                </div>
+                                <span class="text-xs font-black uppercase tracking-widest text-yellow-900 bg-white/30 px-3 py-1 rounded-full">Gate Entry Point</span>
+                            </div>
+                            <h3 class="text-3xl font-black text-yellow-900 mb-8">Scan Student QR</h3>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <a href="guard-scanner.html" class="flex items-center justify-center space-x-3 py-4 bg-yellow-900 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-black transition-all shadow-xl">
+                                    <i data-lucide="camera" class="w-5 h-5"></i>
+                                    <span>OPEN CAMERA</span>
+                                </a>
+                                <div class="relative">
+                                    <input type="text" id="manualID" placeholder="Manual Student ID..." class="w-full py-4 px-6 bg-white/90 rounded-2xl font-bold text-gray-900 placeholder-gray-400 focus:ring-4 focus:ring-yellow-500/20 outline-none transition-all">
+                                    <button id="processManualID" class="absolute right-2 top-2 bottom-2 bg-yellow-900 text-white px-4 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black transition-all">
+                                        GO
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Scans Table -->
+                    <div class="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
+                        <div class="flex justify-between items-center mb-8">
+                            <div>
+                                <h4 class="text-xl font-black text-gray-900 tracking-tight">Recent Gate Activity</h4>
+                                <p class="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Real-time Logs</p>
+                            </div>
+                            <button class="text-yellow-600 font-black text-xs hover:underline">VIEW ALL LOGS</button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left">
+                                <thead>
+                                    <tr class="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-50">
+                                        <th class="pb-4">Student</th>
+                                        <th class="pb-4">Status</th>
+                                        <th class="pb-4">Time</th>
+                                        <th class="pb-4">Method</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recentScansList" class="divide-y divide-gray-50">
+                                    <!-- Scan rows injected here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Security Alerts & Analytics -->
+                <div class="space-y-8">
+                    <!-- Guard Alerts / Announcements -->
+                    <div class="bg-white rounded-3xl shadow-sm border border-gray-100 p-8">
+                        <div class="flex items-center space-x-3 mb-6">
+                            <div class="bg-yellow-100 p-2 rounded-xl">
+                                <i data-lucide="megaphone" class="text-yellow-600 w-5 h-5"></i>
+                            </div>
+                            <h3 class="text-lg font-black text-gray-900 tracking-tight">Security Alerts</h3>
+                        </div>
+                        <div id="guardAnnouncements" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Announcements injected by JS -->
+                            <div class="col-span-full flex flex-col items-center justify-center py-10 text-gray-400">
+                                <i data-lucide="inbox" class="w-10 h-10 mb-2 opacity-20"></i>
+                                <p class="text-[10px] font-black uppercase tracking-widest">No active security alerts</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Late Monitor / Analytics -->
+                    <div class="bg-white rounded-3xl shadow-sm border border-gray-100 p-8">
+                        <div class="flex items-center justify-between mb-6">
+                            <div class="flex items-center space-x-3">
+                                <div class="bg-rose-100 p-2 rounded-xl">
+                                    <i data-lucide="clock" class="text-rose-600 w-5 h-5"></i>
+                                </div>
+                                <h3 class="text-lg font-black text-gray-900 tracking-tight">Late Arrival Monitor</h3>
+                            </div>
+                            <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">This Week</span>
+                        </div>
+                        <div id="lateMonitorList" class="space-y-3">
+                            <!-- Top late students injected here -->
+                            <div class="flex flex-col items-center justify-center py-10 text-gray-400">
+                                <i data-lucide="bar-chart" class="w-8 h-8 mb-2 opacity-20"></i>
+                                <p class="text-[10px] font-black uppercase tracking-widest">Calculating trends...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="../js/supabase-config.js"></script>
+    <script src="../js/utils.js"></script>
+    <script type="module" src="guard-dashboard.js"></script>
+</body>
+</html>

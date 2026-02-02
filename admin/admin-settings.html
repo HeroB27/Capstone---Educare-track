@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tap Settings - Educare Track</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body class="bg-gray-50 theme-admin min-h-screen flex">
+    <!-- Sidebar -->
+    <aside id="sidebar" class="w-64 bg-white border-r border-gray-200 sidebar-transition fixed h-full z-40"></aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 ml-64 p-8">
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-8"></header>
+
+        <!-- Tap Settings -->
+        <section class="section-content">
+            <div class="mb-8">
+                <h3 class="text-xl font-bold text-gray-900">Tap In/Out Settings</h3>
+                <p class="text-sm text-gray-500">Configure attendance rules and dismissal times for different grade levels</p>
+            </div>
+
+            <div class="grid grid-cols-1 gap-6">
+                <!-- Grade Rules Card -->
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div class="p-6 border-b border-gray-100">
+                        <h4 class="text-lg font-bold text-gray-900">Attendance Rules by Grade</h4>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead class="bg-gray-50">
+                                <tr class="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                                    <th class="px-6 py-4">Grade Level</th>
+                                    <th class="px-6 py-4">In Start</th>
+                                    <th class="px-6 py-4">Grace Until</th>
+                                    <th class="px-6 py-4">Late Until</th>
+                                    <th class="px-6 py-4">Dismissal Time</th>
+                                    <th class="px-6 py-4">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rulesTableBody">
+                                <!-- Rules injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Global Settings Card -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h4 class="text-lg font-bold text-gray-900 mb-6">General System Settings</h4>
+                    <form id="systemSettingsForm" class="space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">School Name</label>
+                                <input type="text" id="schoolName" class="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-violet-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Academic Year</label>
+                                <input type="text" id="academicYear" class="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-violet-500" placeholder="2025-2026">
+                            </div>
+                        </div>
+                        <div class="flex justify-end">
+                            <button type="submit" class="bg-violet-600 text-white px-8 py-2 rounded-xl font-bold hover:bg-violet-700 transition-all">Save Global Settings</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <!-- Modal: Edit Rule -->
+        <div id="ruleModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop">
+            <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-xl font-bold text-gray-900">Edit Grade Rule</h3>
+                    <button class="close-modal text-gray-400 hover:text-gray-600">
+                        <i data-lucide="x" class="w-6 h-6"></i>
+                    </button>
+                </div>
+                
+                <form id="ruleForm" class="space-y-4">
+                    <input type="hidden" id="editGradeLevel">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">In Start Time</label>
+                        <input type="time" id="inStart" required class="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-violet-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Grace Until</label>
+                        <input type="time" id="graceUntil" required class="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-violet-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Late Until</label>
+                        <input type="time" id="lateUntil" required class="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-violet-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Dismissal Time</label>
+                        <input type="time" id="dismissalTime" required class="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-violet-500">
+                    </div>
+
+                    <div class="mt-8 flex space-x-3">
+                        <button type="button" class="close-modal flex-1 px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-600 hover:bg-gray-50">Cancel</button>
+                        <button type="submit" class="flex-1 px-4 py-2 bg-violet-600 text-white rounded-lg font-bold hover:bg-violet-700 transition-all">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <script src="../js/supabase-config.js"></script>
+    <script src="../js/utils.js"></script>
+    <script type="module" src="admin-settings.js"></script>
+</body>
+</html>

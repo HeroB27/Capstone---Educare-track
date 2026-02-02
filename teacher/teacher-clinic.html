@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clinic Passes - Educare Track</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body class="bg-gray-50 min-h-screen flex">
+    <aside id="sidebar" class="w-64 bg-white border-r border-gray-200 fixed h-full z-40"></aside>
+
+    <main class="flex-1 ml-64 p-8">
+        <header class="flex justify-between items-center mb-8"></header>
+
+        <!-- Stats & Quick Actions -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-10">
+            <!-- Stats Card -->
+            <div class="lg:col-span-1 bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col justify-between">
+                <div>
+                    <div class="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center text-red-600 mb-6">
+                        <i data-lucide="activity" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="text-3xl font-black text-gray-900 mb-1" id="activePassCount">0</h3>
+                    <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Active Passes</p>
+                </div>
+                <button id="issuePassBtn" class="mt-8 w-full bg-gray-900 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-800 transition-all shadow-xl shadow-gray-200">
+                    Issue New Pass
+                </button>
+            </div>
+
+            <!-- Findings Approval Section (NEW) -->
+            <div class="lg:col-span-3 bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm">
+                <div class="flex items-center justify-between mb-6">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-amber-600">
+                            <i data-lucide="clipboard-check" class="w-5 h-5"></i>
+                        </div>
+                        <h3 class="text-lg font-black text-gray-900">Findings Needing Approval</h3>
+                    </div>
+                    <span class="px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-[10px] font-black uppercase tracking-wider" id="pendingApprovalCount">0 Pending</span>
+                </div>
+                
+                <div id="findingsApprovalList" class="space-y-4 max-h-[200px] overflow-y-auto pr-2">
+                    <!-- Items will be loaded here -->
+                    <div class="py-10 text-center text-gray-400 italic text-xs uppercase tracking-widest font-bold bg-gray-50 rounded-2xl">
+                        No findings awaiting approval
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 gap-6" id="clinicPassList">
+            <!-- Passes injected here -->
+            <div class="py-20 text-center text-gray-400">
+                <i data-lucide="loader-2" class="w-8 h-8 mx-auto animate-spin mb-4"></i>
+                <p>Loading clinic passes...</p>
+            </div>
+        </div>
+
+        <!-- Issue Pass Modal -->
+        <div id="passModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop">
+            <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+                <h3 class="text-xl font-bold text-gray-900 mb-4">Issue Clinic Pass</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Student</label>
+                        <select id="studentSelect" required class="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
+                            <!-- Students injected here -->
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+                        <select id="clinicReason" class="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="Headache">Headache</option>
+                            <option value="Fever">Fever</option>
+                            <option value="Injury">Injury</option>
+                            <option value="Stomach ache">Stomach ache</option>
+                            <option value="Dizziness">Dizziness</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Teacher's Note</label>
+                        <textarea id="clinicNotes" rows="3" class="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" placeholder="Describe symptoms or incident..."></textarea>
+                    </div>
+                </div>
+                <div class="mt-6 flex space-x-3">
+                    <button class="close-pass-modal flex-1 px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-600 hover:bg-gray-50">Cancel</button>
+                    <button id="submitPass" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-all">Notify Nurse</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="../js/supabase-config.js"></script>
+    <script src="../js/utils.js"></script>
+    <script type="module" src="teacher-clinic.js"></script>
+</body>
+</html>

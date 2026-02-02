@@ -45,11 +45,11 @@ The project includes a Python-based analytics engine for advanced data processin
 - **CSV Export**: Generates `attendance_risk_report.csv` for school administration use.
 
 ## 🔑 Default Credentials
-- **Admin**: `admin1` / `password123`
-- **Teacher**: `teacher1` / `password123`
-- **Guard**: `guard1` / `password123`
-- **Nurse**: `nurse1` / `password123`
-- **Parent**: `parent1` / `password123`
+- **Admin**: `admin1@educare.edu` / `Educare@2024`
+- **Teacher**: `teacher1@educare.edu` / `Educare@2024`
+- **Guard**: `guard1@educare.edu` / `Educare@2024`
+- **Nurse**: `nurse1@educare.edu` / `Educare@2024`
+- **Parent**: `parent1@educare.edu` / `Educare@2024`
 
 ---
 *This repository contains the latest logic, workflows, and UI behavior as of Jan 31, 2026.*

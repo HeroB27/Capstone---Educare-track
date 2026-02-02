@@ -19,10 +19,21 @@ Welcome to the **Educare Track** project! This is a production-grade school moni
 
 ## 🛠 Project Structure
 
--   `/pages`: Role-specific HTML dashboards (Admin, Teacher, Guard, Parent, Clinic).
--   `/js`: Business logic, real-time listeners, and Supabase integrations.
--   `utils.js`: Core utilities for ID generation, layout rendering, and offline monitoring.
+-   `admin/`, `teacher/`, `guard/`, `clinic/`, `parent/`: Role-specific HTML dashboards and their JS.
+-   `js/`: Shared logic and Supabase integrations (`auth.js`, `supabase.js`, `utils.js`).
+-   `supabase/functions/`: Edge functions (Deno) including `seed`, `admin-create-user`, `admin-update-user`.
 -   `service-worker.js`: Handles caching and offline queuing for the PWA.
+-   `FINAL_DATABASE_SCHEMA.sql`: Canonical database schema baseline.
+
+---
+
+## ✅ Recent Changes (Stabilization)
+
+-   Fixed role-based redirects so Guard/Clinic/Parent no longer loop back to login. See `index.html` role mapping.
+-   Hardened access gating across dashboards using `checkAccess` in `js/utils.js`.
+-   Aligned Admin features to schema: use `classes.grade` (not `grade_level`) and deterministic `classes.id`. See `admin/admin-classes.js`.
+-   Consolidated database schema to `FINAL_DATABASE_SCHEMA.sql` and paired doc `FINAL_DATABASE_SCHEMA.md`.
+-   Synced seed data logic with schema (classes, subjects, students). See `supabase/functions/seed/index.ts`.
 
 ---
 
@@ -63,16 +74,16 @@ Welcome to the **Educare Track** project! This is a production-grade school moni
 ---
 
 ## 🔑 Credentials (Sample Data)
-- **Admin**: `admin1` / `password123`
-- **Teacher**: `teacher1` / `password123`
-- **Guard**: `guard1` / `password123`
-- **Nurse**: `nurse1` / `password123`
-- **Parent**: `parent1` / `password123`
+- **Admin**: `admin1@educare.edu` / `Educare@2024`
+- **Teacher**: `teacher1@educare.edu` / `Educare@2024`
+- **Guard**: `guard1@educare.edu` / `Educare@2024`
+- **Nurse**: `nurse1@educare.edu` / `Educare@2024`
+- **Parent**: `parent1@educare.edu` / `Educare@2024`
 
 ## 🔗 Supabase Connection (Backend)
 - **Project Name**: Educare Track
 - **URL**: `https://tkwjxmhnroqprmjfoaua.supabase.co`
 - **DB Password**: `idxn+9%NV2v+9Eg`
-- **Service Worker / Python**: Requires the `SERVICE_ROLE_KEY` from the Supabase dashboard to perform administrative tasks. / `password123`
+- **Service Worker / Python**: Requires the `SERVICE_ROLE_KEY` from the Supabase dashboard to perform administrative tasks. / `Educare@2024`
 
 Good luck! This system is built to feel like a real school information system. Reach out if you have questions!

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Dashboard - Educare Track</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body class="bg-gray-50 theme-teacher min-h-screen flex">
+    <!-- Sidebar -->
+    <aside id="sidebar" class="w-64 bg-white border-r border-gray-200 sidebar-transition fixed h-full z-40"></aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 ml-64 p-8">
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-8"></header>
+
+        <!-- Dashboard Section -->
+        <section id="dashboardSection" class="section-content">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Left Column: Primary Stats & Schedule -->
+                <div class="lg:col-span-2 space-y-8">
+                    <!-- Class Overview Card -->
+                    <div id="homeroomCard" class="bg-blue-600 p-8 rounded-3xl shadow-lg shadow-blue-200 text-white relative overflow-hidden group">
+                        <div class="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-125 transition-transform"></div>
+                        <div class="relative z-10">
+                            <div class="flex items-center space-x-3 mb-6">
+                                <div class="bg-white/20 p-2 rounded-xl backdrop-blur-md">
+                                    <i data-lucide="home" class="text-white w-6 h-6"></i>
+                                </div>
+                                <span class="text-xs font-black uppercase tracking-widest bg-white/20 px-3 py-1 rounded-full">Homeroom Advisor</span>
+                            </div>
+                            <h3 id="className" class="text-3xl font-black mb-2">Grade --</h3>
+                            <p id="classStrand" class="text-blue-100 font-bold uppercase tracking-widest text-sm mb-6">--</p>
+                            <div class="grid grid-cols-3 gap-4">
+                                <div class="bg-white/10 p-4 rounded-2xl backdrop-blur-sm">
+                                    <p class="text-[10px] font-black uppercase tracking-widest text-blue-100 mb-1">Students</p>
+                                    <p id="studentCount" class="text-xl font-black">0</p>
+                                </div>
+                                <div class="bg-white/10 p-4 rounded-2xl backdrop-blur-sm border-l-2 border-white/20">
+                                    <p class="text-[10px] font-black uppercase tracking-widest text-blue-100 mb-1">Present Today</p>
+                                    <p id="presentToday" class="text-xl font-black">0</p>
+                                </div>
+                                <div class="bg-white/10 p-4 rounded-2xl backdrop-blur-sm border-l-2 border-white/20">
+                                    <p class="text-[10px] font-black uppercase tracking-widest text-blue-100 mb-1">At-Risk</p>
+                                    <p id="atRiskCount" class="text-xl font-black">0</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Upcoming Subject Sessions -->
+                    <div class="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+                        <div class="flex justify-between items-center mb-8">
+                            <div>
+                                <h4 class="text-xl font-black text-gray-900 tracking-tight flex items-center space-x-2">
+                                    <i data-lucide="calendar" class="text-blue-600 w-6 h-6"></i>
+                                    <span>Today's Sessions</span>
+                                </h4>
+                                <p class="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Schedule & Roll Call</p>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="sessionsGrid">
+                            <!-- Session cards injected here -->
+                        </div>
+                    </div>
+
+                    <!-- Class Analytics & At-Risk Monitor -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div class="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+                            <h4 class="text-lg font-black text-gray-900 mb-6 flex items-center space-x-2">
+                                <i data-lucide="alert-triangle" class="text-rose-600 w-5 h-5"></i>
+                                <span>At-Risk Monitor (Weekly)</span>
+                            </h4>
+                            <div id="atRiskList" class="space-y-3">
+                                <!-- At-risk students injected here -->
+                                <p class="text-center py-8 text-gray-400 text-xs font-bold">Checking student risk levels...</p>
+                            </div>
+                        </div>
+                        <div class="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+                            <h4 class="text-lg font-black text-gray-900 mb-6 flex items-center space-x-2">
+                                <i data-lucide="bar-chart" class="text-blue-600 w-5 h-5"></i>
+                                <span>Subject Performance</span>
+                            </h4>
+                            <div class="h-48 relative">
+                                <canvas id="subjectPerformanceChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Quick Actions & Alerts -->
+                <div class="space-y-8">
+                    <!-- Quick Actions -->
+                    <div class="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
+                        <h4 class="text-lg font-black text-gray-900 mb-6 tracking-tight">Teacher Tools</h4>
+                        <div class="grid grid-cols-1 gap-3">
+                            <a href="teacher-attendance.html" class="flex items-center justify-between p-4 bg-gray-50 rounded-2xl hover:bg-blue-50 transition-all group">
+                                <div class="flex items-center space-x-3">
+                                    <div class="bg-blue-100 p-2 rounded-xl group-hover:bg-blue-600 transition-all">
+                                        <i data-lucide="check-square" class="text-blue-600 w-5 h-5 group-hover:text-white"></i>
+                                    </div>
+                                    <span class="text-xs font-black text-gray-700">Daily Roll Call</span>
+                                </div>
+                                <i data-lucide="chevron-right" class="text-gray-300 w-4 h-4"></i>
+                            </a>
+                            <a href="teacher-clinic.html" class="flex items-center justify-between p-4 bg-gray-50 rounded-2xl hover:bg-rose-50 transition-all group">
+                                <div class="flex items-center space-x-3">
+                                    <div class="bg-rose-100 p-2 rounded-xl group-hover:bg-rose-600 transition-all">
+                                        <i data-lucide="stethoscope" class="text-rose-600 w-5 h-5 group-hover:text-white"></i>
+                                    </div>
+                                    <span class="text-xs font-black text-gray-700">Issue Clinic Pass</span>
+                                </div>
+                                <i data-lucide="chevron-right" class="text-gray-300 w-4 h-4"></i>
+                            </a>
+                            <a href="teacher-excuse.html" class="flex items-center justify-between p-4 bg-gray-50 rounded-2xl hover:bg-amber-50 transition-all group">
+                                <div class="flex items-center space-x-3">
+                                    <div class="bg-amber-100 p-2 rounded-xl group-hover:bg-amber-600 transition-all">
+                                        <i data-lucide="file-text" class="text-amber-600 w-5 h-5 group-hover:text-white"></i>
+                                    </div>
+                                    <span class="text-xs font-black text-gray-700">Excuse Letters</span>
+                                </div>
+                                <i data-lucide="chevron-right" class="text-gray-300 w-4 h-4"></i>
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Announcements -->
+                    <div class="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
+                        <div class="flex items-center justify-between mb-6">
+                            <h4 class="text-lg font-black text-gray-900 tracking-tight">Announcements</h4>
+                            <span class="bg-amber-100 text-amber-700 text-[8px] font-black px-2 py-1 rounded-lg uppercase">New Alerts</span>
+                        </div>
+                        <div id="classAnnouncements" class="space-y-4">
+                            <!-- Announcements injected here -->
+                            <div class="animate-pulse flex space-x-4">
+                                <div class="flex-1 space-y-4 py-1">
+                                    <div class="h-4 bg-gray-100 rounded w-3/4"></div>
+                                    <div class="space-y-2">
+                                        <div class="h-4 bg-gray-100 rounded"></div>
+                                        <div class="h-4 bg-gray-100 rounded w-5/6"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="../js/supabase-config.js"></script>
+    <script src="../js/utils.js"></script>
+    <script type="module" src="teacher-dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Fixing System...</title>
+</head>
+<body>
+    <h1>System Repair in Progress...</h1>
+    <script>
+        // Force unregister all service workers to clear the bad cache logic
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for(let registration of registrations) {
+                    registration.unregister();
+                }
+                alert("System repaired. Redirecting...");
+                window.location.href = "/";
+            });
+        } else {
+            window.location.href = "/";
+        }
+    </script>
+</body>
+</html>

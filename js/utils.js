@@ -1,9 +1,7 @@
-// Shared Utility Functions
-import supabase from './supabase-config.js';
-
-export const utils = {
+// Shared Utility Functions (Global Version)
+window.utils = {
     // Show notification toast
-    showNotification: (message, type = 'info') => {
+    showNotification: (message, type = 'info', duration = 3000) => {
         const toast = document.createElement('div');
         toast.className = `fixed bottom-4 right-4 p-4 rounded-lg shadow-lg text-white transform transition-all duration-300 translate-y-0 z-50 ${
             type === 'success' ? 'bg-green-500' : 
@@ -41,36 +39,116 @@ export const utils = {
         return user ? JSON.parse(user) : null;
     },
 
+    loadCurrentUser: async () => {
+
+        const cached = window.utils.getCurrentUser();
+        if (cached?.id && cached?.role) {
+            const { data: sessionData } = await window.supabaseClient.auth.getSession();
+            if (!sessionData?.session) {
+                localStorage.removeItem('educare_user');
+                return null;
+            }
+            return cached;
+        }
+
+        const { data: userData } = await window.supabaseClient.auth.getUser();
+        const authUser = userData?.user;
+        if (!authUser) return null;
+
+        const { data: profile, error } = await window.supabaseClient
+            .from('profiles')
+            .select('*')
+            .eq('id', authUser.id)
+            .single();
+
+        if (error) throw error;
+        if (!profile) return null;
+
+        localStorage.setItem('educare_user', JSON.stringify(profile));
+        return profile;
+    },
+
     // Logout
-    logout: () => {
+    logout: async () => {
         localStorage.removeItem('educare_user');
-        window.location.href = '/index.html';
+        try {
+            await window.supabaseClient.auth.signOut();
+        } catch (err) {
+        }
+        window.location.replace('/index.html');
     },
     
-    // Check if current date is a school holiday or suspension
-    isSchoolDay: async () => {
+    isSchoolDay: async (gradeLevel = null) => {
         try {
             const today = new Date().toISOString().split('T')[0];
-            const { data, error } = await supabase
+            let { data, error } = await window.supabaseClient
+                .from('school_calendar')
+                .select('*');
+            if (!error && Array.isArray(data)) {
+                let rows = data.filter(e => {
+                    const s = e.start_date || e.event_date;
+                    const ed = e.end_date || e.event_date;
+                    const t = e.type || '';
+                    return s && ed && s <= today && ed >= today && ['holiday', 'suspension'].includes(t);
+                });
+                if (gradeLevel) {
+                    rows = rows.filter(e => {
+                        const scope = e.grade_scope || '';
+                        return !scope || scope === 'all' || scope === gradeLevel;
+                    });
+                }
+                if (rows.length > 0) return false;
+            }
+            const { data: legacy } = await window.supabaseClient
                 .from('school_calendar')
                 .select('*')
-                .lte('start_date', today)
-                .gte('end_date', today)
-                .in('type', ['holiday', 'suspension']);
-            
-            if (error) throw error;
-            return data.length === 0;
+                .eq('event_date', today);
+            let legacyRows = Array.isArray(legacy) ? legacy : [];
+            legacyRows = legacyRows.filter(e => {
+                const d = (e.description || '').toLowerCase();
+                const t = (e.type || '').toLowerCase() || d;
+                if (!/holiday|suspension/.test(t)) return false;
+                if (!gradeLevel) return true;
+                const scope = (e.grade_scope || '').toLowerCase() || d;
+                if (scope.includes('all')) return true;
+                const gl = String(gradeLevel).toLowerCase();
+                return scope.includes(gl) || scope.includes(`grade ${gl}`);
+            });
+            return legacyRows.length === 0;
         } catch (err) {
-            console.error('Calendar check error:', err);
-            return true; // Default to school day if check fails
+            return true;
         }
     },
 
     // Role-based redirect check
-    checkAccess: (allowedRoles) => {
-        const user = utils.getCurrentUser();
-        if (!user || !allowedRoles.includes(user.role)) {
-            window.location.href = '/index.html';
+    checkAccess: async (allowedRoles) => {
+        try {
+            const user = await utils.loadCurrentUser();
+            if (!user) {
+                window.location.replace('/index.html');
+                return null;
+            }
+
+            // Check activity status
+            if (user.is_active === false) {
+                console.warn('Access blocked: Account is inactive.');
+                localStorage.removeItem('educare_user');
+                await window.supabaseClient.auth.signOut().catch(() => {});
+                window.location.replace('/index.html');
+                return null;
+            }
+
+            if (!allowedRoles.includes(user.role)) {
+                console.warn('Access blocked: Unauthorized role.', user.role);
+                window.location.replace('/index.html');
+                return null;
+            }
+            return user;
+        } catch (err) {
+            console.error('Access check failed:', err);
+            localStorage.removeItem('educare_user');
+            window.location.replace('/index.html');
+            return null;
         }
     },
 
@@ -80,6 +158,11 @@ export const utils = {
         const last4 = cleanLRN.slice(-4);
         const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
         return `EDU-${year}-${last4}-${randomStr}`;
+    },
+
+    // Generate Secure QR Hash
+    generateQRHash: () => {
+        return crypto.randomUUID();
     },
 
     // Generate User ID for Staff
@@ -277,15 +360,19 @@ export const utils = {
                 <div class="p-6 flex flex-col h-full">
                     <div class="flex items-center space-x-3 mb-8">
                         <div class="bg-green-100 p-2 rounded-lg">
-                            <i data-lucide="heart" class="text-green-600 w-6 h-6"></i>
+                            <i data-lucide="graduation-cap" class="text-green-600 w-6 h-6"></i>
                         </div>
-                        <span class="text-xl font-bold text-gray-900 tracking-tight">EDUCARE<span class="text-green-600">TRACK</span></span>
+                        <span class="text-xl font-black text-gray-900 tracking-tight">EDUCARE<span class="text-green-600">TRACK</span></span>
                     </div>
 
                     <nav class="space-y-1 flex-1 overflow-y-auto">
-                        <a href="parent-dashboard.html" class="nav-link w-full flex items-center space-x-3 px-4 py-3 rounded-xl ${activeSection === 'dashboard' ? 'bg-green-50 text-green-600 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'} transition-all">
+                        <a href="parent-dashboard.html" class="nav-link w-full flex items-center space-x-3 px-4 py-3 rounded-xl ${activeSection === 'dashboard' ? 'bg-green-50 text-green-600 font-black' : 'text-gray-600 hover:bg-gray-50 font-bold'} transition-all">
                             <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
                             <span>Dashboard</span>
+                        </a>
+                        <a href="parent-excuse.html" class="nav-link w-full flex items-center space-x-3 px-4 py-3 rounded-xl ${activeSection === 'excuse' ? 'bg-green-50 text-green-600 font-black' : 'text-gray-600 hover:bg-gray-50 font-bold'} transition-all">
+                            <i data-lucide="file-text" class="w-5 h-5"></i>
+                            <span>Excuse Letters</span>
                         </a>
                     </nav>
 
@@ -303,8 +390,8 @@ export const utils = {
         if (mainHeader) {
             mainHeader.innerHTML = `
                 <div>
-                    <h2 id="sectionTitle" class="text-2xl font-black text-gray-900 tracking-tight">${activeSection.charAt(0).toUpperCase() + activeSection.slice(1)}</h2>
-                    <p id="sectionSubtitle" class="text-gray-500 font-medium">Hello, ${user ? user.full_name : 'Parent'}</p>
+                    <h2 id="sectionTitle" class="text-3xl font-black text-gray-900 tracking-tight">${activeSection.charAt(0).toUpperCase() + activeSection.slice(1)}</h2>
+                    <p id="sectionSubtitle" class="text-gray-500 font-bold uppercase tracking-widest text-[10px] mt-1">Hello, ${user ? user.full_name : 'Parent'}</p>
                 </div>
                 <div class="flex items-center space-x-4">
                     <div class="flex items-center space-x-3 bg-white p-2 rounded-full border border-gray-200 shadow-sm pr-4 hover:shadow-md transition-all cursor-pointer">
@@ -333,19 +420,15 @@ export const utils = {
                 <div class="p-6 flex flex-col h-full">
                     <div class="flex items-center space-x-3 mb-8">
                         <div class="bg-yellow-100 p-2 rounded-lg">
-                            <i data-lucide="shield" class="text-yellow-600 w-6 h-6"></i>
+                            <i data-lucide="shield-check" class="text-yellow-600 w-6 h-6"></i>
                         </div>
-                        <span class="text-xl font-bold text-gray-900 tracking-tight">EDUCARE<span class="text-yellow-600">TRACK</span></span>
+                        <span class="text-xl font-black text-gray-900 tracking-tight">EDUCARE<span class="text-yellow-600">TRACK</span></span>
                     </div>
 
                     <nav class="space-y-1 flex-1 overflow-y-auto">
-                        <a href="guard-dashboard.html" class="nav-link w-full flex items-center space-x-3 px-4 py-3 rounded-xl ${activeSection === 'dashboard' ? 'bg-yellow-50 text-yellow-600 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'} transition-all">
-                            <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
-                            <span>Dashboard</span>
-                        </a>
-                        <a href="guard-scanner.html" class="nav-link w-full flex items-center space-x-3 px-4 py-3 rounded-xl ${activeSection === 'scanner' ? 'bg-yellow-50 text-yellow-600 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'} transition-all">
+                        <a href="guard-dashboard.html" class="nav-link w-full flex items-center space-x-3 px-4 py-3 rounded-xl ${activeSection === 'dashboard' ? 'bg-yellow-50 text-yellow-600 font-black' : 'text-gray-600 hover:bg-gray-50 font-bold'} transition-all">
                             <i data-lucide="qr-code" class="w-5 h-5"></i>
-                            <span>QR Scanner</span>
+                            <span>Scanner Terminal</span>
                         </a>
                     </nav>
 
@@ -363,8 +446,8 @@ export const utils = {
         if (mainHeader) {
             mainHeader.innerHTML = `
                 <div>
-                    <h2 id="sectionTitle" class="text-2xl font-black text-gray-900 tracking-tight">${activeSection.charAt(0).toUpperCase() + activeSection.slice(1)}</h2>
-                    <p id="sectionSubtitle" class="text-gray-500 font-medium">Duty status: Active</p>
+                    <h2 id="sectionTitle" class="text-3xl font-black text-gray-900 tracking-tight">${activeSection.charAt(0).toUpperCase() + activeSection.slice(1)}</h2>
+                    <p id="sectionSubtitle" class="text-gray-500 font-bold uppercase tracking-widest text-[10px] mt-1">Duty status: Active</p>
                 </div>
                 <div class="flex items-center space-x-4">
                     <div class="flex items-center space-x-3 bg-white p-2 rounded-full border border-gray-200 shadow-sm pr-4 hover:shadow-md transition-all cursor-pointer">
@@ -395,29 +478,25 @@ export const utils = {
                         <div class="bg-red-100 p-2 rounded-lg">
                             <i data-lucide="cross" class="text-red-600 w-6 h-6"></i>
                         </div>
-                        <span class="text-xl font-bold text-gray-900 tracking-tight">EDUCARE<span class="text-red-600">TRACK</span></span>
+                        <span class="text-xl font-black text-gray-900 tracking-tight">EDUCARE<span class="text-red-600">CLINIC</span></span>
                     </div>
 
                     <nav class="space-y-1 flex-1 overflow-y-auto">
-                        <a href="clinic-dashboard.html" class="nav-link w-full flex items-center space-x-3 px-4 py-3 rounded-xl ${activeSection === 'dashboard' ? 'bg-red-50 text-red-600 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'} transition-all">
+                        <a href="clinic-dashboard.html" class="nav-link w-full flex items-center space-x-3 px-4 py-3 rounded-xl ${activeSection === 'dashboard' ? 'bg-red-50 text-red-600 font-black' : 'text-gray-600 hover:bg-gray-50 font-bold'} transition-all">
                             <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
                             <span>Dashboard</span>
                         </a>
-                        <a href="clinic-approval.html" class="nav-link w-full flex items-center space-x-3 px-4 py-3 rounded-xl ${activeSection === 'approval' ? 'bg-red-50 text-red-600 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'} transition-all">
+                        <a href="clinic-approval.html" class="nav-link w-full flex items-center space-x-3 px-4 py-3 rounded-xl ${activeSection === 'approval' ? 'bg-red-50 text-red-600 font-black' : 'text-gray-600 hover:bg-gray-50 font-bold'} transition-all">
                             <i data-lucide="check-square" class="w-5 h-5"></i>
                             <span>Pass Approvals</span>
                         </a>
-                        <a href="clinic-checkin.html" class="nav-link w-full flex items-center space-x-3 px-4 py-3 rounded-xl ${activeSection === 'checkin' ? 'bg-red-50 text-red-600 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'} transition-all">
+                        <a href="clinic-checkin.html" class="nav-link w-full flex items-center space-x-3 px-4 py-3 rounded-xl ${activeSection === 'checkin' ? 'bg-red-50 text-red-600 font-black' : 'text-gray-600 hover:bg-gray-50 font-bold'} transition-all">
                             <i data-lucide="qr-code" class="w-5 h-5"></i>
                             <span>QR Check-in</span>
                         </a>
-                        <a href="clinic-findings.html" class="nav-link w-full flex items-center space-x-3 px-4 py-3 rounded-xl ${activeSection === 'findings' ? 'bg-red-50 text-red-600 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'} transition-all">
+                        <a href="clinic-findings.html" class="nav-link w-full flex items-center space-x-3 px-4 py-3 rounded-xl ${activeSection === 'findings' ? 'bg-red-50 text-red-600 font-black' : 'text-gray-600 hover:bg-gray-50 font-bold'} transition-all">
                             <i data-lucide="stethoscope" class="w-5 h-5"></i>
                             <span>Nurse Findings</span>
-                        </a>
-                        <a href="clinic-checkout.html" class="nav-link w-full flex items-center space-x-3 px-4 py-3 rounded-xl ${activeSection === 'checkout' ? 'bg-red-50 text-red-600 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'} transition-all">
-                            <i data-lucide="log-out" class="w-5 h-5"></i>
-                            <span>Check-out</span>
                         </a>
                     </nav>
 
@@ -435,8 +514,8 @@ export const utils = {
         if (mainHeader) {
             mainHeader.innerHTML = `
                 <div>
-                    <h2 id="sectionTitle" class="text-2xl font-black text-gray-900 tracking-tight">${activeSection.charAt(0).toUpperCase() + activeSection.slice(1)}</h2>
-                    <p id="sectionSubtitle" class="text-gray-500 font-medium">Medical staff on duty</p>
+                    <h2 id="sectionTitle" class="text-3xl font-black text-gray-900 tracking-tight">${activeSection.charAt(0).toUpperCase() + activeSection.slice(1)}</h2>
+                    <p id="sectionSubtitle" class="text-gray-500 font-bold uppercase tracking-widest text-[10px] mt-1">Medical staff on duty</p>
                 </div>
                 <div class="flex items-center space-x-4">
                     <div class="flex items-center space-x-3 bg-white p-2 rounded-full border border-gray-200 shadow-sm pr-4 hover:shadow-md transition-all cursor-pointer">

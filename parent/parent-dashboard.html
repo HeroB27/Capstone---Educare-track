@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parent Dashboard - Educare Track</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body class="bg-gray-50 theme-parent min-h-screen flex">
+    <!-- Sidebar -->
+    <aside id="sidebar" class="w-64 bg-white border-r border-gray-200 sidebar-transition fixed h-full z-40">
+        <div class="h-full flex flex-col p-6">
+            <div class="flex items-center space-x-3 mb-10 px-2">
+                <div class="bg-green-600 p-2 rounded-xl shadow-lg shadow-green-200">
+                    <i data-lucide="graduation-cap" class="text-white w-6 h-6"></i>
+                </div>
+                <span class="text-xl font-black tracking-tighter text-gray-900">EDUCARE</span>
+            </div>
+            <nav class="space-y-1 flex-1 overflow-y-auto">
+                <a href="parent-dashboard.html" class="nav-link w-full flex items-center space-x-3 px-4 py-3 rounded-xl bg-green-50 text-green-600 font-black transition-all">
+                    <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="parent-excuse.html" class="nav-link w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-gray-50 font-bold transition-all">
+                    <i data-lucide="file-text" class="w-5 h-5"></i>
+                    <span>Excuse Letters</span>
+                </a>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 ml-64 p-8">
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-8"></header>
+
+        <!-- Dashboard Section -->
+        <section id="dashboardSection" class="section-content">
+            <!-- Summary Card -->
+            <div class="bg-green-600 p-8 rounded-3xl shadow-lg shadow-green-100 text-white relative overflow-hidden group mb-8">
+                <div class="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-125 transition-transform"></div>
+                <div class="relative z-10">
+                    <div class="flex items-center space-x-3 mb-6">
+                        <div class="bg-white/20 p-2 rounded-xl backdrop-blur-md">
+                            <i data-lucide="users" class="text-white w-6 h-6"></i>
+                        </div>
+                        <span class="text-xs font-black uppercase tracking-widest bg-white/20 px-3 py-1 rounded-full">Family Overview</span>
+                    </div>
+                    <h3 class="text-3xl font-black mb-2">Welcome, <span id="parentName">Guardian</span></h3>
+                    <p class="text-green-100 font-bold uppercase tracking-widest text-sm">Real-time School Tracker</p>
+                </div>
+            </div>
+
+            <!-- Child Status Section -->
+            <section id="childStatusSection" class="section-content">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <!-- Left Column: Child Cards -->
+                    <div class="lg:col-span-2 space-y-8">
+                        <div id="childrenGrid" class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <!-- Child cards injected by JS -->
+                            <div class="bg-white p-8 rounded-3xl border border-gray-100 animate-pulse h-64 shadow-sm"></div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: School Announcements -->
+                    <div class="space-y-8">
+                        <div class="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
+                            <div class="flex items-center space-x-3 mb-6">
+                                <div class="bg-green-100 p-2 rounded-xl">
+                                    <i data-lucide="megaphone" class="text-green-600 w-5 h-5"></i>
+                                </div>
+                                <h3 class="text-lg font-black text-gray-900 tracking-tight">School Alerts</h3>
+                            </div>
+                            <div id="schoolAnnouncements" class="space-y-4">
+                                <!-- Announcements injected by JS -->
+                                <div class="flex flex-col items-center justify-center py-10 text-gray-400">
+                                    <i data-lucide="inbox" class="w-10 h-10 mb-2 opacity-20"></i>
+                                    <p class="text-[10px] font-black uppercase tracking-widest">No alerts today</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
+                            <div class="flex items-center justify-between mb-6">
+                                <div class="flex items-center space-x-3">
+                                    <div class="bg-green-100 p-2 rounded-xl">
+                                        <i data-lucide="bell" class="text-green-600 w-5 h-5"></i>
+                                    </div>
+                                    <h3 class="text-lg font-black text-gray-900 tracking-tight">Notifications</h3>
+                                </div>
+                                <button id="markAllNotificationsRead" class="text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-green-600 transition-all">
+                                    Mark all read
+                                </button>
+                            </div>
+                            <div id="notificationsList" class="space-y-3">
+                                <div class="flex flex-col items-center justify-center py-10 text-gray-400">
+                                    <i data-lucide="bell-off" class="w-10 h-10 mb-2 opacity-20"></i>
+                                    <p class="text-[10px] font-black uppercase tracking-widest">No notifications</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </section>
+    </main>
+
+    <script src="../js/supabase-config.js"></script>
+    <script src="../js/utils.js"></script>
+    <script type="module">
+        const __BUILD__ = '20260202_1';
+        const __Q__ = (p) => p + (p.includes('?') ? '&' : '?') + 'b=' + encodeURIComponent(__BUILD__);
+        const __BOOT__ = async () => {
+            const key = '__sw_cleaned__' + __BUILD__;
+            if (!sessionStorage.getItem(key) && ('serviceWorker' in navigator || 'caches' in window)) {
+                let regs = [];
+                let keys = [];
+                try { regs = await navigator.serviceWorker.getRegistrations(); } catch (e) {}
+                try { keys = await caches.keys(); } catch (e) {}
+                if ((regs && regs.length) || (keys && keys.length)) {
+                    sessionStorage.setItem(key, '1');
+                    try { await Promise.all((regs || []).map(r => r.unregister().catch(() => false))); } catch (e) {}
+                    try { await Promise.all((keys || []).map(k => caches.delete(k).catch(() => false))); } catch (e) {}
+                    window.location.reload();
+                    return;
+                }
+                sessionStorage.setItem(key, '1');
+            }
+            await import(__Q__('./parent-dashboard.js'));
+        };
+        __BOOT__();
+    </script>
+</body>
+</html>

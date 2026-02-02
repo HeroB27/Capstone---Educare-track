@@ -1,5 +1,9 @@
+-- EDUCARE TRACK - FINAL DATABASE SCHEMA
+-- Last Updated: 2026-02-02
+
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+-- 1. Profiles & Role-based Sub-tables
 CREATE TABLE public.profiles (
   id uuid DEFAULT gen_random_uuid(),
   phone text,
@@ -65,6 +69,20 @@ CREATE TABLE public.clinic_staff (
   FOREIGN KEY (id) REFERENCES public.profiles(id)
 );
 
+-- 2. Academic Structure
+CREATE TABLE public.classes (
+  id text,
+  grade text,
+  strand text,
+  adviser_id uuid,
+  room text,
+  level text,
+  is_active boolean DEFAULT true,
+  created_at timestamptz DEFAULT now(),
+  PRIMARY KEY (id),
+  FOREIGN KEY (adviser_id) REFERENCES public.teachers(id)
+);
+
 CREATE TABLE public.students (
   id text,
   lrn text UNIQUE,
@@ -76,7 +94,7 @@ CREATE TABLE public.students (
   class_id text,
   address text,
   photo_url text,
-  current_status text DEFAULT 'out',
+  current_status text DEFAULT 'out', -- 'out', 'present', 'late', 'clinic', 'excused'
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
   PRIMARY KEY (id),
@@ -96,23 +114,13 @@ CREATE TABLE public.parent_students (
   UNIQUE (parent_id, student_id)
 );
 
-CREATE TABLE public.classes (
-  id text,
-  grade text,
-  strand text,
-  adviser_id uuid,
-  room text,
-  level text,
-  is_active boolean DEFAULT true,
-  created_at timestamptz DEFAULT now(),
-  PRIMARY KEY (id),
-  FOREIGN KEY (adviser_id) REFERENCES public.teachers(id)
-);
-
 CREATE TABLE public.subjects (
   code text,
   name text,
   grade text NOT NULL,
+  semester text, -- Added: '1', '2', or NULL for whole year
+  strand text, -- Added: 'STEM', 'ABM', 'HUMSS', 'ICT', or NULL for general
+  type text, -- Added: 'core', 'applied', 'specialized'
   description text,
   created_at timestamptz DEFAULT now(),
   PRIMARY KEY (code)
@@ -126,6 +134,7 @@ CREATE TABLE public.class_schedules (
   day_of_week text,
   start_time time,
   end_time time,
+  semester text, -- Added: '1' or '2' for SHS tracking
   created_at timestamptz DEFAULT now(),
   PRIMARY KEY (id),
   FOREIGN KEY (class_id) REFERENCES public.classes(id),
@@ -134,18 +143,43 @@ CREATE TABLE public.class_schedules (
   CHECK (end_time > start_time)
 );
 
+-- 3. Attendance & Validation
+CREATE TABLE public.attendance_rules (
+  id uuid DEFAULT gen_random_uuid(),
+  grade_level text,
+  in_start time,
+  grace_until time,
+  late_until time,
+  min_subject_minutes int DEFAULT 30,
+  created_at timestamptz DEFAULT now(),
+  PRIMARY KEY (id),
+  UNIQUE (grade_level)
+);
+
+CREATE TABLE public.attendance_events (
+  id uuid DEFAULT gen_random_uuid(),
+  student_id text,
+  event_type text, -- 'IN', 'OUT'
+  timestamp timestamptz DEFAULT now(),
+  device_id text,
+  recorded_by uuid,
+  PRIMARY KEY (id),
+  FOREIGN KEY (student_id) REFERENCES public.students(id),
+  FOREIGN KEY (recorded_by) REFERENCES public.profiles(id)
+);
+
 CREATE TABLE public.attendance (
   id uuid DEFAULT gen_random_uuid(),
   student_id text,
   date date,
-  status text,
+  status text, -- 'present', 'absent', 'late', 'excused', 'clinic'
   recorded_by uuid,
   timestamp timestamptz DEFAULT now(),
   class_id text,
-  session text,
-  entry_type text,
+  session text, -- 'AM', 'PM'
+  entry_type text, -- 'manual', 'QR', 'auto'
   method text,
-  remarks text,
+  remarks text, -- Can reference excuse_letter_id or clinic_visit_id
   PRIMARY KEY (id),
   FOREIGN KEY (student_id) REFERENCES public.students(id),
   FOREIGN KEY (recorded_by) REFERENCES public.profiles(id)
@@ -153,11 +187,12 @@ CREATE TABLE public.attendance (
 
 CREATE TABLE public.subject_attendance (
   id uuid DEFAULT gen_random_uuid(),
-  student_id uuid,
+  student_id text,
   subject_code text,
   date date,
-  status text,
+  status text, -- 'present', 'absent', 'late', 'excused', 'clinic'
   recorded_by uuid,
+  remarks text, -- Added: Can reference excuse_letter_id or clinic_visit_id
   recorded_at timestamptz DEFAULT now(),
   PRIMARY KEY (id),
   FOREIGN KEY (student_id) REFERENCES public.students(id),
@@ -185,13 +220,16 @@ CREATE TABLE public.attendance_validations (
   UNIQUE (class_id, subject, session, attendance_date)
 );
 
+-- 4. Excuse & Clinic Modules
 CREATE TABLE public.excuse_letters (
   id uuid DEFAULT gen_random_uuid(),
-  student_id uuid,
+  student_id text,
   parent_id uuid,
-  issued_at timestamptz DEFAULT now(),
+  absent_date date, -- Added: The date the student is/was absent
   reason text,
-  status text,
+  status text, -- 'pending', 'approved', 'rejected'
+  remarks text, -- Added: Teacher feedback
+  issued_at timestamptz DEFAULT now(),
   PRIMARY KEY (id),
   FOREIGN KEY (student_id) REFERENCES public.students(id),
   FOREIGN KEY (parent_id) REFERENCES public.parents(id)
@@ -199,16 +237,32 @@ CREATE TABLE public.excuse_letters (
 
 CREATE TABLE public.clinic_visits (
   id uuid DEFAULT gen_random_uuid(),
-  student_id uuid,
+  student_id text,
   visit_time timestamptz DEFAULT now(),
   reason text,
   treated_by uuid,
   notes text,
+  status text, -- Added: 'checked_in', 'treated', 'released'
   PRIMARY KEY (id),
   FOREIGN KEY (student_id) REFERENCES public.students(id),
   FOREIGN KEY (treated_by) REFERENCES public.clinic_staff(id)
 );
 
+CREATE TABLE public.clinic_passes (
+  id uuid DEFAULT gen_random_uuid(),
+  student_id text,
+  clinic_visit_id uuid,
+  issued_by uuid,
+  issued_at timestamptz DEFAULT now(),
+  reason text,
+  status text, -- 'pending', 'approved', 'rejected', 'used'
+  PRIMARY KEY (id),
+  FOREIGN KEY (student_id) REFERENCES public.students(id),
+  FOREIGN KEY (clinic_visit_id) REFERENCES public.clinic_visits(id),
+  FOREIGN KEY (issued_by) REFERENCES public.profiles(id)
+);
+
+-- 5. Utilities & Logs
 CREATE TABLE public.qr_codes (
   id uuid DEFAULT gen_random_uuid(),
   student_id text,
@@ -225,8 +279,10 @@ CREATE TABLE public.announcements (
   id uuid DEFAULT gen_random_uuid(),
   title text,
   content text,
+  audience text[] DEFAULT '{}',
+  is_pinned boolean DEFAULT false,
   posted_by uuid,
-  posted_at timestamptz DEFAULT now(),
+  created_at timestamptz DEFAULT now(),
   PRIMARY KEY (id),
   FOREIGN KEY (posted_by) REFERENCES public.profiles(id)
 );
@@ -246,11 +302,18 @@ CREATE TABLE public.notifications (
 
 CREATE TABLE public.school_calendar (
   id uuid DEFAULT gen_random_uuid(),
-  event_date date,
+  type text,
   title text,
+  start_date date,
+  end_date date,
+  notes text,
+  grade_scope text DEFAULT 'all',
+  created_by uuid,
+  event_date date,
   description text,
   created_at timestamptz DEFAULT now(),
-  PRIMARY KEY (id)
+  PRIMARY KEY (id),
+  FOREIGN KEY (created_by) REFERENCES public.profiles(id)
 );
 
 CREATE TABLE public.system_settings (
@@ -273,3 +336,11 @@ CREATE TABLE public.audit_logs (
   PRIMARY KEY (id),
   FOREIGN KEY (actor_id) REFERENCES public.profiles(id)
 );
+
+-- Recommended indexes
+CREATE INDEX IF NOT EXISTS idx_attendance_student_ts ON public.attendance (student_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_attendance_ts ON public.attendance (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_subject_attendance_student_date ON public.subject_attendance (student_id, date);
+CREATE INDEX IF NOT EXISTS idx_clinic_visits_student_time ON public.clinic_visits (student_id, visit_time DESC);
+CREATE INDEX IF NOT EXISTS idx_parent_students_student ON public.parent_students (student_id);
+CREATE INDEX IF NOT EXISTS idx_announcements_created ON public.announcements (created_at DESC);

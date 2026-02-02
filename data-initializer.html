@@ -3,83 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Data Seeding Agent - Educare Track</title>
+    <title>Production Data Seeder - Educare Track</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        .log-container {
-            max-height: 400px;
-            overflow-y: auto;
-            font-family: monospace;
-            font-size: 12px;
-        }
-        .progress-bar {
-            transition: width 0.3s ease;
-        }
+        .log-container { max-height: 400px; overflow-y: auto; font-family: monospace; font-size: 12px; }
+        .progress-bar { transition: width 0.3s ease; }
     </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen p-8">
     <div class="max-w-4xl mx-auto">
         <div class="flex items-center space-x-4 mb-8">
-            <div class="bg-emerald-600 p-3 rounded-2xl shadow-lg shadow-emerald-500/20">
-                <i data-lucide="sprout" class="w-8 h-8 text-white"></i>
+            <div class="bg-violet-600 p-3 rounded-2xl shadow-lg shadow-violet-500/20">
+                <i data-lucide="database" class="w-8 h-8 text-white"></i>
             </div>
             <div>
-                <h1 class="text-3xl font-bold">🌱 Data Seeding Agent</h1>
-                <p class="text-slate-400">Strict, Schema-Bound Database Population for EDUCARE TRACK</p>
+                <h1 class="text-3xl font-bold">🚀 Production Seeding Agent</h1>
+                <p class="text-slate-400">Auth-Enabled, Zero-Null Database Population</p>
+            </div>
+        </div>
+
+        <div class="bg-amber-900/20 border border-amber-500/50 p-4 rounded-xl mb-8 flex items-start space-x-3">
+            <i data-lucide="alert-triangle" class="text-amber-500 w-6 h-6 mt-1"></i>
+            <div>
+                <p class="font-bold text-amber-500 uppercase text-xs tracking-widest">Action Required</p>
+                <p class="text-sm text-amber-200/80">To create loggable dummy users, you must provide your <b>Supabase Service Role Key</b>. This key is used only during this session to call the Admin Auth API.</p>
+                <input type="password" id="serviceKey" class="w-full mt-3 bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-violet-500" placeholder="paste your service_role key here...">
             </div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <!-- Configuration Card -->
             <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
                 <h2 class="text-lg font-bold mb-4 flex items-center">
-                    <i data-lucide="shield-check" class="w-5 h-5 mr-2 text-emerald-400"></i>
-                    Seeding Scope (Locked)
+                    <i data-lucide="list-checks" class="w-5 h-5 mr-2 text-violet-400"></i>
+                    Final Seeding Scope
                 </h2>
                 <ul class="space-y-3 text-sm text-slate-300">
-                    <li class="flex justify-between">
-                        <span>Admins & Guards</span>
-                        <span class="text-emerald-400 font-bold">2 each</span>
-                    </li>
-                    <li class="flex justify-between">
-                        <span>Teachers (Homeroom/Subject)</span>
-                        <span class="text-emerald-400 font-bold">20</span>
-                    </li>
-                    <li class="flex justify-between">
-                        <span>Classes (No Sections)</span>
-                        <span class="text-emerald-400 font-bold">13 (K-12)</span>
-                    </li>
-                    <li class="flex justify-between">
-                        <span>Students (5 per class)</span>
-                        <span class="text-emerald-400 font-bold">65</span>
-                    </li>
-                    <li class="flex justify-between">
-                        <span>Attendance & Validations</span>
-                        <span class="text-emerald-400 font-bold">Nov 2025 - Present</span>
-                    </li>
+                    <li class="flex justify-between"><span>Admin</span><span class="text-violet-400 font-bold">1 Loggable</span></li>
+                    <li class="flex justify-between"><span>Teachers (Homeroom/Subject)</span><span class="text-violet-400 font-bold">30 Loggable</span></li>
+                    <li class="flex justify-between"><span>Guards & Clinic</span><span class="text-violet-400 font-bold">2 Each Loggable</span></li>
+                    <li class="flex justify-between"><span>Students (5 per class)</span><span class="text-violet-400 font-bold">65 Total</span></li>
+                    <li class="flex justify-between"><span>Attendance History</span><span class="text-violet-400 font-bold">Nov - Present</span></li>
                 </ul>
-
                 <div class="mt-8 space-y-4">
-                    <button id="startBtn" class="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-all shadow-lg shadow-emerald-600/20 flex items-center justify-center space-x-2">
+                    <button id="startBtn" class="w-full py-4 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-bold transition-all shadow-lg shadow-violet-600/20 flex items-center justify-center space-x-2">
                         <i data-lucide="play" class="w-5 h-5"></i>
-                        <span>Begin Seeding</span>
+                        <span>Begin Full Seeding</span>
                     </button>
                     <button id="clearDataBtn" class="w-full py-3 bg-slate-700 hover:bg-red-600 text-slate-300 hover:text-white rounded-xl font-bold transition-all flex items-center justify-center space-x-2 border border-slate-600 hover:border-red-500">
                         <i data-lucide="trash-2" class="w-4 h-4"></i>
-                        <span>Clear All Data</span>
+                        <span>Wipe All Tables</span>
                     </button>
                 </div>
             </div>
 
-            <!-- Status Card -->
             <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
                 <h2 class="text-lg font-bold mb-4 flex items-center">
                     <i data-lucide="activity" class="w-5 h-5 mr-2 text-blue-400"></i>
                     Status
                 </h2>
-                
                 <div class="space-y-6">
                     <div>
                         <div class="flex justify-between text-xs mb-2">
@@ -90,48 +73,35 @@
                             <div id="progressBar" class="progress-bar h-full bg-blue-500 w-0"></div>
                         </div>
                     </div>
-
-                    <div id="currentAction" class="text-sm font-medium text-slate-200">
-                        Ready to seed...
-                    </div>
-
+                    <div id="currentAction" class="text-sm font-medium text-slate-200 italic">Ready to seed...</div>
                     <div class="grid grid-cols-2 gap-4">
                         <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50 text-center">
-                            <p class="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Validations</p>
-                            <p id="countValidations" class="text-xl font-bold">0</p>
+                            <p class="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Users Created</p>
+                            <p id="countUsers" class="text-xl font-bold">0</p>
                         </div>
                         <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50 text-center">
-                            <p class="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Audit Logs</p>
-                            <p id="countAudit" class="text-xl font-bold">0</p>
+                            <p class="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Attendance Logs</p>
+                            <p id="countAtt" class="text-xl font-bold">0</p>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Logs -->
         <div class="bg-slate-800 rounded-2xl border border-slate-700 shadow-xl overflow-hidden">
             <div class="p-4 bg-slate-700/30 border-b border-slate-700 flex justify-between items-center">
                 <h3 class="text-sm font-bold uppercase tracking-widest text-slate-400">Seeding Logs</h3>
                 <button id="clearLogs" class="text-[10px] text-slate-500 hover:text-slate-300 uppercase font-bold">Clear</button>
             </div>
             <div id="logs" class="log-container p-4 text-slate-400">
-                <div>[SYSTEM] Awaiting user command...</div>
+                <div>[SYSTEM] Awaiting Service Role Key and Start command...</div>
             </div>
         </div>
     </div>
 
+    <script src="./js/supabase-config.js"></script>
     <script type="module">
-        import _supabase from './js/supabase-config.js';
-
-        const state = {
-            progress: 0,
-            profilesCreated: 0,
-            validationsCreated: 0,
-            auditCreated: 0,
-            logsCreated: 0
-        };
-
+        const state = { progress: 0, usersCreated: 0, attCreated: 0 };
         const firstNames = ['Juan', 'Maria', 'Jose', 'Elena', 'Ricardo', 'Liza', 'Antonio', 'Teresita', 'Gabriel', 'Carmelita', 'Mateo', 'Angelita', 'Dominador', 'Priscila', 'Ramon', 'Imelda', 'Felipe', 'Corazon', 'Emilio', 'Lourdes'];
         const lastNames = ['Pascua', 'Bautista', 'Cariño', 'Domogan', 'Molintas', 'Fianza', 'Aliping', 'Cosalan', 'Vergara', 'Mauricio', 'Tabora', 'Bugnosen', 'Hamada', 'Okubo', 'Bello', 'Perez', 'Garcia', 'Dimalanta', 'Santos', 'Reyes'];
         const grades = ['Kinder', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
@@ -141,7 +111,7 @@
         const log = (msg, type = 'info') => {
             const el = document.getElementById('logs');
             const div = document.createElement('div');
-            const color = type === 'error' ? 'text-red-400' : type === 'success' ? 'text-emerald-400' : 'text-slate-400';
+            const color = type === 'error' ? 'text-red-400' : type === 'success' ? 'text-emerald-400' : type === 'warning' ? 'text-amber-400' : 'text-slate-400';
             div.className = `mb-1 ${color}`;
             div.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
             el.appendChild(div);
@@ -152,351 +122,268 @@
             if (action) document.getElementById('currentAction').innerText = action;
             document.getElementById('progressBar').style.width = `${state.progress}%`;
             document.getElementById('progressPercent').innerText = `${Math.round(state.progress)}%`;
-            document.getElementById('countValidations').innerText = state.validationsCreated;
-            document.getElementById('countAudit').innerText = state.auditCreated;
+            document.getElementById('countUsers').innerText = state.usersCreated;
+            document.getElementById('countAtt').innerText = state.attCreated;
         };
 
         const generateStaffID = (role, year, phone) => {
-            const prefix = role === 'admin' ? 'ADM' : 
-                           role === 'teacher' ? 'TCH' : 
-                           role === 'clinic' ? 'CLC' : 'GRD';
+            const prefix = role === 'admin' ? 'ADM' : role === 'teacher' ? 'TCH' : role === 'clinic' ? 'CLC' : 'GRD';
             const last4Phone = phone.toString().replace(/\D/g, '').slice(-4);
             const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
             return `${prefix}-${year}-${last4Phone}-${randomStr}`;
         };
 
         const generateStudentID = (year, LRN) => {
-            const cleanLRN = LRN.toString().replace(/\D/g, '');
-            const last4 = cleanLRN.slice(-4);
+            const last4 = LRN.toString().slice(-4);
             const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
             return `EDU-${year}-${last4}-${randomStr}`;
         };
 
-        async function clearDatabase() {
-            if (!confirm('STRICT MODE: This will wipe all tables. Continue?')) return;
-            
+        async function seed() {
+            const serviceKey = document.getElementById('serviceKey').value;
+            if (!serviceKey) return log('ERROR: Service Role Key is required for loggable users!', 'error');
+
+            const adminClient = supabase.createClient(window.SUPABASE_URL, serviceKey);
+            const startBtn = document.getElementById('startBtn');
+            startBtn.disabled = true;
+            log('Initiating Auth-Enabled Seeding Sequence...', 'success');
+
             try {
-                const tables = [
-                    'audit_logs', 'attendance_validations', 'attendance', 'clinic_visits', 
-                    'qr_codes', 'parent_students', 'students', 'classes', 
-                    'teachers', 'parents', 'guards', 'clinic_staff', 
-                    'admin_staff', 'announcements', 'school_calendar', 
-                    'subjects', 'profiles'
+                const currentYear = new Date().getFullYear();
+                const defaultPassword = 'password123';
+
+                // 1. Core Staff
+                log('Seeding Core Staff (Admin, Guards, Clinic)...');
+                const staffRoles = [
+                    { role: 'admin', email: 'admin@educare.edu', name: 'Super Admin', phone: '09170000001' },
+                    { role: 'guard', email: 'guard1@educare.edu', name: 'Guard Ricardo', phone: '09180000001' },
+                    { role: 'guard', email: 'guard2@educare.edu', name: 'Guard Antonio', phone: '09180000002' },
+                    { role: 'clinic', email: 'nurse1@educare.edu', name: 'Nurse Teresita', phone: '09190000001' },
+                    { role: 'clinic', email: 'nurse2@educare.edu', name: 'Nurse Maria', phone: '09190000002' }
                 ];
 
-                log('Initiating wipe...', 'warning');
-                for (const table of tables) {
-                    const { error } = await _supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
-                    if (error) log(`Table ${table} wipe error: ${error.message}`, 'error');
-                }
-                log('Database wiped successfully.', 'success');
-            } catch (err) {
-                log(`Wipe failed: ${err.message}`, 'error');
-            }
-        }
-
-        async function seed() {
-            try {
-                const startBtn = document.getElementById('startBtn');
-                startBtn.disabled = true;
-                log('Starting strict seeding sequence...', 'success');
-
-                // 1. Admin & Guard & Clinic Staff Seeding
-                log('Seeding Admins, Guards, and Clinic Staff...');
-                const adminIds = [];
                 const guardIds = [];
-                const clinicStaffIds = [];
-                const currentYear = new Date().getFullYear();
-
-                for(let i=0; i<2; i++) {
-                    // Admin
-                    const aPhone = `0917000000${i}`;
-                    const { data: ap } = await _supabase.from('profiles').insert([{
-                        id: generateStaffID('admin', currentYear, aPhone),
-                        role: 'admin', full_name: `${firstNames[i]} ${lastNames[i]}`,
-                        username: `admin${i+1}`, password: 'password123', email: `admin${i+1}@educare.edu.ph`,
-                        phone: aPhone, is_active: true
-                    }]).select().single();
-                    if(ap) {
-                        await _supabase.from('admin_staff').insert([{ id: ap.id, position: 'Lead Administrator' }]);
-                        adminIds.push(ap.id);
-                    }
-
-                    // Guard
-                    const gPhone = `0918000000${i}`;
-                    const { data: gp } = await _supabase.from('profiles').insert([{
-                        id: generateStaffID('guard', currentYear, gPhone),
-                        role: 'guard', full_name: `Guard ${firstNames[i+2]}`,
-                        username: `guard${i+1}`, password: 'password123',
-                        phone: gPhone, is_active: true
-                    }]).select().single();
-                    if(gp) {
-                        await _supabase.from('guards').insert([{ id: gp.id, shift: 'Day', assigned_gate: 'Main Gate' }]);
-                        guardIds.push(gp.id);
-                    }
-
-                    // Clinic Staff
-                    const cPhone = `0919000000${i}`;
-                    const { data: cp } = await _supabase.from('profiles').insert([{
-                        id: generateStaffID('clinic', currentYear, cPhone),
-                        role: 'clinic', full_name: `Nurse ${firstNames[i+4]}`,
-                        username: `nurse${i+1}`, password: 'password123',
-                        phone: cPhone, is_active: true
-                    }]).select().single();
-                    if(cp) {
-                        await _supabase.from('clinic_staff').insert([{ id: cp.id }]);
-                        clinicStaffIds.push(cp.id);
+                for (const s of staffRoles) {
+                    const customId = generateStaffID(s.role, currentYear, s.phone);
+                    const { data: user, error: authErr } = await adminClient.auth.admin.createUser({
+                        email: s.email, password: defaultPassword, email_confirm: true,
+                        user_metadata: { full_name: s.name, role: s.role, custom_id: customId, username: s.email.split('@')[0], phone: s.phone }
+                    });
+                    if (authErr) log(`Auth failed for ${s.email}: ${authErr.message}`, 'warning');
+                    else {
+                        state.usersCreated++;
+                        if (s.role === 'guard') guardIds.push(user.user.id);
+                        if (s.role === 'admin') await adminClient.from('admin_staff').upsert({ id: user.user.id, position: 'School Principal' });
+                        if (s.role === 'clinic') await adminClient.from('clinic_staff').upsert({ id: user.user.id, license_no: 'RN-2026-001' });
+                        if (s.role === 'guard') await adminClient.from('guards').upsert({ id: user.user.id, shift: 'Day', assigned_gate: 'Main Gate' });
                     }
                 }
-                state.progress = 10; updateUI('Admins, Guards, and Clinic Staff seeded.');
+                state.progress = 10; updateUI('Core staff ready.');
 
-                // 2. Teacher Seeding
-                log('Seeding 20 Teachers...');
+                // 2. 30 Teachers
+                log('Seeding 30 Teachers...');
                 const teacherIds = [];
-                for(let i=0; i<20; i++) {
-                    const tPhone = `09200000${100+i}`;
-                    const { data: tp } = await _supabase.from('profiles').insert([{
-                        id: generateStaffID('teacher', currentYear, tPhone),
-                        full_name: `${firstNames[i % 20]} ${lastNames[(i+5)%20]}`, role: 'teacher',
-                        username: `teacher${i+1}`, password: 'password123',
-                        phone: tPhone, is_active: true
-                    }]).select().single();
-                    if(tp) {
-                        await _supabase.from('teachers').insert([{ 
-                            id: tp.id, employee_no: `TCH-${currentYear}-${100+i}`, 
-                            is_homeroom: i < 13,
-                            assigned_subjects: [subjects[i % subjects.length], subjects[(i+1) % subjects.length]]
-                        }]);
-                        teacherIds.push(tp.id);
+                for (let i = 1; i <= 30; i++) {
+                    const email = `teacher${i}@educare.edu`;
+                    const phone = `092000000${i.toString().padStart(2, '0')}`;
+                    const customId = generateStaffID('teacher', currentYear, phone);
+                    const { data: user, error } = await adminClient.auth.admin.createUser({
+                        email, password: defaultPassword, email_confirm: true,
+                        user_metadata: { full_name: `${firstNames[i % 20]} ${lastNames[(i + 5) % 20]}`, role: 'teacher', custom_id: customId, username: `teacher${i}`, phone }
+                    });
+                    if (!error) {
+                        state.usersCreated++;
+                        teacherIds.push(user.user.id);
+                        await adminClient.from('teachers').upsert({ id: user.user.id, employee_no: `EMP-${2026000 + i}`, is_homeroom: i <= 13, is_gatekeeper: i > 27 });
                     }
                 }
-                state.progress = 20; updateUI('Teachers seeded.');
+                state.progress = 30; updateUI('30 Teachers ready.');
 
-                // 3. Class Seeding (NO SECTIONS)
-                log('Seeding Classes (No Sections)...');
-                const classes = [];
-                for(let i=0; i<grades.length; i++) {
+                // 3. Classes
+                log('Seeding 13 Classes & Subjects...');
+                const classIds = [];
+                const subjectCodes = [];
+
+                // Seed Subjects for all grades
+                for (const g of grades) {
+                    for (const s of subjects) {
+                        const code = `${s}-${g}`;
+                        await adminClient.from('subjects').upsert({
+                            code, name: `${s} for Grade ${g}`, grade_level: g, type: 'core'
+                        });
+                        subjectCodes.push(code);
+                    }
+                }
+
+                for (let i = 0; i < grades.length; i++) {
                     const grade = grades[i];
                     const strand = (grade === '11' || grade === '12') ? strands[i % 4] : null;
-                    const classId = `CLS-${grade}${strand ? '-'+strand : ''}`;
-                    const { data: cls } = await _supabase.from('classes').insert([{
-                        id: classId, grade: grade, strand: strand, adviser_id: teacherIds[i],
-                        room: `Room ${101+i}`, level: parseInt(grade) >= 7 || grade === '11' || grade === '12' ? 'High School' : 'Elementary'
-                    }]).select().single();
-                    if(cls) classes.push(cls);
-                }
-                state.progress = 30; updateUI('Classes seeded.');
+                    const id = grade + (strand ? '-' + strand : '');
+                    
+                    // Teachers 1-13 are Homeroom Advisers
+                    await adminClient.from('classes').upsert({ 
+                        id, grade, strand, 
+                        adviser_id: i < 13 ? teacherIds[i] : null, 
+                        level: parseInt(grade) >= 7 ? 'High School' : (grade === 'Kinder' ? 'Kinder' : 'Elementary')
+                    });
+                    classIds.push(id);
 
-                // 4. Student & Parent Seeding
-                log('Seeding Students & Linking Parents...');
+                    // Seed Schedules for each class
+                    for (let j = 0; j < 3; j++) {
+                        await adminClient.from('class_schedules').insert({
+                            class_id: id,
+                            subject_code: subjectCodes[Math.floor(Math.random() * subjectCodes.length)],
+                            teacher_id: teacherIds[Math.floor(Math.random() * teacherIds.length)],
+                            day_of_week: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'][j],
+                            start_time: `${8 + j}:00:00`,
+                            end_time: `${9 + j}:00:00`
+                        });
+                    }
+                }
+                state.progress = 40; updateUI('Classes and Schedules ready.');
+
+                // 4. Parents & Students (5 per class)
+                log('Seeding Students & Multi-Child Parents...');
                 const studentRecords = [];
-                const parentIds = [];
-                for(let i=0; i<classes.length; i++) {
-                    const cls = classes[i];
-                    for(let j=0; j<5; j++) {
-                        const sIdx = i * 5 + j;
-                        const pPhone = `09300000${100+sIdx}`;
-                        // Parent Profile
-                        const { data: pp } = await _supabase.from('profiles').insert([{
-                            full_name: `${firstNames[(sIdx+5)%20]} Parent`, role: 'parent',
-                            username: `parent${sIdx+1}`, password: 'password123',
-                            phone: pPhone, is_active: true
-                        }]).select().single();
-                        if(pp) {
-                            await _supabase.from('parents').insert([{ id: pp.id, address: 'Baguio City' }]);
-                            parentIds.push(pp.id);
-                            // Student Profile
-                            const studentID = generateStudentID(currentYear, `100000${sIdx}`);
-                            const { data: stu } = await _supabase.from('students').insert([{
-                                id: studentID, lrn: `100000${sIdx}`, 
-                                full_name: `${firstNames[(sIdx+10)%20]} ${lastNames[(sIdx+12)%20]}`,
-                                grade_level: cls.grade, strand: cls.strand, class_id: cls.id,
-                                current_status: 'out'
-                            }]).select().single();
-                            if(stu) {
-                                await _supabase.from('parent_students').insert([{ parent_id: pp.id, student_id: stu.id }]);
-                                await _supabase.from('qr_codes').insert([{ student_id: stu.id, qr_hash: stu.id }]);
-                                studentRecords.push(stu);
+                let studentCount = 0;
+                
+                for (let i = 0; i < classIds.length; i++) {
+                    const clsId = classIds[i];
+                    const grade = grades[i];
+
+                    for (let j = 1; j <= 5; j++) {
+                        studentCount++;
+                        // One parent per ~2.5 students to simulate multi-child
+                        const parentIdx = Math.ceil(studentCount / 2.5);
+                        const pEmail = `parent${parentIdx}@email.com`;
+                        const pPhone = `093000000${parentIdx.toString().padStart(2, '0')}`;
+                        
+                        let parentId;
+                        const { data: pCheck } = await adminClient.from('profiles').select('id').eq('email', pEmail).single();
+                        if (!pCheck) {
+                            const customId = `PAR-2026-${parentIdx}`;
+                            const { data: pUser, error: pAuthErr } = await adminClient.auth.admin.createUser({
+                                email: pEmail, password: defaultPassword, email_confirm: true,
+                                user_metadata: { full_name: `Parent ${lastNames[parentIdx % 20]}`, role: 'parent', custom_id: customId, username: `parent${parentIdx}`, phone: pPhone }
+                            });
+                            if (pAuthErr) {
+                                log(`Parent Auth Error: ${pAuthErr.message}`, 'warning');
+                                continue;
                             }
-                        }
-                    }
-                }
-                state.progress = 60; updateUI('Students & Parents seeded.');
+                            parentId = pUser.user.id;
+                            await adminClient.from('parents').upsert({ id: parentId, address: 'Purok 4 Irisan Baguio City' });
+                            state.usersCreated++;
+                        } else parentId = pCheck.id;
 
-                // 5. Attendance & Validation Seeding
-                log('Seeding Variety Attendance...');
-                const dates = ['2026-01-26', '2026-01-27', '2026-01-28', '2026-01-29', '2026-01-30'];
-                for(const date of dates) {
-                    for(const cls of classes) {
-                        const subject = subjects[Math.floor(Math.random()*subjects.length)];
-                        const sessionType = 'AM';
+                        // Create Student
+                        const lrn = `100000${studentCount.toString().padStart(3, '0')}`;
+                        const studentId = generateStudentID(currentYear, lrn);
+                        const { data: stu, error: stuErr } = await adminClient.from('students').insert({
+                            id: studentId, lrn, full_name: `${firstNames[studentCount % 20]} ${lastNames[(studentCount + 10) % 20]}`,
+                            grade_level: grade, class_id: clsId, current_status: 'out', address: 'Purok 4 Irisan Baguio City'
+                        }).select().single();
                         
-                        // Teacher Roll Call Validation
-                        const { data: val } = await _supabase.from('attendance_validations').insert([{
-                            class_id: cls.id, teacher_id: cls.adviser_id, subject: subject,
-                            session: sessionType, attendance_date: date, validated_by: cls.adviser_id,
-                            remarks: 'Daily Roll Call'
-                        }]).select().single();
-                        
-                        if(val) {
-                            state.validationsCreated++;
-                            const classStudents = studentRecords.filter(s => s.class_id === cls.id);
-                            
-                            const attRows = classStudents.map(s => {
-                                const roll = Math.random();
-                                let status = 'present';
-                                let remarks = 'On Time';
-                                let entry_type = 'entry';
-                                let time = '07:15:00';
-
-                                if (roll > 0.9) {
-                                    status = 'absent';
-                                    remarks = 'No show';
-                                } else if (roll > 0.8) {
-                                    status = 'late';
-                                    remarks = 'Entered Late';
-                                    time = '07:45:00';
-                                } else if (roll > 0.7) {
-                                    status = 'morning_absent';
-                                    remarks = 'First scan afternoon';
-                                    time = '13:15:00';
-                                }
-
-                                return {
-                                    student_id: s.id, class_id: cls.id, 
-                                    status, entry_type, session: sessionType, method: 'qr',
-                                    timestamp: `${date}T${time}Z`, recorded_by: guardIds[0],
-                                    remarks
-                                };
-                            });
-                            await _supabase.from('attendance').insert(attRows);
-
-                            // Add some exit scans
-                            const exitRows = classStudents.filter(() => Math.random() > 0.3).map(s => {
-                                const roll = Math.random();
-                                let status = 'present';
-                                let remarks = 'Regular Exit';
-                                let time = '16:45:00';
-
-                                if (roll > 0.9) {
-                                    status = 'early_exit';
-                                    remarks = 'Early Dismissal';
-                                    time = '14:00:00';
-                                } else if (roll > 0.8) {
-                                    status = 'late_exit';
-                                    remarks = 'Late Exit';
-                                    time = '17:30:00';
-                                }
-
-                                return {
-                                    student_id: s.id, class_id: cls.id, 
-                                    status, entry_type: 'exit', session: 'PM', method: 'qr',
-                                    timestamp: `${date}T${time}Z`, recorded_by: guardIds[1],
-                                    remarks
-                                };
-                            });
-                            await _supabase.from('attendance').insert(exitRows);
+                        if (stuErr) {
+                            log(`Student Insert Error: ${stuErr.message}`, 'error');
+                            continue;
                         }
-                    }
-                    updateUI(`Attendance for ${date} seeded.`);
-                }
-                state.progress = 80;
 
-                // 6. Clinic Workflow Seeding
-                log('Seeding Clinic Workflow...');
-                for(let i=0; i<5; i++) {
-                    const student = studentRecords[i];
-                    const teacherId = teacherIds[0];
-                    const nurseId = clinicStaffIds[0];
-                    const date = '2026-01-31';
-
-                    // Step 1: Teacher Pass (Pending Attendance)
-                    const { data: att } = await _supabase.from('attendance').insert([{
-                        student_id: student.id, status: 'pending', entry_type: 'clinic',
-                        method: 'manual', recorded_by: teacherId, timestamp: `${date}T09:00:00Z`,
-                        remarks: 'Headache | Complaining of sharp pain'
-                    }]).select().single();
-
-                    if(att) {
-                        // Step 2: Nurse Approval
-                        await _supabase.from('attendance').update({ status: 'approved' }).eq('id', att.id);
-
-                        // Step 3: QR Check-in (clinic_visits)
-                        const { data: visit } = await _supabase.from('clinic_visits').insert([{
-                            student_id: student.id, treated_by: nurseId, visit_time: `${date}T09:15:00Z`,
-                            reason: 'Severe Headache'
-                        }]).select().single();
-
-                        if(visit) {
-                            // Step 4: Nurse Findings & Decision
-                            const decision = i % 2 === 0 ? 'return_to_class' : 'send_home';
-                            await _supabase.from('clinic_visits').update({ 
-                                notes: 'Provided paracetamol and 15 mins rest.' 
-                            }).eq('id', visit.id);
-
-                            await _supabase.from('attendance').update({ 
-                                status: 'in_clinic',
-                                remarks: `Decision: ${decision} | Nurse Note: Provided paracetamol | Parent Notified` 
-                            }).eq('id', att.id);
-
-                            // Step 5: Checkout
-                            const finalStatus = decision === 'send_home' ? 'sent_home' : 'returned';
-                            await _supabase.from('attendance').update({ status: finalStatus }).eq('id', att.id);
-                            await _supabase.from('students').update({ 
-                                current_status: decision === 'send_home' ? 'sent_home' : 'out' 
-                            }).eq('id', student.id);
+                        if (stu) {
+                            studentRecords.push(stu);
+                            await adminClient.from('parent_students').insert({ parent_id: parentId, student_id: studentId, relationship: 'Parent' });
+                            await adminClient.from('qr_codes').insert({ student_id: studentId, qr_hash: studentId, is_active: true });
                         }
                     }
                 }
-                state.progress = 90; updateUI('Clinic workflows seeded.');
+                state.progress = 70; updateUI('Students & Parents ready.');
 
-                // 7. Audit & Notifications
-                log('Seeding Audit & Notifications...');
-                const sampleStudent = studentRecords[0];
-                const sampleParent = parentIds[0];
-
-                await _supabase.from('notifications').insert([
-                    {
-                        recipient_id: sampleParent, actor_id: guardIds[0],
-                        verb: 'attendance_entry', 
-                        object: { student_name: sampleStudent.full_name, remarks: 'On Time Entry' }
-                    },
-                    {
-                        recipient_id: teacherIds[0], actor_id: clinicStaffIds[0],
-                        verb: 'clinic_findings_ready',
-                        object: { student_name: sampleStudent.full_name, decision: 'return_to_class' }
+                // 5. Bulk Attendance (Nov - Present)
+                log('Generating 3 months of Attendance Logs...');
+                const startDate = new Date('2025-11-01');
+                const endDate = new Date();
+                let curr = new Date(startDate);
+                while (curr <= endDate) {
+                    if (curr.getDay() !== 0 && curr.getDay() !== 6) { // Weekdays only
+                        const dateStr = curr.toISOString().split('T')[0];
+                        const batch = studentRecords.map(s => {
+                            const roll = Math.random();
+                            let status = roll < 0.85 ? 'present' : roll < 0.95 ? 'late' : 'absent';
+                            return {
+                                student_id: s.id, date: dateStr, status, 
+                                timestamp: `${dateStr}T${status === 'late' ? '08:15:00' : '07:15:00'}Z`,
+                                method: status === 'absent' ? 'none' : 'qr', entry_type: status === 'absent' ? 'none' : 'entry',
+                                recorded_by: guardIds[0], remarks: status === 'late' ? 'Entered Late' : 'On Time'
+                            };
+                        });
+                        await adminClient.from('attendance').insert(batch);
+                        state.attCreated += batch.length;
                     }
+                    curr.setDate(curr.getDate() + 1);
+                    state.progress = 70 + (30 * (curr - startDate) / (endDate - startDate));
+                    updateUI(`Seeding logs for ${curr.toDateString()}`);
+                }
+
+                state.progress = 100; updateUI('Seeding Complete!');
+                log('System is now 100% operational with loggable dummy users.', 'success');
+
+                // 6. Final Utilities
+                log('Seeding Rules and Announcements...');
+                const rules = [
+                    { grade_level: 'Kinder', in_start: '07:30:00', grace_until: '08:00:00', late_until: '08:30:00', dismissal_time: '11:30:00' },
+                    { grade_level: '1', in_start: '07:30:00', grace_until: '07:45:00', late_until: '08:15:00', dismissal_time: '13:00:00' },
+                    { grade_level: '11', in_start: '07:30:00', grace_until: '07:45:00', late_until: '08:15:00', dismissal_time: '16:30:00' }
+                ];
+                for (const r of rules) await adminClient.from('attendance_rules').upsert(r);
+
+                await adminClient.from('announcements').insert([
+                    { title: 'Welcome to SY 2025-2026', content: 'Classes start today!', audience: ['parent', 'teacher'], posted_by: staffRoles[0].id },
+                    { title: 'Emergency Suspension', content: 'Due to typhoon, classes are suspended.', audience: ['all'], posted_by: staffRoles[0].id }
                 ]);
 
-                await _supabase.from('audit_logs').insert([
-                    {
-                        actor_id: guardIds[0], action: 'GATE_ENTRY',
-                        target_table: 'attendance', target_id: sampleStudent.id,
-                        details: { student: sampleStudent.full_name, status: 'present' }
-                    },
-                    {
-                        actor_id: clinicStaffIds[0], action: 'CLINIC_CHECKIN',
-                        target_table: 'clinic_visits', target_id: sampleStudent.id,
-                        details: { student: sampleStudent.full_name }
-                    }
-                ]);
-                state.auditCreated += 2;
-
-                state.progress = 100;
-                updateUI('Seeding Complete!');
-                log('All production-grade sample data seeded successfully.', 'success');
-                startBtn.innerText = 'Seeding Done';
-                startBtn.disabled = false;
-
+                startBtn.innerText = 'Seeding Successful';
             } catch (err) {
                 log(err.message, 'error');
-                document.getElementById('startBtn').disabled = false;
+                startBtn.disabled = false;
             }
         }
 
         document.getElementById('startBtn').addEventListener('click', seed);
-        document.getElementById('clearDataBtn').addEventListener('click', clearDatabase);
-        document.getElementById('clearLogs').addEventListener('click', () => document.getElementById('logs').innerHTML = '');
+        document.getElementById('clearDataBtn').addEventListener('click', async () => {
+            const serviceKey = document.getElementById('serviceKey').value;
+            if (!serviceKey) return log('ERROR: Service Role Key is required to wipe Auth users!', 'error');
+            if (!confirm('WIPE EVERYTHING? This will delete ALL users and ALL data.')) return;
+            
+            const adminClient = supabase.createClient(window.SUPABASE_URL, serviceKey);
+            log('Starting full database and auth wipe...', 'warning');
+
+            try {
+                // 1. Wipe Auth Users
+                const { data: { users }, error: listErr } = await adminClient.auth.admin.listUsers();
+                if (listErr) throw listErr;
+                
+                log(`Deleting ${users.length} auth users...`);
+                for (const u of users) {
+                    await adminClient.auth.admin.deleteUser(u.id);
+                }
+                log('Auth users cleared.', 'success');
+
+                // 2. Wipe Database Tables (Cascade will handle most)
+                const tables = ['attendance', 'students', 'profiles', 'subjects', 'classes', 'announcements', 'school_calendar'];
+                for (const t of tables) {
+                    try {
+                        await adminClient.from(t).delete();
+                    } catch (e) {}
+                }
+                
+                log('Database tables cleared.', 'success');
+                state.usersCreated = 0;
+                state.attCreated = 0;
+                state.progress = 0;
+                updateUI('System Wiped Clean');
+            } catch (err) {
+                log('Wipe failed: ' + err.message, 'error');
+            }
+        });
         if (window.lucide) window.lucide.createIcons();
     </script>
 </body>
