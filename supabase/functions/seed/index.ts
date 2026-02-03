@@ -22,9 +22,9 @@ serve(async (req) => {
 
   const firstNames = ["Juan","Maria","Jose","Elena","Ricardo","Liza","Antonio","Teresita","Gabriel","Carmelita","Mateo","Angelita","Dominador","Priscila","Ramon","Imelda","Felipe","Corazon","Emilio","Lourdes"];
   const lastNames = ["Pascua","Bautista","Cariño","Domogan","Molintas","Fianza","Aliping","Cosalan","Vergara","Mauricio","Tabora","Bugnosen","Hamada","Okubo","Bello","Perez","Garcia","Dimalanta","Santos","Reyes"];
-  const grades = ["Kinder","1","2","3","4","5","6","7","8","9","10","11","12"];
-  const strands = ["STEM","ABM","HUMSS","TVL-ICT"];
-  const subjects = ["MATH","SCI","ENG","FIL","MAPEH","ICT"];
+  const grades = ["Kinder","1","2","3","4","5","6","7","8","9","10"];
+  const strands = [];
+  const subjects = ["MATH","SCI","ENG","FIL","MAPEH","AP","ESP"];
   const defaultPassword = "password123";
   const year = new Date().getFullYear();
 
@@ -49,14 +49,14 @@ serve(async (req) => {
   let parentsCreated = 0;
   let studentsCreated = 0;
 
-  async function ensureAuthAndProfile(email: string, role: string, full_name: string, username: string, phone: string, custom_id: string) {
+  async function ensureAuthAndProfile(email: string, role: string, full_name: string, username: string, phone: string) {
     const { data: existingProfiles } = await admin.from("profiles").select("id").eq("email", email).limit(1);
     if (existingProfiles && existingProfiles.length > 0) return existingProfiles[0].id as string;
     const { data: created, error: createErr } = await admin.auth.admin.createUser({
       email,
       password: defaultPassword,
       email_confirm: true,
-      user_metadata: { full_name, role, custom_id, username, phone },
+      user_metadata: { full_name, role, username, phone },
     });
     if (createErr || !created?.user) throw new Error(createErr?.message ?? "createUser failed");
     const uid = created.user.id;
@@ -136,7 +136,7 @@ serve(async (req) => {
     const guardIds: string[] = [];
     let adminId: string | null = null;
     for (const s of staff) {
-      const uid = await ensureAuthAndProfile(s.email, s.role, s.name, s.email.split("@")[0], s.phone, staffId(s.role, s.phone));
+      const uid = await ensureAuthAndProfile(s.email, s.role, s.name, s.email.split("@")[0], s.phone);
       if (s.role === "admin") {
         await admin.from("admin_staff").upsert({ id: uid, position: "School Principal" });
         adminId = uid;
@@ -153,7 +153,7 @@ serve(async (req) => {
       const email = `teacher${i}@educare.edu`;
       const phone = `092000000${i.toString().padStart(2, "0")}`;
       const full_name = `${firstNames[i % firstNames.length]} ${lastNames[(i + 5) % lastNames.length]}`;
-      const uid = await ensureAuthAndProfile(email, "teacher", full_name, `teacher${i}`, phone, staffId("teacher", phone));
+      const uid = await ensureAuthAndProfile(email, "teacher", full_name, `teacher${i}`, phone);
       await admin.from("teachers").upsert({
         id: uid,
         employee_no: `EMP-${2026000 + i}`,
@@ -218,7 +218,7 @@ serve(async (req) => {
         const pEmail = `parent${parentIdx}@email.com`;
         const pPhone = `093000000${parentIdx.toString().padStart(2, "0")}`;
         const pName = `Parent ${lastNames[parentIdx % lastNames.length]}`;
-        const pId = await ensureAuthAndProfile(pEmail, "parent", pName, `parent${parentIdx}`, pPhone, `PAR-${year}-${parentIdx}`);
+        const pId = await ensureAuthAndProfile(pEmail, "parent", pName, `parent${parentIdx}`, pPhone);
         const { error: pErr } = await admin.from("parents").upsert({ id: pId, address: "Purok 4 Irisan Baguio City" });
         if (!pErr) parentsCreated++;
 
@@ -319,9 +319,17 @@ serve(async (req) => {
     }
 
     const rules = [
-      { grade_level: "Kinder", in_start: "07:30:00", grace_until: "08:00:00", late_until: "08:30:00", min_subject_minutes: 30 },
-      { grade_level: "1", in_start: "07:30:00", grace_until: "07:45:00", late_until: "08:15:00", min_subject_minutes: 30 },
-      { grade_level: "11", in_start: "07:30:00", grace_until: "07:45:00", late_until: "08:15:00", min_subject_minutes: 30 },
+      { grade_level: "Kinder", in_start: "07:30:00", grace_until: "08:00:00", late_until: "08:30:00", dismissal_time: "11:30:00", min_subject_minutes: 30, late_arrival_threshold: 60 },
+      { grade_level: "1", in_start: "07:30:00", grace_until: "07:45:00", late_until: "08:15:00", dismissal_time: "13:00:00", min_subject_minutes: 30, late_arrival_threshold: 60 },
+      { grade_level: "2", in_start: "07:30:00", grace_until: "07:45:00", late_until: "08:15:00", dismissal_time: "13:00:00", min_subject_minutes: 30, late_arrival_threshold: 60 },
+      { grade_level: "3", in_start: "07:30:00", grace_until: "07:45:00", late_until: "08:15:00", dismissal_time: "13:00:00", min_subject_minutes: 30, late_arrival_threshold: 60 },
+      { grade_level: "4", in_start: "07:30:00", grace_until: "07:45:00", late_until: "08:15:00", dismissal_time: "15:00:00", min_subject_minutes: 30, late_arrival_threshold: 60 },
+      { grade_level: "5", in_start: "07:30:00", grace_until: "07:45:00", late_until: "08:15:00", dismissal_time: "15:00:00", min_subject_minutes: 30, late_arrival_threshold: 60 },
+      { grade_level: "6", in_start: "07:30:00", grace_until: "07:45:00", late_until: "08:15:00", dismissal_time: "15:00:00", min_subject_minutes: 30, late_arrival_threshold: 60 },
+      { grade_level: "7", in_start: "07:30:00", grace_until: "07:45:00", late_until: "08:15:00", dismissal_time: "16:00:00", min_subject_minutes: 30, late_arrival_threshold: 60 },
+      { grade_level: "8", in_start: "07:30:00", grace_until: "07:45:00", late_until: "08:15:00", dismissal_time: "16:00:00", min_subject_minutes: 30, late_arrival_threshold: 60 },
+      { grade_level: "9", in_start: "07:30:00", grace_until: "07:45:00", late_until: "08:15:00", dismissal_time: "16:00:00", min_subject_minutes: 30, late_arrival_threshold: 60 },
+      { grade_level: "10", in_start: "07:30:00", grace_until: "07:45:00", late_until: "08:15:00", dismissal_time: "16:00:00", min_subject_minutes: 30, late_arrival_threshold: 60 },
     ];
     for (const r of rules) await admin.from("attendance_rules").upsert(r);
     if (adminId) {

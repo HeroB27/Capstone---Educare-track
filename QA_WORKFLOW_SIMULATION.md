@@ -1,6 +1,6 @@
 # Educare Track – Workflow Simulation Checklist (UI + DB)
 
-This checklist validates the end-to-end admin-configured workflows using the current schema in [Supabase tables.txt](file:///c:/Users/Lenovo/Desktop/Educare%20Track%20-%20FINAL/Supabase%20tables.txt).
+This checklist validates the end-to-end admin-configured workflows using the current schema in [from SUPABASE.txt](file:///c:/Users/Lenovo/Desktop/Educare%20Track%20-%20FINAL/from%20SUPABASE.txt).
 
 ## 0) Preflight (Must Pass)
 

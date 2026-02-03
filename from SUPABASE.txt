@@ -1,0 +1,623 @@
+-- ============================================================ 
+-- EDUCARE TRACK - COMPLETE SYSTEM REBUILD SCRIPT (FINAL BASIS) 
+-- Generated on: 2026-02-03 
+-- This is the single source of truth for the database schema.
+-- ============================================================ 
+
+-- 0. PREPARATION 
+-- Drop public schema to ensure a clean slate
+DROP SCHEMA IF EXISTS public CASCADE;
+CREATE SCHEMA public;
+GRANT ALL ON SCHEMA public TO postgres;
+GRANT ALL ON SCHEMA public TO public;
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto; 
+
+-- ============================================================ 
+-- 1. CORE AUTH & PROFILES 
+-- ============================================================ 
+CREATE TABLE public.profiles ( 
+  id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE, 
+  phone text, 
+  email text UNIQUE NOT NULL, 
+  avatar_url text, 
+  full_name text NOT NULL, 
+  username text UNIQUE, 
+  photo_url text, 
+  is_active boolean DEFAULT true NOT NULL, 
+  nickname text, 
+  gender text, 
+  birthdate date, 
+  role text NOT NULL, 
+  created_at timestamptz DEFAULT now() NOT NULL, 
+  updated_at timestamptz DEFAULT now() NOT NULL, 
+  CONSTRAINT profiles_role_check CHECK ( 
+    role IN ('admin','teacher','parent','guard','clinic') 
+  ) 
+); 
+
+-- ============================================================ 
+-- 2. ROLE-SPECIFIC EXTENSIONS 
+-- ============================================================ 
+CREATE TABLE public.admin_staff ( 
+  id uuid PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE, 
+  position text, 
+  created_at timestamptz DEFAULT now() NOT NULL 
+); 
+
+CREATE TABLE public.teachers ( 
+  id uuid PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE, 
+  employee_no text UNIQUE, 
+  is_homeroom boolean DEFAULT false NOT NULL, 
+  is_gatekeeper boolean DEFAULT false NOT NULL, 
+  assigned_subjects text[], 
+  created_at timestamptz DEFAULT now() NOT NULL 
+); 
+
+CREATE TABLE public.parents ( 
+  id uuid PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE, 
+  address text, 
+  created_at timestamptz DEFAULT now() NOT NULL 
+); 
+
+CREATE TABLE public.guards ( 
+  id uuid PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE, 
+  shift text, 
+  assigned_gate text, 
+  created_at timestamptz DEFAULT now() NOT NULL 
+); 
+
+CREATE TABLE public.clinic_staff ( 
+  id uuid PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE, 
+  license_no text, 
+  position text, 
+  created_at timestamptz DEFAULT now() NOT NULL 
+); 
+
+-- ============================================================ 
+-- 3. ACADEMIC STRUCTURE 
+-- ============================================================ 
+CREATE TABLE public.classes ( 
+  id text PRIMARY KEY, 
+  grade text NOT NULL, 
+  strand text, 
+  adviser_id uuid REFERENCES public.teachers(id) ON DELETE SET NULL, 
+  room text, 
+  level text, 
+  is_active boolean DEFAULT true NOT NULL, 
+  created_at timestamptz DEFAULT now() NOT NULL 
+); 
+
+CREATE TABLE public.students ( 
+  id text PRIMARY KEY, 
+  lrn text UNIQUE NOT NULL, 
+  full_name text NOT NULL, 
+  dob date, 
+  gender text, 
+  grade_level text NOT NULL, 
+  strand text, 
+  class_id text REFERENCES public.classes(id) ON DELETE SET NULL, 
+  address text, 
+  photo_url text, 
+  current_status text DEFAULT 'out' NOT NULL, 
+  created_at timestamptz DEFAULT now() NOT NULL, 
+  updated_at timestamptz DEFAULT now() NOT NULL, 
+  CONSTRAINT students_id_not_empty CHECK (id <> '') 
+); 
+
+CREATE TABLE public.parent_students ( 
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY, 
+  parent_id uuid REFERENCES public.parents(id) ON DELETE CASCADE, 
+  student_id text REFERENCES public.students(id) ON DELETE CASCADE, 
+  relationship text, 
+  created_at timestamptz DEFAULT now() NOT NULL, 
+  CONSTRAINT parent_students_unique UNIQUE (parent_id, student_id) 
+); 
+
+CREATE TABLE public.subjects ( 
+  code text PRIMARY KEY, 
+  name text NOT NULL, 
+  grade text NOT NULL, 
+  semester text, 
+  strand text, 
+  type text, 
+  description text, 
+  created_at timestamptz DEFAULT now() NOT NULL, 
+  CONSTRAINT subjects_type_check CHECK ( 
+    type IS NULL OR type IN ('core','applied','specialization','other') 
+  ) 
+); 
+
+CREATE TABLE public.class_schedules ( 
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY, 
+  class_id text REFERENCES public.classes(id) ON DELETE CASCADE, 
+  subject_code text REFERENCES public.subjects(code) ON DELETE CASCADE, 
+  teacher_id uuid REFERENCES public.teachers(id) ON DELETE CASCADE, 
+  day_of_week text, 
+  start_time time, 
+  end_time time, 
+  semester text, 
+  created_at timestamptz DEFAULT now() NOT NULL, 
+  CONSTRAINT class_schedules_time_check CHECK (end_time > start_time) 
+); 
+
+-- ============================================================ 
+-- 4. ATTENDANCE SYSTEM 
+-- ============================================================ 
+CREATE TABLE public.attendance_rules ( 
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY, 
+  grade_level text UNIQUE, 
+  in_start time, 
+  grace_until time, 
+  late_until time, 
+  dismissal_time time, 
+  min_subject_minutes int DEFAULT 30 NOT NULL, 
+  late_arrival_threshold int DEFAULT 60 NOT NULL, 
+  created_at timestamptz DEFAULT now() NOT NULL 
+); 
+
+CREATE TABLE public.attendance_events ( 
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY, 
+  student_id text REFERENCES public.students(id) ON DELETE CASCADE, 
+  event_type text CHECK (event_type IN ('IN','OUT')), 
+  timestamp timestamptz DEFAULT now() NOT NULL, 
+  device_id text, 
+  recorded_by uuid REFERENCES public.profiles(id) 
+); 
+
+CREATE TABLE public.attendance ( 
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY, 
+  student_id text REFERENCES public.students(id) ON DELETE CASCADE, 
+  date date DEFAULT CURRENT_DATE, 
+  status text CHECK (status IN ('present','late','absent','excused','clinic')), 
+  recorded_by uuid REFERENCES public.profiles(id), 
+  timestamp timestamptz DEFAULT now() NOT NULL, 
+  class_id text, 
+  session text CHECK (session IN ('AM','PM')), 
+  entry_type text, 
+  method text, 
+  remarks text, 
+  CONSTRAINT attendance_unique_student_day UNIQUE (student_id, date) 
+); 
+
+CREATE TABLE public.subject_attendance ( 
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY, 
+  student_id text REFERENCES public.students(id) ON DELETE CASCADE, 
+  subject_code text REFERENCES public.subjects(code) ON DELETE CASCADE, 
+  date date, 
+  status text, 
+  recorded_by uuid REFERENCES public.profiles(id), 
+  remarks text, 
+  recorded_at timestamptz DEFAULT now() NOT NULL 
+); 
+
+CREATE TABLE public.attendance_validations ( 
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY, 
+  attendance_id uuid REFERENCES public.attendance(id) ON DELETE CASCADE, 
+  validated_by uuid REFERENCES public.profiles(id), 
+  status text, 
+  class_id text, 
+  teacher_id uuid REFERENCES public.teachers(id), 
+  subject_code text, 
+  session text CHECK (session IN ('AM','PM')), 
+  attendance_date date, 
+  remarks text, 
+  CONSTRAINT attendance_validations_unique UNIQUE ( 
+    class_id, subject_code, session, attendance_date 
+  ) 
+); 
+
+-- ============================================================ 
+-- 5. CLINIC & EXCUSE LETTERS 
+-- ============================================================ 
+CREATE TABLE public.excuse_letters ( 
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY, 
+  student_id text REFERENCES public.students(id) ON DELETE CASCADE, 
+  parent_id uuid REFERENCES public.parents(id) ON DELETE CASCADE, 
+  absent_date date, 
+  reason text, 
+  status text, 
+  remarks text, 
+  issued_at timestamptz DEFAULT now() NOT NULL 
+); 
+
+CREATE TABLE public.clinic_visits ( 
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY, 
+  student_id text REFERENCES public.students(id) ON DELETE CASCADE, 
+  visit_time timestamptz DEFAULT now() NOT NULL, 
+  reason text, 
+  treated_by uuid REFERENCES public.clinic_staff(id), 
+  notes text, 
+  status text 
+); 
+
+CREATE TABLE public.clinic_passes ( 
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY, 
+  student_id text REFERENCES public.students(id) ON DELETE CASCADE, 
+  clinic_visit_id uuid REFERENCES public.clinic_visits(id) ON DELETE CASCADE, 
+  issued_by uuid REFERENCES public.profiles(id), 
+  issued_at timestamptz DEFAULT now() NOT NULL, 
+  reason text, 
+  status text 
+); 
+
+-- ============================================================ 
+-- 6. COMMUNICATIONS & SETTINGS 
+-- ============================================================ 
+CREATE TABLE public.qr_codes ( 
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY, 
+  student_id text REFERENCES public.students(id) ON DELETE CASCADE, 
+  qr_hash text UNIQUE, 
+  is_active boolean DEFAULT true NOT NULL, 
+  created_by uuid REFERENCES public.profiles(id), 
+  created_at timestamptz DEFAULT now() NOT NULL 
+); 
+
+CREATE TABLE public.announcements ( 
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY, 
+  title text, 
+  content text, 
+  audience text[] DEFAULT '{}'::text[], 
+  is_pinned boolean DEFAULT false NOT NULL, 
+  posted_by uuid REFERENCES public.profiles(id), 
+  created_at timestamptz DEFAULT now() NOT NULL 
+); 
+
+CREATE TABLE public.notifications ( 
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY, 
+  recipient_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE, 
+  actor_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL, 
+  verb text, 
+  object jsonb DEFAULT '{}'::jsonb, 
+  category text DEFAULT 'system', 
+  read boolean DEFAULT false NOT NULL, 
+  created_at timestamptz DEFAULT now() NOT NULL 
+); 
+
+CREATE TABLE public.school_calendar ( 
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY, 
+  type text, 
+  title text, 
+  start_date date, 
+  end_date date, 
+  event_date date, 
+  grade_scope text DEFAULT 'all', 
+  notes text, 
+  description text, 
+  created_by uuid REFERENCES public.profiles(id), 
+  created_at timestamptz DEFAULT now() NOT NULL 
+); 
+
+CREATE TABLE public.system_settings ( 
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY, 
+  key text UNIQUE, 
+  value jsonb DEFAULT '{}'::jsonb, 
+  created_by uuid REFERENCES public.profiles(id), 
+  updated_by uuid REFERENCES public.profiles(id), 
+  created_at timestamptz DEFAULT now() NOT NULL 
+); 
+
+CREATE TABLE public.audit_logs ( 
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY, 
+  actor_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL, 
+  action text, 
+  target_table text, 
+  target_id text, 
+  details jsonb DEFAULT '{}'::jsonb, 
+  created_at timestamptz DEFAULT now() NOT NULL 
+); 
+
+-- ============================================================ 
+-- 7. INDEXES 
+-- ============================================================ 
+CREATE INDEX idx_attendance_student_ts ON public.attendance (student_id, timestamp DESC); 
+CREATE INDEX idx_subject_attendance_student_date ON public.subject_attendance (student_id, date); 
+CREATE INDEX idx_clinic_visits_student_time ON public.clinic_visits (student_id, visit_time DESC); 
+CREATE INDEX idx_parent_students_student ON public.parent_students (student_id); 
+CREATE INDEX idx_notifications_unread ON public.notifications (recipient_id) WHERE read = false; 
+CREATE INDEX idx_students_lrn ON public.students (lrn); 
+CREATE INDEX idx_profiles_role ON public.profiles (role); 
+
+-- ============================================================ 
+-- 8. AUTH TRIGGERS & ATTENDANCE LOGIC 
+-- ============================================================ 
+
+-- Automatically create/update profile when auth user is created
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, full_name, role, username, phone, is_active)
+  VALUES (
+    new.id,
+    new.email,
+    COALESCE(new.raw_user_meta_data->>'full_name', 'New User'),
+    COALESCE(new.raw_user_meta_data->>'role', 'parent'),
+    new.raw_user_meta_data->>'username',
+    new.raw_user_meta_data->>'phone',
+    true
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    email = EXCLUDED.email,
+    full_name = EXCLUDED.full_name,
+    role = EXCLUDED.role,
+    username = COALESCE(EXCLUDED.username, profiles.username),
+    phone = COALESCE(EXCLUDED.phone, profiles.phone);
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+AFTER INSERT ON auth.users
+FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Process raw attendance scans into daily attendance records
+CREATE OR REPLACE FUNCTION public.process_attendance_event()
+RETURNS TRIGGER AS $$
+DECLARE
+    student_grade text;
+    student_name text;
+    parent_uid uuid;
+    rule_grace_time time;
+    rule_late_time time;
+    event_time time;
+    today_date date;
+    new_status text;
+    new_remarks text;
+    existing_status text;
+    notif_verb text;
+    notif_object jsonb;
+BEGIN
+    today_date := NEW.timestamp::date;
+    event_time := NEW.timestamp::time;
+
+    SELECT s.grade_level, s.full_name, ps.parent_id
+    INTO student_grade, student_name, parent_uid
+    FROM public.students s
+    LEFT JOIN public.parent_students ps ON ps.student_id = s.id
+    WHERE s.id = NEW.student_id;
+
+    SELECT grace_until, late_until INTO rule_grace_time, rule_late_time
+    FROM public.attendance_rules
+    WHERE grade_level = student_grade;
+
+    IF rule_grace_time IS NULL THEN rule_grace_time := '07:30:00'; END IF;
+    IF rule_late_time IS NULL THEN rule_late_time := '08:30:00'; END IF;
+
+    IF NEW.event_type = 'IN' THEN
+        SELECT status INTO existing_status
+        FROM public.attendance
+        WHERE student_id = NEW.student_id AND timestamp::date = today_date;
+
+        IF event_time <= rule_grace_time THEN
+            new_status := 'present';
+            new_remarks := 'On Time Entry';
+        ELSIF event_time <= rule_late_time THEN
+            new_status := 'late';
+            new_remarks := 'Entered Late';
+        ELSE
+            new_status := 'late';
+            new_remarks := 'Very Late Entry';
+        END IF;
+
+        IF existing_status IS NULL THEN
+            INSERT INTO public.attendance (
+                student_id, status, timestamp, method, entry_type, recorded_by, remarks
+            ) VALUES (
+                NEW.student_id, new_status, NEW.timestamp, 'qr', 'entry', NEW.recorded_by, new_remarks
+            );
+        END IF;
+
+        notif_verb := 'attendance_entry';
+        notif_object := jsonb_build_object('student_name', student_name, 'time', NEW.timestamp, 'status', new_status);
+
+        UPDATE public.students SET current_status = 'in' WHERE id = NEW.student_id;
+
+    ELSIF NEW.event_type = 'OUT' THEN
+        UPDATE public.attendance
+        SET remarks = COALESCE(remarks, '') || ' | Out: ' || to_char(event_time, 'HH12:MI AM')
+        WHERE student_id = NEW.student_id AND timestamp::date = today_date;
+
+        IF NOT FOUND THEN
+             INSERT INTO public.attendance (
+                student_id, status, timestamp, method, entry_type, recorded_by, remarks
+            ) VALUES (
+                NEW.student_id, 'present', NEW.timestamp, 'qr', 'exit', NEW.recorded_by, 'Exit without Entry'
+            );
+        END IF;
+
+        notif_verb := 'attendance_exit';
+        notif_object := jsonb_build_object('student_name', student_name, 'time', NEW.timestamp);
+
+        UPDATE public.students SET current_status = 'out' WHERE id = NEW.student_id;
+    END IF;
+
+    IF parent_uid IS NOT NULL THEN
+        INSERT INTO public.notifications (
+            recipient_id, actor_id, verb, object, read, category
+        ) VALUES (
+            parent_uid, NEW.recorded_by, notif_verb, notif_object, false, 'attendance'
+        );
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trg_process_attendance_event ON public.attendance_events;
+CREATE TRIGGER trg_process_attendance_event
+AFTER INSERT ON public.attendance_events
+FOR EACH ROW EXECUTE FUNCTION public.process_attendance_event();
+
+-- ============================================================ 
+-- 9. ROW LEVEL SECURITY (COMPREHENSIVE)
+-- ============================================================ 
+DO $$ 
+DECLARE t text; 
+BEGIN 
+  FOR t IN SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' 
+  LOOP 
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t); 
+  END LOOP; 
+END $$; 
+
+CREATE OR REPLACE FUNCTION public.get_user_role() 
+RETURNS text AS $$ 
+  SELECT role FROM public.profiles WHERE id = auth.uid(); 
+$$ LANGUAGE sql SECURITY DEFINER; 
+
+-- A. BASE POLICIES (Admin & Public Data)
+-- ------------------------------------------------------------
+
+-- 1. ADMIN GOD MODE (Applies to ALL tables)
+DO $$ 
+DECLARE t text; 
+BEGIN 
+  FOR t IN SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' 
+  LOOP 
+    EXECUTE format( 
+      'CREATE POLICY "Admin All %s" ON public.%I 
+       FOR ALL TO authenticated 
+       USING (public.get_user_role() = ''admin'') 
+       WITH CHECK (public.get_user_role() = ''admin'')', 
+      t, t 
+    ); 
+  END LOOP; 
+END $$; 
+
+-- 2. PUBLIC READ ONLY DATA (Curriculum, Calendar, Announcements, Settings)
+-- Applies to: subjects, classes, school_calendar, announcements, attendance_rules, system_settings
+DO $$ 
+DECLARE t text; 
+BEGIN 
+  FOR t IN VALUES 
+    ('subjects'), ('classes'), ('school_calendar'), ('announcements'), 
+    ('attendance_rules'), ('system_settings')
+  LOOP 
+    EXECUTE format( 
+      'CREATE POLICY "Public Read %s" ON public.%I FOR SELECT TO authenticated USING (true)', 
+      t, t 
+    ); 
+  END LOOP; 
+END $$; 
+
+-- B. ROLE-SPECIFIC POLICIES
+-- ------------------------------------------------------------
+
+-- 3. PROFILES
+CREATE POLICY "Read Profiles" ON public.profiles FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Self Update Profile" ON public.profiles FOR UPDATE TO authenticated USING (auth.uid() = id);
+
+-- 4. STUDENTS & PARENT LINKS
+-- Staff can read all students; Parents can read their own children
+CREATE POLICY "Staff Read Students" ON public.students FOR SELECT TO authenticated 
+USING (public.get_user_role() IN ('admin', 'teacher', 'clinic', 'guard'));
+
+CREATE POLICY "Parent Read Own Students" ON public.students FOR SELECT TO authenticated 
+USING (
+  EXISTS (
+    SELECT 1 FROM public.parent_students 
+    WHERE parent_id = auth.uid() AND student_id = students.id
+  )
+);
+
+CREATE POLICY "Parent Read Links" ON public.parent_students FOR SELECT TO authenticated 
+USING (parent_id = auth.uid() OR public.get_user_role() IN ('admin', 'teacher'));
+
+-- 5. ATTENDANCE (Daily Record)
+-- Staff can read all; Parents read own; Teachers/Guards can INSERT/UPDATE
+CREATE POLICY "Staff Read Attendance" ON public.attendance FOR SELECT TO authenticated 
+USING (public.get_user_role() IN ('admin', 'teacher', 'clinic'));
+
+CREATE POLICY "Parent Read Attendance" ON public.attendance FOR SELECT TO authenticated 
+USING (
+  EXISTS (
+    SELECT 1 FROM public.parent_students 
+    WHERE parent_id = auth.uid() AND student_id = attendance.student_id
+  )
+);
+
+CREATE POLICY "Teacher Mark Attendance" ON public.attendance FOR ALL TO authenticated 
+USING (public.get_user_role() = 'teacher')
+WITH CHECK (public.get_user_role() = 'teacher');
+
+-- 6. ATTENDANCE EVENTS (Scanner Logs)
+-- Guards/Teachers can insert scans
+CREATE POLICY "Staff Log Scans" ON public.attendance_events FOR INSERT TO authenticated 
+WITH CHECK (public.get_user_role() IN ('guard', 'teacher', 'admin'));
+
+CREATE POLICY "Staff Read Scans" ON public.attendance_events FOR SELECT TO authenticated 
+USING (public.get_user_role() IN ('admin', 'teacher', 'guard'));
+
+-- 7. CLINIC
+-- Clinic Staff Full Access; Parents Read Own
+CREATE POLICY "Clinic Staff Manage" ON public.clinic_visits FOR ALL TO authenticated 
+USING (public.get_user_role() = 'clinic') 
+WITH CHECK (public.get_user_role() = 'clinic');
+
+CREATE POLICY "Clinic Staff Manage Passes" ON public.clinic_passes FOR ALL TO authenticated 
+USING (public.get_user_role() = 'clinic') 
+WITH CHECK (public.get_user_role() = 'clinic');
+
+CREATE POLICY "Parent Read Clinic" ON public.clinic_visits FOR SELECT TO authenticated 
+USING (
+  EXISTS (
+    SELECT 1 FROM public.parent_students 
+    WHERE parent_id = auth.uid() AND student_id = clinic_visits.student_id
+  )
+);
+
+-- 8. NOTIFICATIONS
+CREATE POLICY "Read Own Notifs" ON public.notifications FOR SELECT TO authenticated 
+USING (recipient_id = auth.uid());
+
+CREATE POLICY "Update Own Notifs" ON public.notifications FOR UPDATE TO authenticated 
+USING (recipient_id = auth.uid());
+
+-- 9. AUDIT LOGS
+CREATE POLICY "Admin Read Logs" ON public.audit_logs FOR SELECT TO authenticated 
+USING (public.get_user_role() = 'admin');
+
+-- 10. CLASS SCHEDULES
+CREATE POLICY "Read Schedules" ON public.class_schedules FOR SELECT TO authenticated USING (true);
+
+-- ============================================================ 
+-- 10. REALTIME 
+-- ============================================================ 
+ALTER TABLE public.notifications REPLICA IDENTITY FULL; 
+ALTER TABLE public.clinic_visits REPLICA IDENTITY FULL; 
+ALTER TABLE public.attendance REPLICA IDENTITY FULL; 
+ALTER TABLE public.attendance_events REPLICA IDENTITY FULL; 
+
+DO $$ 
+BEGIN 
+  IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN 
+    CREATE PUBLICATION supabase_realtime; 
+  END IF; 
+END $$; 
+
+DO $$ 
+DECLARE 
+  tbl text; 
+BEGIN 
+  FOR tbl IN VALUES 
+    ('notifications'), 
+    ('clinic_visits'), 
+    ('attendance'), 
+    ('attendance_events') 
+  LOOP 
+    BEGIN 
+      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', tbl); 
+    EXCEPTION WHEN duplicate_object THEN 
+      NULL; 
+    END; 
+  END LOOP; 
+END $$; 
+
+-- ============================================================ 
+-- 11. GRANTS 
+-- ============================================================ 
+GRANT ALL ON ALL TABLES IN SCHEMA public TO postgres;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated;

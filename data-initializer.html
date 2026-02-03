@@ -104,9 +104,9 @@
         const state = { progress: 0, usersCreated: 0, attCreated: 0 };
         const firstNames = ['Juan', 'Maria', 'Jose', 'Elena', 'Ricardo', 'Liza', 'Antonio', 'Teresita', 'Gabriel', 'Carmelita', 'Mateo', 'Angelita', 'Dominador', 'Priscila', 'Ramon', 'Imelda', 'Felipe', 'Corazon', 'Emilio', 'Lourdes'];
         const lastNames = ['Pascua', 'Bautista', 'Cariño', 'Domogan', 'Molintas', 'Fianza', 'Aliping', 'Cosalan', 'Vergara', 'Mauricio', 'Tabora', 'Bugnosen', 'Hamada', 'Okubo', 'Bello', 'Perez', 'Garcia', 'Dimalanta', 'Santos', 'Reyes'];
-        const grades = ['Kinder', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
-        const strands = ['STEM', 'ABM', 'HUMSS', 'TVL-ICT'];
-        const subjects = ['MATH', 'SCI', 'ENG', 'FIL', 'MAPEH', 'ICT'];
+        const grades = ['Kinder', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
+        const strands = [];
+        const subjects = ['MATH', 'SCI', 'ENG', 'FIL', 'MAPEH', 'AP', 'ESP'];
 
         const log = (msg, type = 'info') => {
             const el = document.getElementById('logs');
@@ -163,19 +163,23 @@
                 ];
 
                 const guardIds = [];
+                let firstAdminId = null;
                 for (const s of staffRoles) {
-                    const customId = generateStaffID(s.role, currentYear, s.phone);
                     const { data: user, error: authErr } = await adminClient.auth.admin.createUser({
                         email: s.email, password: defaultPassword, email_confirm: true,
-                        user_metadata: { full_name: s.name, role: s.role, custom_id: customId, username: s.email.split('@')[0], phone: s.phone }
+                        user_metadata: { full_name: s.name, role: s.role, username: s.email.split('@')[0], phone: s.phone }
                     });
                     if (authErr) log(`Auth failed for ${s.email}: ${authErr.message}`, 'warning');
                     else {
                         state.usersCreated++;
-                        if (s.role === 'guard') guardIds.push(user.user.id);
-                        if (s.role === 'admin') await adminClient.from('admin_staff').upsert({ id: user.user.id, position: 'School Principal' });
-                        if (s.role === 'clinic') await adminClient.from('clinic_staff').upsert({ id: user.user.id, license_no: 'RN-2026-001' });
-                        if (s.role === 'guard') await adminClient.from('guards').upsert({ id: user.user.id, shift: 'Day', assigned_gate: 'Main Gate' });
+                        const uid = user.user.id;
+                        if (s.role === 'guard') guardIds.push(uid);
+                        if (s.role === 'admin') {
+                            await adminClient.from('admin_staff').upsert({ id: uid, position: 'School Principal' });
+                            firstAdminId = uid;
+                        }
+                        if (s.role === 'clinic') await adminClient.from('clinic_staff').upsert({ id: uid, license_no: 'RN-2026-001' });
+                        if (s.role === 'guard') await adminClient.from('guards').upsert({ id: uid, shift: 'Day', assigned_gate: 'Main Gate' });
                     }
                 }
                 state.progress = 10; updateUI('Core staff ready.');
@@ -186,10 +190,9 @@
                 for (let i = 1; i <= 30; i++) {
                     const email = `teacher${i}@educare.edu`;
                     const phone = `092000000${i.toString().padStart(2, '0')}`;
-                    const customId = generateStaffID('teacher', currentYear, phone);
                     const { data: user, error } = await adminClient.auth.admin.createUser({
                         email, password: defaultPassword, email_confirm: true,
-                        user_metadata: { full_name: `${firstNames[i % 20]} ${lastNames[(i + 5) % 20]}`, role: 'teacher', custom_id: customId, username: `teacher${i}`, phone }
+                        user_metadata: { full_name: `${firstNames[i % 20]} ${lastNames[(i + 5) % 20]}`, role: 'teacher', username: `teacher${i}`, phone }
                     });
                     if (!error) {
                         state.usersCreated++;
@@ -209,7 +212,7 @@
                     for (const s of subjects) {
                         const code = `${s}-${g}`;
                         await adminClient.from('subjects').upsert({
-                            code, name: `${s} for Grade ${g}`, grade_level: g, type: 'core'
+                            code, name: `${s} for Grade ${g}`, grade: g, type: 'core'
                         });
                         subjectCodes.push(code);
                     }
@@ -261,10 +264,9 @@
                         let parentId;
                         const { data: pCheck } = await adminClient.from('profiles').select('id').eq('email', pEmail).single();
                         if (!pCheck) {
-                            const customId = `PAR-2026-${parentIdx}`;
                             const { data: pUser, error: pAuthErr } = await adminClient.auth.admin.createUser({
                                 email: pEmail, password: defaultPassword, email_confirm: true,
-                                user_metadata: { full_name: `Parent ${lastNames[parentIdx % 20]}`, role: 'parent', custom_id: customId, username: `parent${parentIdx}`, phone: pPhone }
+                                user_metadata: { full_name: `Parent ${lastNames[parentIdx % 20]}`, role: 'parent', username: `parent${parentIdx}`, phone: pPhone }
                             });
                             if (pAuthErr) {
                                 log(`Parent Auth Error: ${pAuthErr.message}`, 'warning');
@@ -329,16 +331,26 @@
                 // 6. Final Utilities
                 log('Seeding Rules and Announcements...');
                 const rules = [
-                    { grade_level: 'Kinder', in_start: '07:30:00', grace_until: '08:00:00', late_until: '08:30:00', dismissal_time: '11:30:00' },
-                    { grade_level: '1', in_start: '07:30:00', grace_until: '07:45:00', late_until: '08:15:00', dismissal_time: '13:00:00' },
-                    { grade_level: '11', in_start: '07:30:00', grace_until: '07:45:00', late_until: '08:15:00', dismissal_time: '16:30:00' }
+                    { grade_level: 'Kinder', in_start: '07:30:00', grace_until: '08:00:00', late_until: '08:30:00', dismissal_time: '11:30:00', late_arrival_threshold: 60 },
+                    { grade_level: '1', in_start: '07:30:00', grace_until: '07:45:00', late_until: '08:15:00', dismissal_time: '13:00:00', late_arrival_threshold: 60 },
+                    { grade_level: '2', in_start: '07:30:00', grace_until: '07:45:00', late_until: '08:15:00', dismissal_time: '13:00:00', late_arrival_threshold: 60 },
+                    { grade_level: '3', in_start: '07:30:00', grace_until: '07:45:00', late_until: '08:15:00', dismissal_time: '13:00:00', late_arrival_threshold: 60 },
+                    { grade_level: '4', in_start: '07:30:00', grace_until: '07:45:00', late_until: '08:15:00', dismissal_time: '15:00:00', late_arrival_threshold: 60 },
+                    { grade_level: '5', in_start: '07:30:00', grace_until: '07:45:00', late_until: '08:15:00', dismissal_time: '15:00:00', late_arrival_threshold: 60 },
+                    { grade_level: '6', in_start: '07:30:00', grace_until: '07:45:00', late_until: '08:15:00', dismissal_time: '15:00:00', late_arrival_threshold: 60 },
+                    { grade_level: '7', in_start: '07:30:00', grace_until: '07:45:00', late_until: '08:15:00', dismissal_time: '16:00:00', late_arrival_threshold: 60 },
+                    { grade_level: '8', in_start: '07:30:00', grace_until: '07:45:00', late_until: '08:15:00', dismissal_time: '16:00:00', late_arrival_threshold: 60 },
+                    { grade_level: '9', in_start: '07:30:00', grace_until: '07:45:00', late_until: '08:15:00', dismissal_time: '16:00:00', late_arrival_threshold: 60 },
+                    { grade_level: '10', in_start: '07:30:00', grace_until: '07:45:00', late_until: '08:15:00', dismissal_time: '16:00:00', late_arrival_threshold: 60 }
                 ];
                 for (const r of rules) await adminClient.from('attendance_rules').upsert(r);
 
-                await adminClient.from('announcements').insert([
-                    { title: 'Welcome to SY 2025-2026', content: 'Classes start today!', audience: ['parent', 'teacher'], posted_by: staffRoles[0].id },
-                    { title: 'Emergency Suspension', content: 'Due to typhoon, classes are suspended.', audience: ['all'], posted_by: staffRoles[0].id }
-                ]);
+                if (firstAdminId) {
+                    await adminClient.from('announcements').insert([
+                        { title: 'Welcome to SY 2025-2026', content: 'Classes start today!', audience: ['parent', 'teacher'], posted_by: firstAdminId },
+                        { title: 'Emergency Suspension', content: 'Due to typhoon, classes are suspended.', audience: ['all'], posted_by: firstAdminId }
+                    ]);
+                }
 
                 startBtn.innerText = 'Seeding Successful';
             } catch (err) {

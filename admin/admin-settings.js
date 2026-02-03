@@ -54,6 +54,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <td class="px-6 py-4 text-sm text-gray-600">${r.grace_until}</td>
                 <td class="px-6 py-4 text-sm text-gray-600">${r.late_until}</td>
                 <td class="px-6 py-4 text-sm text-gray-600">${r.dismissal_time || 'N/A'}</td>
+                <td class="px-6 py-4 text-sm text-gray-600">${r.late_arrival_threshold} min</td>
                 <td class="px-6 py-4">
                     <button onclick="editRule('${r.grade_level}')" class="text-violet-600 hover:text-violet-800 font-bold text-xs uppercase tracking-widest transition-all">
                         Edit
@@ -71,6 +72,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('graceUntil').value = rule.grace_until;
             document.getElementById('lateUntil').value = rule.late_until;
             document.getElementById('dismissalTime').value = rule.dismissal_time || '';
+            document.getElementById('lateArrivalThreshold').value = rule.late_arrival_threshold || 60;
             ruleModal.classList.remove('hidden');
         }
     };
@@ -81,7 +83,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             in_start: document.getElementById('inStart').value,
             grace_until: document.getElementById('graceUntil').value,
             late_until: document.getElementById('lateUntil').value,
-            dismissal_time: document.getElementById('dismissalTime').value
+            dismissal_time: document.getElementById('dismissalTime').value,
+            late_arrival_threshold: parseInt(document.getElementById('lateArrivalThreshold').value) || 60
         };
 
         try {

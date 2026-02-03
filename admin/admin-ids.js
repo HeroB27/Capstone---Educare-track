@@ -157,7 +157,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const [studentRes, settingsRes] = await Promise.all([
                 supabase.from('students').select('*, parent_students(parents(profiles(full_name, phone)))').eq('id', id).single(),
-                supabase.from('system_settings').select('*').eq('key', 'school_branding').single()
+                supabase.from('system_settings').select('*').eq('key', 'school_info').single()
             ]);
 
             if (studentRes.error) throw studentRes.error;

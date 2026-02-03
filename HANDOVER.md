@@ -23,7 +23,7 @@ Welcome to the **Educare Track** project! This is a production-grade school moni
 -   `js/`: Shared logic and Supabase integrations (`auth.js`, `supabase.js`, `utils.js`).
 -   `supabase/functions/`: Edge functions (Deno) including `seed`, `admin-create-user`, `admin-update-user`.
 -   `service-worker.js`: Handles caching and offline queuing for the PWA.
--   `FINAL_DATABASE_SCHEMA.sql`: Canonical database schema baseline.
+-   `from SUPABASE.txt`: Canonical database schema baseline (Single Source of Truth).
 
 ---
 
@@ -32,7 +32,7 @@ Welcome to the **Educare Track** project! This is a production-grade school moni
 -   Fixed role-based redirects so Guard/Clinic/Parent no longer loop back to login. See `index.html` role mapping.
 -   Hardened access gating across dashboards using `checkAccess` in `js/utils.js`.
 -   Aligned Admin features to schema: use `classes.grade` (not `grade_level`) and deterministic `classes.id`. See `admin/admin-classes.js`.
--   Consolidated database schema to `FINAL_DATABASE_SCHEMA.sql` and paired doc `FINAL_DATABASE_SCHEMA.md`.
+-   Consolidated database schema to `from SUPABASE.txt`.
 -   Synced seed data logic with schema (classes, subjects, students). See `supabase/functions/seed/index.ts`.
 
 ---

@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 1. Get Session Info
             const { data: session, error: sErr } = await supabase
                 .from('class_schedules')
-                .select('*, classes(*)')
+                .select('*, classes(*), subjects(*)')
                 .eq('id', state.scheduleId)
                 .eq('teacher_id', state.user.id) // Test 1.2: Scope Enforcement
                 .single();
@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             state.session = session;
-            document.getElementById('sessionInfo').innerText = `${session.subject} • Grade ${session.classes.grade} ${session.classes.strand || ''} • Room ${session.classes.room}`;
+            document.getElementById('sessionInfo').innerText = `${session.subjects?.name || session.subject_code} • Grade ${session.classes.grade} ${session.classes.strand || ''} • Room ${session.classes.room}`;
 
             // 2. Check if already locked for today (using attendance_validations)
             const today = new Date().toISOString().split('T')[0];
@@ -71,7 +71,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 .from('attendance_validations')
                 .select('*')
                 .eq('class_id', session.class_id)
-                .eq('subject', session.subject)
+                .eq('subject_code', session.subject_code)
                 .eq('attendance_date', today)
                 .single();
 
@@ -246,11 +246,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             const validationRow = {
                 class_id: state.session.class_id,
                 teacher_id: state.user.id,
-                subject: state.session.subject,
+                subject_code: state.session.subject_code,
                 session: sessionType,
                 attendance_date: today,
                 validated_by: state.user.id,
-                remarks: `Validated via roll call for ${state.session.subject}`
+                remarks: `Validated via roll call for ${state.session.subjects?.name || state.session.subject_code}`
             };
 
             // 3. Prepare Audit Log
@@ -259,7 +259,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 action: 'VALIDATE_SESSION',
                 target_table: 'attendance_validations',
                 details: {
-                    subject: state.session.subject,
+                    subject_code: state.session.subject_code,
                     class_id: state.session.class_id,
                     student_count: state.students.length
                 }

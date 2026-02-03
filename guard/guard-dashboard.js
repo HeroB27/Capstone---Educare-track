@@ -159,7 +159,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function loadSettings() {
-        const { data } = await supabase.from('system_settings').select('*').eq('key', 'school_branding').single();
+        const { data } = await supabase.from('system_settings').select('*').eq('key', 'school_info').single();
         if (data?.value?.logo_url) {
             // Update branding if needed
         }
