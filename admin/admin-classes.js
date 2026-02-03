@@ -607,16 +607,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         const room = document.getElementById('newClassRoom').value;
 
         try {
-            const normalizedRoom = (room || '').trim().replace(/\s+/g, '').toUpperCase();
-            const baseId = `${grade}${strand ? '-' + strand : ''}`;
-            const id = normalizedRoom ? `${baseId}-${normalizedRoom}` : baseId;
-
-            const { error } = await supabase.from('classes').insert([{
-                id,
+            const currentUser = utils.getCurrentUser();
+            const payload = {
+                id: grade + (isSeniorHigh && strand ? '-' + strand : ''),
                 grade: grade,
-                strand,
-                room
-            }]);
+                strand: isSeniorHigh ? strand : null,
+                room: document.getElementById('newClassRoom').value,
+                level: parseInt(grade) >= 7 ? 'High School' : (grade === 'Kinder' ? 'Kinder' : 'Elementary'),
+                is_active: true
+            };
+
+            const { error } = await supabase.from('classes').upsert(payload);
 
             if (error) throw error;
 

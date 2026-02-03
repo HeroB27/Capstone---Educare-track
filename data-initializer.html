@@ -200,10 +200,10 @@
                         await adminClient.from('teachers').upsert({ id: user.user.id, employee_no: `EMP-${2026000 + i}`, is_homeroom: i <= 13, is_gatekeeper: i > 27 });
                     }
                 }
-                state.progress = 30; updateUI('30 Teachers ready.');
+                state.progress = 30; updateUI('Teachers ready.');
 
-                // 3. Classes
-                log('Seeding 13 Classes & Subjects...');
+                // 3. Curriculum
+                log('Seeding Subjects...');
                 const classIds = [];
                 const subjectCodes = [];
 
@@ -211,10 +211,15 @@
                 for (const g of grades) {
                     for (const s of subjects) {
                         const code = `${s}-${g}`;
-                        await adminClient.from('subjects').upsert({
-                            code, name: `${s} for Grade ${g}`, grade: g, type: 'core'
+                        const { error } = await adminClient.from('subjects').upsert({
+                            code,
+                            name: `${s} for Grade ${g}`,
+                            grade: g,
+                            type: 'core',
+                            created_by: firstAdminId,
+                            updated_by: firstAdminId
                         });
-                        subjectCodes.push(code);
+                        if (!error) subjectCodes.push(code);
                     }
                 }
 
@@ -343,9 +348,14 @@
                     { grade_level: '9', in_start: '07:30:00', grace_until: '07:45:00', late_until: '08:15:00', dismissal_time: '16:00:00', late_arrival_threshold: 60 },
                     { grade_level: '10', in_start: '07:30:00', grace_until: '07:45:00', late_until: '08:15:00', dismissal_time: '16:00:00', late_arrival_threshold: 60 }
                 ];
-                for (const r of rules) await adminClient.from('attendance_rules').upsert(r);
+                for (const r of rules) await adminClient.from('attendance_rules').upsert({ ...r, created_by: firstAdminId, updated_by: firstAdminId });
 
                 if (firstAdminId) {
+                    await adminClient.from('system_settings').upsert([
+                        { key: 'school_info', value: { name: 'Educare Academy' }, created_by: firstAdminId, updated_by: firstAdminId },
+                        { key: 'academic_year', value: { year: '2025-2026' }, created_by: firstAdminId, updated_by: firstAdminId }
+                    ], { onConflict: 'key' });
+
                     await adminClient.from('announcements').insert([
                         { title: 'Welcome to SY 2025-2026', content: 'Classes start today!', audience: ['parent', 'teacher'], posted_by: firstAdminId },
                         { title: 'Emergency Suspension', content: 'Due to typhoon, classes are suspended.', audience: ['all'], posted_by: firstAdminId }

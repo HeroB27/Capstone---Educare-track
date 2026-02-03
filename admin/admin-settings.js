@@ -112,11 +112,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function saveSystemSettings() {
         const name = document.getElementById('schoolName').value;
         const year = document.getElementById('academicYear').value;
+        const currentUser = utils.getCurrentUser();
 
         try {
             await Promise.all([
-                supabase.from('system_settings').upsert({ key: 'school_info', value: { name } }, { onConflict: 'key' }),
-                supabase.from('system_settings').upsert({ key: 'academic_year', value: { year } }, { onConflict: 'key' })
+                supabase.from('system_settings').upsert({ 
+                    key: 'school_info', 
+                    value: { name },
+                    updated_by: currentUser?.id,
+                    created_by: currentUser?.id 
+                }, { onConflict: 'key' }),
+                supabase.from('system_settings').upsert({ 
+                    key: 'academic_year', 
+                    value: { year },
+                    updated_by: currentUser?.id,
+                    created_by: currentUser?.id
+                }, { onConflict: 'key' })
             ]);
             utils.showNotification('System settings saved', 'success');
         } catch (err) {

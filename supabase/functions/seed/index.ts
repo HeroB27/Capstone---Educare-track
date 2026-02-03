@@ -172,6 +172,8 @@ serve(async (req) => {
           name: `${s} for Grade ${g}`,
           grade: g,
           type: "core",
+          created_by: adminId,
+          updated_by: adminId
         });
         if (!error) subjectsCreated++;
         subjectCodes.push(code);
@@ -190,7 +192,7 @@ serve(async (req) => {
         strand,
         adviser_id: i < 13 ? teacherIds[i] : null,
         level,
-        is_active: true,
+        is_active: true
       });
       if (!classErr) classesCreated++;
       classIds.push(id);
@@ -331,8 +333,14 @@ serve(async (req) => {
       { grade_level: "9", in_start: "07:30:00", grace_until: "07:45:00", late_until: "08:15:00", dismissal_time: "16:00:00", min_subject_minutes: 30, late_arrival_threshold: 60 },
       { grade_level: "10", in_start: "07:30:00", grace_until: "07:45:00", late_until: "08:15:00", dismissal_time: "16:00:00", min_subject_minutes: 30, late_arrival_threshold: 60 },
     ];
-    for (const r of rules) await admin.from("attendance_rules").upsert(r);
+    for (const r of rules) await admin.from("attendance_rules").upsert({ ...r, created_by: adminId, updated_by: adminId });
+    
     if (adminId) {
+      await admin.from("system_settings").upsert([
+        { key: "school_info", value: { name: "Educare Academy" }, created_by: adminId, updated_by: adminId },
+        { key: "academic_year", value: { year: "2025-2026" }, created_by: adminId, updated_by: adminId }
+      ], { onConflict: "key" });
+
       await admin.from("announcements").insert([
         { title: "Welcome to SY 2025-2026", content: "Classes start today!", audience: ["parent", "teacher"], posted_by: adminId },
       ]);

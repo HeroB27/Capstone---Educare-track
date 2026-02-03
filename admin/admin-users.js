@@ -145,11 +145,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </div>
                 </td>
                 <td class="px-6 py-4">
-                    <span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                        u.role === 'admin' ? 'bg-purple-100 text-purple-700' :
-                        u.role === 'teacher' ? 'bg-blue-100 text-blue-700' :
-                        u.role === 'parent' ? 'bg-green-100 text-green-700' : 
-                        u.role === 'clinic' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'
+                    <span class="px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
+                        u.role === 'admin' ? 'bg-indigo-100 text-indigo-700' :
+                        u.role === 'teacher' ? 'bg-violet-100 text-violet-700' :
+                        u.role === 'parent' ? 'bg-emerald-100 text-emerald-700' :
+                        u.role === 'clinic' ? 'bg-red-100 text-red-700' :
+                        u.role === 'guard' ? 'bg-amber-100 text-amber-700' :
+                        'bg-gray-100 text-gray-700'
                     }">${u.role}</span>
                 </td>
                 <td class="px-6 py-4 text-sm text-gray-600">
