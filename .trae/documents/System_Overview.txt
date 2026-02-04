@@ -1,0 +1,154 @@
+EDUCARE TRACK – USER-CENTRIC SYSTEM OVERVIEW
+
+Core Idea:
+The system revolves around all users—Admin, Teachers, Parents, Guards, and Clinic staff. Every module, workflow, and feature is designed based on user role, interactions, and responsibilities.
+
+1. Users as the Core
+User Role	Core Responsibilities	System Access
+Admin	Manages users, classes, subjects, IDs, calendar, tap-in/out rules, announcements	Full CRUD access to all tables, analytics dashboards, settings
+Teacher	Homeroom & subject attendance, student performance view, class announcements, clinic passes, optional gatekeeper	Limited CRUD: subject/class assignments, attendance logs, clinic passes
+Parent	View child attendance, tap-in/out status, upload excuse letters, receive notifications	Read-only for child data, create excuse letters
+Guard (Gatekeeper)	Scan student IDs at entry/exit points, update student status	Limited create on tap_logs, read student info for scanning
+Clinic Staff	Approve clinic passes, log student visits, update status, notify parents/teachers	Limited CRUD on clinic_visits, clinic_passes, notifications
+
+Central Concept:
+All workflows—attendance, notifications, IDs, analytics—are triggered by user actions and reflected in student data. Students are the primary entity linked to every user.
+
+2. Student-Centric Flow
+
+Student entity connects all users:
+
+Linked to Parents
+
+Assigned to Classes
+
+Tracks Homeroom & Subject Attendance
+
+Assigned IDs with QR codes
+
+Monitored for tap-in/out status
+
+Can generate notifications (attendance, clinic, alerts)
+
+Example:
+
+Parent uploads excuse → linked to student → teacher validates → attendance updated → admin dashboard updates → Python analytics recompute trends → notifications sent
+
+3. Core Modules Around Users
+A. Dashboard
+
+Admin sees all students & roles
+
+Teacher sees own class students
+
+Parent sees own children
+
+Guard sees students at gate
+
+Clinic sees students in clinic
+
+B. User Management
+
+Admin CRUD on all users
+
+Links students → parents
+
+Assign teachers → classes & subjects
+
+Naming conventions enforce role + year + unique ID
+
+C. Class & Subject Management
+
+Teachers assigned by admin
+
+Subjects shown via dropdown filtered by grade/strand
+
+Homeroom teacher always first subject
+
+Teachers view individual student attendance
+
+Admin sees class performance analytics
+
+D. Attendance
+
+Homeroom & subject attendance tracked per student
+
+Tap-in/out logs for students
+
+Status automatically computed using attendance rules
+
+Python computes trends, alerts, CSV exports
+
+E. Notifications
+
+All user actions (tap-in/out, clinic visit, announcements, excuses) trigger notifications
+
+Sent to relevant users (parents, teachers, admin, guards, clinic)
+
+F. IDs
+
+Each student assigned ID + QR code
+
+Admin manages creation, re-issue
+
+G. School Calendar
+
+Admin manages holidays/emergency suspensions
+
+Impacts attendance, notifications
+
+4. Analytics & Python
+
+Focused on student-centered metrics
+
+Tracks:
+
+Attendance %
+
+Critical absences
+
+Frequent late
+
+Class-level trends
+
+Python handles computation, CSV export, alerts
+
+5. Tap-in/Out & Attendance Logic
+
+Users involved: Student, Guard, Teacher (gatekeeper)
+
+System records:
+
+Tap-in → on-time, late, partial
+
+Tap-out → early, late, partial
+
+Updates student’s current_status and homeroom attendance
+
+Notifications sent automatically to Parents & Teachers
+
+6. Central Principles
+
+All modules revolve around users and students
+
+Students are the anchor entity
+
+Actions by any user reflect in student attendance & status
+
+Simplicity first: clear flows from user action → database → dashboards/notifications → analytics
+
+Security via Supabase Auth & RLS ensures users only see their relevant data
+
+✅ Key Insight:
+The system is a user-centered LMS:
+
+Admin: manages and oversees
+
+Teacher: executes class-based functions
+
+Parent: monitors & interacts with their children
+
+Guard: enforces access control
+
+Clinic: manages student health
+All converge on the student entity for attendance, notifications, and analytics.

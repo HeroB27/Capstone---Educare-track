@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Educare Track | Print ID Cards</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <style>
+      @media print {
+        .no-print {
+          display: none !important;
+        }
+        body {
+          background: white !important;
+        }
+      }
+    </style>
+  </head>
+  <body class="min-h-screen bg-slate-50">
+    <div class="no-print border-b border-slate-200 bg-white">
+      <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4">
+        <div>
+          <div class="text-sm font-semibold text-slate-900">Print ID Cards (2x3)</div>
+          <div class="text-xs text-slate-600">Shows only students with IDs</div>
+        </div>
+        <div class="flex items-center gap-2">
+          <select
+            id="classSelect"
+            class="rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+          ></select>
+          <button id="loadBtn" class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+            Load
+          </button>
+          <button id="printBtn" class="rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">
+            Print
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <main class="mx-auto max-w-6xl px-4 py-6">
+      <div id="statusBox" class="no-print text-sm text-slate-700">Loading…</div>
+      <div id="cardsGrid" class="mt-4 grid grid-cols-2 gap-3 print:grid-cols-2"></div>
+    </main>
+
+    <script type="module" src="./admin-idcards-print.js"></script>
+  </body>
+</html>

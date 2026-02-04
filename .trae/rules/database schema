@@ -1,0 +1,364 @@
+-- ==========================================
+-- EDUCARE TRACK - PRODUCTION RESET SCRIPT
+-- Simple, attendance-focused version
+-- ==========================================
+
+-- 1. CLEANUP
+DROP SCHEMA public CASCADE;
+CREATE SCHEMA public;
+GRANT ALL ON SCHEMA public TO postgres;
+GRANT ALL ON SCHEMA public TO public;
+
+-- 2. EXTENSIONS
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- =========================
+-- PROFILES (All Users)
+-- =========================
+CREATE TABLE public.profiles (
+    id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    full_name text NOT NULL,
+    username text UNIQUE NOT NULL,
+    phone text,
+    address text,
+    email text,
+    role text NOT NULL CHECK (role IN ('admin','teacher','parent','guard','clinic')),
+    is_active boolean DEFAULT true,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
+
+-- =========================
+-- CLASSES
+-- =========================
+CREATE TABLE public.classes (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    grade_level text NOT NULL,
+    strand text,
+    homeroom_teacher_id uuid REFERENCES public.profiles(id),
+    room text,
+    is_active boolean DEFAULT true,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
+
+-- =========================
+-- STUDENTS
+-- =========================
+CREATE TABLE public.students (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    full_name text NOT NULL,
+    lrn text UNIQUE,
+    dob date,
+    gender text,
+    grade_level text NOT NULL,
+    strand text, -- only for SHS
+    class_id uuid REFERENCES public.classes(id),
+    address text,
+    photo_url text,
+    parent_id uuid REFERENCES public.profiles(id),
+    current_status text DEFAULT 'out', -- in/out for tap logic
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
+
+-- =========================
+-- SUBJECTS
+-- =========================
+CREATE TABLE public.subjects (
+    code text PRIMARY KEY,
+    name text NOT NULL,
+    grade_level text NOT NULL,
+    strand text,
+    type text CHECK (type IN ('core','applied','specialization','other')),
+    created_at timestamptz DEFAULT now()
+);
+
+-- =========================
+-- CLASS SCHEDULES
+-- =========================
+CREATE TABLE public.class_schedules (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    class_id uuid REFERENCES public.classes(id),
+    subject_code text REFERENCES public.subjects(code),
+    teacher_id uuid REFERENCES public.profiles(id),
+    day_of_week text,
+    start_time time,
+    end_time time,
+    created_at timestamptz DEFAULT now()
+);
+
+-- =========================
+-- ATTENDANCE RULES
+-- =========================
+CREATE TABLE public.attendance_rules (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    grade_level text UNIQUE NOT NULL,
+    entry_time time NOT NULL,
+    grace_until time NOT NULL,
+    late_until time NOT NULL,
+    min_subject_minutes int DEFAULT 30,
+    created_at timestamptz DEFAULT now()
+);
+
+-- =========================
+-- HOMEROOM ATTENDANCE
+-- =========================
+CREATE TABLE public.homeroom_attendance (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    student_id uuid REFERENCES public.students(id),
+    class_id uuid REFERENCES public.classes(id),
+    date date NOT NULL,
+    tap_in_time timestamptz,
+    tap_out_time timestamptz,
+    status text NOT NULL DEFAULT 'absent', -- present, late, partial, absent, excused_absent
+    late_by interval,
+    early_leave interval,
+    remarks text,
+    created_at timestamptz DEFAULT now()
+);
+
+-- =========================
+-- SUBJECT ATTENDANCE
+-- =========================
+CREATE TABLE public.subject_attendance (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    student_id uuid REFERENCES public.students(id),
+    subject_code text REFERENCES public.subjects(code),
+    date date NOT NULL,
+    status text NOT NULL DEFAULT 'absent', -- present, late, excused_absent, absent
+    remarks text,
+    created_at timestamptz DEFAULT now()
+);
+
+-- =========================
+-- TAP LOGS
+-- =========================
+CREATE TABLE public.tap_logs (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    student_id uuid REFERENCES public.students(id),
+    gatekeeper_id uuid REFERENCES public.profiles(id),
+    tap_type text NOT NULL, -- in/out
+    timestamp timestamptz DEFAULT now(),
+    status text, -- on_time, late, early, duplicate, partial
+    remarks text,
+    created_at timestamptz DEFAULT now()
+);
+
+-- =========================
+-- EXCUSE LETTERS
+-- =========================
+CREATE TABLE public.excuse_letters (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    student_id uuid REFERENCES public.students(id),
+    parent_id uuid REFERENCES public.profiles(id),
+    absent_date date,
+    reason text,
+    status text DEFAULT 'pending', -- pending, approved, rejected
+    remarks text,
+    created_at timestamptz DEFAULT now()
+);
+
+-- =========================
+-- CLINIC MODULE
+-- =========================
+CREATE TABLE public.clinic_visits (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    student_id uuid REFERENCES public.students(id),
+    visit_time timestamptz DEFAULT now(),
+    reason text,
+    treated_by uuid REFERENCES public.profiles(id),
+    notes text,
+    status text DEFAULT 'in_clinic'
+);
+
+CREATE TABLE public.clinic_passes (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    student_id uuid REFERENCES public.students(id),
+    clinic_visit_id uuid REFERENCES public.clinic_visits(id),
+    issued_by uuid REFERENCES public.profiles(id),
+    reason text,
+    status text DEFAULT 'pending',
+    issued_at timestamptz DEFAULT now()
+);
+
+-- =========================
+-- NOTIFICATIONS
+-- =========================
+CREATE TABLE public.notifications (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    recipient_id uuid REFERENCES public.profiles(id),
+    actor_id uuid REFERENCES public.profiles(id),
+    verb text,
+    object jsonb DEFAULT '{}'::jsonb,
+    read boolean DEFAULT false,
+    created_at timestamptz DEFAULT now()
+);
+
+-- =========================
+-- ANNOUNCEMENTS
+-- =========================
+CREATE TABLE public.announcements (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    title text NOT NULL,
+    body text NOT NULL,
+    audience_teachers boolean DEFAULT false,
+    audience_parents boolean DEFAULT false,
+    audience_staff boolean DEFAULT false,
+    created_by uuid REFERENCES public.profiles(id),
+    created_at timestamptz DEFAULT now()
+);
+
+-- =========================
+-- PASSWORD RESET REQUESTS
+-- =========================
+CREATE TABLE public.password_reset_requests (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    requested_user_id text NOT NULL,
+    requested_by_profile_id uuid REFERENCES public.profiles(id),
+    note text,
+    status text DEFAULT 'pending', -- pending, done
+    created_at timestamptz DEFAULT now()
+);
+
+-- =========================
+-- SCHOOL CALENDAR
+-- =========================
+CREATE TABLE public.school_calendar (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    type text, -- holiday, emergency
+    title text,
+    start_date date,
+    end_date date,
+    notes text,
+    grade_scope text DEFAULT 'all',
+    created_by uuid REFERENCES public.profiles(id),
+    created_at timestamptz DEFAULT now()
+);
+
+-- =========================
+-- ID CARDS
+-- =========================
+CREATE TABLE public.student_ids (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    student_id uuid REFERENCES public.students(id) UNIQUE,
+    qr_code text UNIQUE NOT NULL,
+    is_active boolean DEFAULT true,
+    created_at timestamptz DEFAULT now()
+);
+
+-- =========================
+-- SETTINGS
+-- =========================
+CREATE TABLE public.system_settings (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    key text UNIQUE NOT NULL,
+    value jsonb DEFAULT '{}'::jsonb,
+    created_at timestamptz DEFAULT now()
+);
+
+GRANT USAGE ON SCHEMA public TO service_role;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO service_role;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO service_role;
+
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.profiles p
+    WHERE p.id = auth.uid()
+      AND p.role = 'admin'
+      AND p.is_active = true
+  );
+$$;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.profiles TO authenticated;
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "profiles_select_own"
+ON public.profiles
+FOR SELECT
+TO authenticated
+USING (id = auth.uid());
+
+CREATE POLICY "profiles_admin_all"
+ON public.profiles
+FOR ALL
+TO authenticated
+USING (public.is_admin())
+WITH CHECK (public.is_admin());
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.classes TO authenticated;
+ALTER TABLE public.classes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "classes_admin_all" ON public.classes FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.students TO authenticated;
+ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "students_admin_all" ON public.students FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.subjects TO authenticated;
+ALTER TABLE public.subjects ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "subjects_admin_all" ON public.subjects FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.class_schedules TO authenticated;
+ALTER TABLE public.class_schedules ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "class_schedules_admin_all" ON public.class_schedules FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.attendance_rules TO authenticated;
+ALTER TABLE public.attendance_rules ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "attendance_rules_admin_all" ON public.attendance_rules FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.homeroom_attendance TO authenticated;
+ALTER TABLE public.homeroom_attendance ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "homeroom_attendance_admin_all" ON public.homeroom_attendance FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.subject_attendance TO authenticated;
+ALTER TABLE public.subject_attendance ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "subject_attendance_admin_all" ON public.subject_attendance FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.tap_logs TO authenticated;
+ALTER TABLE public.tap_logs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "tap_logs_admin_all" ON public.tap_logs FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.excuse_letters TO authenticated;
+ALTER TABLE public.excuse_letters ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "excuse_letters_admin_all" ON public.excuse_letters FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.clinic_visits TO authenticated;
+ALTER TABLE public.clinic_visits ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "clinic_visits_admin_all" ON public.clinic_visits FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.clinic_passes TO authenticated;
+ALTER TABLE public.clinic_passes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "clinic_passes_admin_all" ON public.clinic_passes FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.notifications TO authenticated;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "notifications_admin_all" ON public.notifications FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.announcements TO authenticated;
+ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "announcements_admin_all" ON public.announcements FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.password_reset_requests TO authenticated;
+GRANT INSERT ON TABLE public.password_reset_requests TO anon;
+ALTER TABLE public.password_reset_requests ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "password_reset_requests_admin_all" ON public.password_reset_requests FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY "password_reset_requests_insert" ON public.password_reset_requests FOR INSERT TO anon WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.school_calendar TO authenticated;
+ALTER TABLE public.school_calendar ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "school_calendar_admin_all" ON public.school_calendar FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.student_ids TO authenticated;
+ALTER TABLE public.student_ids ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "student_ids_admin_all" ON public.student_ids FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.system_settings TO authenticated;
+ALTER TABLE public.system_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "system_settings_admin_all" ON public.system_settings FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());

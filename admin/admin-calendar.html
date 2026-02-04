@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Educare Track | Admin - Calendar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+    <link rel="stylesheet" href="../core/theme.css" />
+  </head>
+  <body class="min-h-screen role-admin">
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+    <header id="topbar" class="topbar"></header>
+    <div class="app-shell">
+      <aside id="appSidebar" class="sidebar"></aside>
+
+      <main class="page">
+        <div class="page-container">
+          <div class="page-header">
+            <h1 class="page-title">School Calendar</h1>
+            <p class="page-subtitle">Tap dates to add events and manage the calendar</p>
+          </div>
+
+          <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+            <div id="calendarStatus" class="text-sm text-slate-700">Loading…</div>
+            <div id="calendarApp" class="mt-4"></div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="./admin-calendar.js"></script>
+  </body>
+</html>

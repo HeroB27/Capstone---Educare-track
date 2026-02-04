@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Educare Track | Teacher - Announcements</title>
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#0f172a" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="../core/theme.css" />
+  </head>
+  <body class="min-h-screen role-teacher">
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+    <header id="topbar" class="topbar"></header>
+    <div class="app-shell">
+      <aside id="appSidebar" class="sidebar"></aside>
+
+      <main class="page">
+        <div class="page-container">
+          <div class="page-header">
+            <h1 class="page-title">Announcements</h1>
+            <p class="page-subtitle">Post class announcements to parents</p>
+          </div>
+
+          <div class="grid gap-4 lg:grid-cols-[420px_1fr]">
+            <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+              <div class="text-sm font-semibold text-slate-900">Create announcement</div>
+              <div id="announceFormBox" class="mt-4"></div>
+            </div>
+
+            <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+              <div id="announceStatus" class="text-sm text-slate-700">Loading…</div>
+              <div id="announceApp" class="mt-4"></div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="./teacher-announcements.js"></script>
+  </body>
+</html>

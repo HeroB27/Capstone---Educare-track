@@ -1,0 +1,12 @@
+{
+  "name": "educare-track-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "seed:users": "node ./scripts/seed-users.mjs",
+    "provision:users": "node ./scripts/provision-users.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1"
+  }
+}

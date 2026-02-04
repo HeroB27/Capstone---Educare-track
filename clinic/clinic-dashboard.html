@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Educare Track | Clinic - Passes</title>
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#0f172a" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="../core/theme.css" />
+  </head>
+  <body class="min-h-screen role-clinic">
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+    <header id="topbar" class="topbar"></header>
+    <div class="app-shell">
+      <aside id="appSidebar" class="sidebar"></aside>
+
+      <main class="page">
+        <div class="page-container">
+          <div class="page-header">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;">
+              <div>
+                <h1 class="page-title">Clinic</h1>
+                <p class="page-subtitle">Approve passes and record clinic visits</p>
+              </div>
+              <div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:flex-end;">
+                <a class="btn btn-secondary" href="./clinic-pass-approval.html">Pass approvals</a>
+                <a class="btn btn-secondary" href="./clinic-scanner.html">Open camera scanner</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+            <div id="clinicStatus" class="text-sm text-slate-700">Loading…</div>
+            <div id="clinicApp" class="mt-4"></div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="./clinic-dashboard.js"></script>
+  </body>
+</html>

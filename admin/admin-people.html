@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Educare Track | Admin - People</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="../core/theme.css" />
+  </head>
+  <body class="min-h-screen role-admin">
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+    <header id="topbar" class="topbar"></header>
+    <div class="app-shell">
+      <aside id="appSidebar" class="sidebar"></aside>
+
+      <main class="page">
+        <div class="page-container">
+          <div class="page-header">
+            <h1 class="page-title">People</h1>
+            <p class="page-subtitle">Manage staff, parents, students, and IDs</p>
+          </div>
+
+          <div class="grid gap-4 md:grid-cols-2">
+            <a class="surface" href="./admin-users.html" style="display:block;">
+              <div class="text-sm font-semibold text-slate-900">Users</div>
+              <div class="mt-1 text-sm text-slate-600">Admins, teachers, parents, guards, clinic staff</div>
+            </a>
+            <a class="surface" href="./admin-parent-students.html" style="display:block;">
+              <div class="text-sm font-semibold text-slate-900">Add Parent + Students</div>
+              <div class="mt-1 text-sm text-slate-600">Guided wizard for parent + multiple students</div>
+            </a>
+            <a class="surface" href="./admin-idcards.html" style="display:block;">
+              <div class="text-sm font-semibold text-slate-900">ID Cards</div>
+              <div class="mt-1 text-sm text-slate-600">Issue and re-issue student IDs</div>
+            </a>
+            <a class="surface" href="./admin-idcards-print.html" style="display:block;">
+              <div class="text-sm font-semibold text-slate-900">Print ID Cards</div>
+              <div class="mt-1 text-sm text-slate-600">Printable 2×3 layout</div>
+            </a>
+          </div>
+
+          <div class="mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+            <div id="peopleStatus" class="text-sm text-slate-700">Loading…</div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="./admin-people.js"></script>
+  </body>
+</html>
+

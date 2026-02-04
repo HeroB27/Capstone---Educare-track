@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Educare Track | Parent - Excuse Upload</title>
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#0f172a" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="../core/theme.css" />
+  </head>
+  <body class="min-h-screen role-parent">
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+    <header id="topbar" class="topbar"></header>
+    <div class="app-shell">
+      <aside id="appSidebar" class="sidebar"></aside>
+
+      <main class="page">
+        <div class="page-container" style="max-width: 48rem;">
+          <div class="page-header">
+            <h1 class="page-title">Excuse Upload</h1>
+            <p class="page-subtitle">Upload a PDF or image for your child’s absence</p>
+          </div>
+
+          <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+            <div id="uploadStatus" class="text-sm text-slate-700">Loading…</div>
+            <div id="uploadApp" class="mt-4"></div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="./parent-excuse-upload.js"></script>
+  </body>
+</html>

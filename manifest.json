@@ -1,0 +1,17 @@
+{
+  "name": "Educare Track",
+  "short_name": "Educare",
+  "start_url": "/auth/login.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/pwa/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
+
