@@ -1,8 +1,58 @@
 import { supabase } from "../core/core.js";
 import { initAppShell } from "../core/shell.js";
 import { initAdminPage } from "./admin-common.js";
+import { Skeleton, Toast, CommandPalette } from "../core/ui-premium.js";
 
 let appShellInitialized = false;
+
+// Premium command palette actions for admin
+const adminCommands = [
+  { category: 'Navigation', action: 'nav-dashboard', label: 'Go to Dashboard', shortcut: 'G D', execute: () => window.location.href = './admin-dashboard.html' },
+  { category: 'Navigation', action: 'nav-people', label: 'Go to People', shortcut: 'G P', execute: () => window.location.href = './admin-people.html' },
+  { category: 'Navigation', action: 'nav-attendance', label: 'Go to Attendance', shortcut: 'G A', execute: () => window.location.href = './admin-attendance.html' },
+  { category: 'Navigation', action: 'nav-classes', label: 'Go to Classes', shortcut: 'G C', execute: () => window.location.href = './admin-classes.html' },
+  { category: 'Actions', action: 'export-report', label: 'Export Report', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>', execute: () => exportReport() },
+  { category: 'Actions', action: 'new-announcement', label: 'New Announcement', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5.882V19.24a1.76 1.76 0 0 1-3.417.592l-2.147-6.15M18 13a3 3 0 1 0-6 0M5.436 13.683A4.001 4.001 0 0 1 7 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 0 1-1.564-.317z"/></svg>', execute: () => window.location.href = './admin-announcements.html' },
+  { category: 'Actions', action: 'view-calendar', label: 'View Calendar', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>', execute: () => window.location.href = './admin-calendar.html' },
+  { category: 'Actions', action: 'settings', label: 'Open Settings', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>', execute: () => window.location.href = './admin-settings.html' },
+];
+
+// Export report placeholder - TODO: Implement export functionality
+function exportReport() {
+  Toast.info('Export feature is being developed.');
+}
+
+// Initialize skeleton loading states
+function showLoadingStates() {
+  const kpiSection = document.querySelector('.grid.grid-cols-1.sm\\:grid-cols-2.lg\\:grid-cols-4');
+  const chartsSection = document.querySelector('.grid.lg\\:grid-cols-3');
+  const alertsSection = document.querySelector('.grid.lg\\:grid-cols-2');
+  
+  if (kpiSection) {
+    kpiSection.innerHTML = '';
+    for (let i = 0; i < 4; i++) {
+      const skeleton = Skeleton.kpiCard();
+      skeleton.style.cssText += '; animation-delay: ' + (i * 0.1) + 's;';
+      kpiSection.appendChild(skeleton);
+    }
+  }
+  
+  if (chartsSection) {
+    chartsSection.innerHTML = '';
+    const chart1 = Skeleton.chart('280px');
+    chart1.style.cssText += '; grid-column: span 2; animation-delay: 0.1s;';
+    const chart2 = Skeleton.chart('280px');
+    chart2.style.cssText += '; animation-delay: 0.2s;';
+    chartsSection.appendChild(chart1);
+    chartsSection.appendChild(chart2);
+  }
+  
+  if (alertsSection) {
+    alertsSection.innerHTML = '';
+    alertsSection.appendChild(Skeleton.card());
+    alertsSection.appendChild(Skeleton.card());
+  }
+}
 
 // Wait for shell to be ready
 function waitForShell() {
@@ -36,6 +86,12 @@ async function init() {
   
   // Wait for shell DOM to be ready
   await waitForShell();
+  
+  // Show skeleton loading states
+  showLoadingStates();
+  
+  // Initialize command palette
+  CommandPalette.init(adminCommands);
   
   // Now get elements (they should exist after shell init)
   const studentsCount = document.getElementById("studentsCount");
@@ -213,6 +269,8 @@ async function init() {
         <p class="text-blue-700">Loading dashboard data...</p>
       </div>
     `;
+  } else {
+    console.warn('statusBox element not found');
   }
 
   const today = toLocalISODate(new Date());

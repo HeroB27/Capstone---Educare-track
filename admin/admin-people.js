@@ -235,20 +235,28 @@ function openModal(personId = null) {
   if (!personModal) return;
 
   const isEdit = !!personId;
-  modalTitle.textContent = isEdit ? "Edit Person" : "Add Person";
+  if (modalTitle) modalTitle.textContent = isEdit ? "Edit Person" : "Add Person";
 
   if (isEdit) {
     const person = allPeople.find(p => p.id === personId);
     if (person) {
-      document.getElementById("personId").value = person.id;
-      document.getElementById("personName").value = person.full_name || "";
-      document.getElementById("personRole").value = person.role || "student";
-      document.getElementById("passwordField").classList.add("hidden");
+      const personIdEl = document.getElementById("personId");
+      const personNameEl = document.getElementById("personName");
+      const personRoleEl = document.getElementById("personRole");
+      const passwordField = document.getElementById("passwordField");
+      
+      if (personIdEl) personIdEl.value = person.id;
+      if (personNameEl) personNameEl.value = person.full_name || "";
+      if (personRoleEl) personRoleEl.value = person.role || "student";
+      if (passwordField) passwordField.classList.add("hidden");
     }
   } else {
     personForm.reset();
-    document.getElementById("personId").value = "";
-    document.getElementById("passwordField").classList.remove("hidden");
+    const personIdEl = document.getElementById("personId");
+    const passwordField = document.getElementById("passwordField");
+    
+    if (personIdEl) personIdEl.value = "";
+    if (passwordField) passwordField.classList.remove("hidden");
   }
 
   personModal.classList.remove("hidden");
@@ -266,13 +274,19 @@ function closeModal() {
 async function handleFormSubmit(e) {
   e.preventDefault();
 
-  const personId = document.getElementById("personId").value;
-  const fullName = document.getElementById("personName").value.trim();
-  const role = document.getElementById("personRole").value;
+  const personIdEl = document.getElementById("personId");
+  const personNameEl = document.getElementById("personName");
+  const personRoleEl = document.getElementById("personRole");
+  
+  const personId = personIdEl ? personIdEl.value : "";
+  const fullName = personNameEl ? personNameEl.value.trim() : "";
+  const role = personRoleEl ? personRoleEl.value : "student";
 
   const saveBtn = document.getElementById("savePersonBtn");
-  saveBtn.disabled = true;
-  saveBtn.textContent = "Saving...";
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Saving...";
+  }
 
   try {
     if (personId) {
@@ -305,8 +319,11 @@ async function handleFormSubmit(e) {
     console.error("Failed to save person:", err);
     alert("Error saving person: " + err.message);
   } finally {
-    saveBtn.disabled = false;
-    saveBtn.textContent = "Save Person";
+    const saveBtn = document.getElementById("savePersonBtn");
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Save Person";
+    }
   }
 }
 

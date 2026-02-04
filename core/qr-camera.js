@@ -1,3 +1,5 @@
+import { SCANNER_CONFIG } from "./config.js";
+
 function getJsQr() {
   const fn = globalThis.jsQR;
   if (typeof fn !== "function") throw new Error("jsQR is not loaded.");
@@ -9,7 +11,10 @@ function pickEnvironmentCamera(cameras) {
   return preferred?.deviceId ? { deviceId: { exact: preferred.deviceId } } : { facingMode: { ideal: "environment" } };
 }
 
-export async function initCameraScanner({ videoEl, onCode, onState, debounceMs = 1200 } = {}) {
+// Use debounce from config (default 2000ms)
+const DEFAULT_DEBOUNCE_MS = SCANNER_CONFIG.DEBOUNCE_MS || 2000;
+
+export async function initCameraScanner({ videoEl, onCode, onState, debounceMs = DEFAULT_DEBOUNCE_MS } = {}) {
   if (!videoEl) throw new Error("videoEl is required.");
   if (typeof onCode !== "function") throw new Error("onCode is required.");
 

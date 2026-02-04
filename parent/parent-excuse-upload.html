@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Educare Track | Parent - Upload Excuse</title>
+    <title>EDUCARE COLLEGES INC | Parent - Upload Excuse</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../core/theme.css" />
@@ -12,17 +12,88 @@
       * { font-family: 'Inter', sans-serif; }
     </style>
   </head>
-  <body class="min-h-screen role-parent bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
-    <!-- Sidebar Overlay for Mobile -->
-    <div id="sidebarOverlay" class="fixed inset-0 bg-slate-900/60 z-40 hidden lg:hidden backdrop-blur-sm"></div>
+  <body class="min-h-screen role-parent bg-[#f8fafc]">
+    <!-- Mobile sidebar overlay -->
+    <div id="sidebarOverlay" class="fixed inset-0 bg-slate-900/60 z-40 hidden lg:hidden backdrop-blur-sm transition-opacity"></div>
 
-    <!-- Topbar (Mobile) -->
-    <header id="topbar" class="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white/80 backdrop-blur-xl border-b border-white/20"></header>
+    <!-- Top Navigation Bar -->
+    <header class="fixed top-0 left-0 right-0 z-30 top-nav">
+      <div class="flex items-center justify-between h-16 px-4 lg:px-6">
+        <div class="flex items-center gap-4">
+          <button id="sidebarToggleBtn" class="lg:hidden p-2 rounded-xl hover:bg-slate-100 transition-colors">
+            <svg class="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+            </svg>
+          </button>
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+              <span class="text-white font-bold text-lg">E</span>
+            </div>
+            <div class="hidden sm:block">
+              <div class="font-bold text-slate-900">EDUCARE COLLEGES INC</div>
+              <div class="text-xs text-slate-500">Parent Portal</div>
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="flex items-center gap-3 ml-2 pl-4 border-l border-slate-200">
+            <div class="hidden sm:block text-right">
+              <div class="text-sm font-semibold text-slate-900" id="profileBadge">Loading...</div>
+              <div class="text-xs text-slate-500">Parent</div>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-green-500 flex items-center justify-center text-white font-bold shadow-lg">
+              <span id="userInitials">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
 
     <!-- App Shell -->
-    <div class="flex min-h-screen">
+    <div class="flex min-h-screen pt-16">
       <!-- Sidebar -->
-      <aside id="appSidebar" class="hidden lg:flex lg:flex-col w-72 glass-sidebar text-white min-h-screen fixed left-0 top-0 z-50 transition-all duration-300"></aside>
+      <aside id="appSidebar" class="hidden lg:flex lg:flex-col w-72 fixed left-0 top-0 bottom-0 z-50 transition-transform duration-300" style="background: linear-gradient(180deg, #10b981 0%, #059669 100%); box-shadow: 4px 0 30px rgba(16, 185, 129, 0.3);">
+        <div class="p-6 border-b border-white/10">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+              <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+              </svg>
+            </div>
+            <div>
+              <div class="font-bold text-white text-lg">Parent</div>
+              <div class="text-white/60 text-sm">Dashboard</div>
+            </div>
+          </div>
+        </div>
+        <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
+          <a href="./parent-dashboard.html" class="sidebar-item" data-page="dashboard">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+              <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+              <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+              <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+            </svg>
+            <span>Overview</span>
+          </a>
+          <a href="./parent-excuse-upload.html" class="sidebar-item active" data-page="excuse">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+            </svg>
+            <span>Upload Excuse</span>
+          </a>
+        </nav>
+        <div class="p-4 border-t border-white/10">
+          <button id="signOutBtn" class="sidebar-item w-full text-left hover:bg-red-500/20 hover:text-red-300">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            <span>Sign Out</span>
+          </button>
+        </div>
+      </aside>
 
       <!-- Main Content -->
       <main class="flex-1 lg:ml-72 pt-16 lg:pt-0">

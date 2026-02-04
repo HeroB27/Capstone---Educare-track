@@ -3,36 +3,382 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Educare Track | Admin - People</title>
+    <title>EDUCARE COLLEGES INC | Admin - People</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../core/theme.css" />
+    <link rel="stylesheet" href="../core/premium-theme.css" />
     <link rel="stylesheet" href="../core/vibrant-theme.css" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: { sans: ['Inter', 'sans-serif'] },
+            animation: {
+              'float': 'float 6s ease-in-out infinite',
+              'fade-in': 'fadeIn 0.5s ease-out',
+              'slide-up': 'slideUp 0.5s ease-out',
+            },
+            keyframes: {
+              float: { '0%, 100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-10px)' } },
+              fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+              slideUp: { '0%': { opacity: '0', transform: 'translateY(20px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+            },
+          },
+        },
+      }
+    </script>
     <style>
       * { font-family: 'Inter', sans-serif; }
-      .page-bg {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      
+      .gradient-text {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      
+      .glass-sidebar {
+        background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+        box-shadow: 4px 0 30px rgba(102, 126, 234, 0.3);
+      }
+      
+      .top-nav {
+        background: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(20px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+      }
+      
+      .premium-card {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        border-radius: 24px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      
+      .premium-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 25px 50px -12px rgba(102, 126, 234, 0.25);
+      }
+      
+      .sidebar-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        border-radius: 12px;
+        text-decoration: none;
+        color: rgba(255, 255, 255, 0.7);
+        transition: all 0.2s ease;
+        font-weight: 500;
+        font-size: 0.9rem;
+      }
+      
+      .sidebar-item:hover {
+        background: rgba(255, 255, 255, 0.15);
+        color: white;
+        transform: translateX(4px);
+      }
+      
+      .sidebar-item.active {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+        border-left: 3px solid white;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      }
+      
+      .stat-card {
+        position: relative;
+        overflow: hidden;
+        border-radius: 20px;
+        padding: 20px;
+        background: rgba(255, 255, 255, 0.95);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      
+      .stat-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 20px 40px -12px rgba(102, 126, 234, 0.25);
+      }
+      
+      .stat-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.3s ease;
+      }
+      
+      .stat-card:hover .stat-icon {
+        transform: scale(1.1);
+      }
+      
+      .search-bar {
+        background: rgba(255, 255, 255, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 14px;
+        transition: all 0.3s ease;
+      }
+      
+      .search-bar:focus-within {
+        background: rgba(255, 255, 255, 0.9);
+        box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.2);
+      }
+      
+      .notification-dot {
+        position: absolute;
+        top: -2px;
+        right: -2px;
+        width: 12px;
+        height: 12px;
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        border-radius: 50%;
+        border: 2px solid white;
+        animation: pulse 2s infinite;
+      }
+      
+      @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.8; transform: scale(1.1); }
+      }
+      
+      .animate-fade-in {
+        animation: fadeIn 0.5s ease-out forwards;
+      }
+      
+      .table-row {
+        transition: all 0.2s ease;
+      }
+      
+      .table-row:hover {
+        background: rgba(102, 126, 234, 0.05);
+      }
+      
+      .role-badge {
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.025em;
+      }
+      
+      .role-badge.student { background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.05)); color: #3b82f6; }
+      .role-badge.teacher { background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(139, 92, 246, 0.05)); color: #8b5cf6; }
+      .role-badge.parent { background: linear-gradient(135deg, rgba(236, 72, 153, 0.1), rgba(236, 72, 153, 0.05)); color: #ec4899; }
+      .role-badge.admin { background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.05)); color: #10b981; }
+      
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      
+      ::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+      }
+      
+      ::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.3);
+        border-radius: 4px;
       }
     </style>
   </head>
-  <body class="min-h-screen role-admin bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
-    <!-- Sidebar Overlay for Mobile -->
-    <div id="sidebarOverlay" class="fixed inset-0 bg-slate-900/60 z-40 hidden lg:hidden backdrop-blur-sm"></div>
+  <body class="min-h-screen role-admin bg-[#f8fafc]">
+    <!-- Mobile sidebar overlay -->
+    <div id="sidebarOverlay" class="fixed inset-0 bg-slate-900/60 z-40 hidden lg:hidden backdrop-blur-sm transition-opacity"></div>
 
-    <!-- Topbar (Mobile) -->
-    <header id="topbar" class="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white/80 backdrop-blur-xl border-b border-white/20"></header>
+    <!-- Top Navigation Bar -->
+    <header class="fixed top-0 left-0 right-0 z-30 top-nav">
+      <div class="flex items-center justify-between h-16 px-4 lg:px-6">
+        <div class="flex items-center gap-4">
+          <button id="sidebarToggleBtn" class="lg:hidden p-2 rounded-xl hover:bg-slate-100 transition-colors">
+            <svg class="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+            </svg>
+          </button>
+          
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/30">
+              <span class="text-white font-bold text-lg">E</span>
+            </div>
+            <div class="hidden sm:block">
+              <div class="font-bold text-slate-900">EDUCARE COLLEGES INC</div>
+              <div class="text-xs text-slate-500">Purok 4, Irisan</div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="hidden md:block flex-1 max-w-xl mx-8">
+          <div class="search-bar rounded-xl px-4 py-2.5 flex items-center gap-3">
+            <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="8"></circle>
+              <path d="m21 21-4.35-4.35"></path>
+            </svg>
+            <input type="text" placeholder="Search people..." class="flex-1 bg-transparent border-none outline-none text-slate-700 placeholder-slate-400">
+          </div>
+        </div>
+        
+        <div class="flex items-center gap-2">
+          <button class="relative p-2.5 rounded-xl hover:bg-slate-100 transition-colors group">
+            <svg class="w-6 h-6 text-slate-600 group-hover:text-violet-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+            </svg>
+            <span class="notification-dot"></span>
+          </button>
+          
+          <div class="flex items-center gap-3 ml-2 pl-4 border-l border-slate-200">
+            <div class="hidden sm:block text-right">
+              <div class="text-sm font-semibold text-slate-900" id="userName">Loading...</div>
+              <div class="text-xs text-slate-500">Administrator</div>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center text-white font-bold shadow-lg">
+              <span id="userInitials">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
 
     <!-- App Shell -->
-    <div class="flex min-h-screen">
+    <div class="flex min-h-screen pt-16">
       <!-- Sidebar -->
-      <aside id="appSidebar" class="hidden lg:flex lg:flex-col w-72 glass-sidebar text-white min-h-screen fixed left-0 top-0 z-50 transition-all duration-300"></aside>
+      <aside id="appSidebar" class="hidden lg:flex lg:flex-col w-72 fixed left-0 top-0 bottom-0 z-50 glass-sidebar transition-transform duration-300">
+        <div class="p-6 border-b border-white/10">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+              <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+            </div>
+            <div>
+              <div class="font-bold text-white text-lg">People</div>
+              <div class="text-white/60 text-sm">Directory</div>
+            </div>
+          </div>
+        </div>
+        
+        <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
+          <a href="./admin-dashboard.html" class="sidebar-item" data-page="dashboard">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+              <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+              <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+              <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+            </svg>
+            <span>Overview</span>
+          </a>
+          
+          <a href="./admin-people.html" class="sidebar-item active" data-page="people">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+            <span>People</span>
+          </a>
+          
+          <a href="./admin-classes.html" class="sidebar-item" data-page="academics">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+            </svg>
+            <span>Academics</span>
+          </a>
+          
+          <a href="./admin-attendance.html" class="sidebar-item" data-page="attendance">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <rect x="3" y="4" width="18" height="18" rx="2"></rect>
+              <line x1="16" y1="2" x2="16" y2="6"></line>
+              <line x1="8" y1="2" x2="8" y2="6"></line>
+              <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+            <span>Attendance</span>
+          </a>
+          
+          <a href="./admin-idcards.html" class="sidebar-item" data-page="idcards">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <rect x="1" y="4" width="22" height="16" rx="2"></rect>
+              <line x1="1" y1="10" x2="23" y2="10"></line>
+            </svg>
+            <span>ID Cards</span>
+          </a>
+          
+          <a href="./admin-announcements.html" class="sidebar-item" data-page="announcements">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M11 5.882V19.24a1.76 1.76 0 0 1-3.417.592l-2.147-6.15"></path>
+              <path d="M18 13a3 3 0 1 0 0-6"></path>
+            </svg>
+            <span>Announcements</span>
+          </a>
+          
+          <a href="./admin-communications.html" class="sidebar-item" data-page="communications">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7"></path>
+              <path d="M21 12.5a8.38 8.38 0 0 1-.9-3.8"></path>
+            </svg>
+            <span>Communications</span>
+          </a>
+          
+          <a href="./admin-calendar.html" class="sidebar-item" data-page="calendar">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <rect x="3" y="4" width="18" height="18" rx="2"></rect>
+              <line x1="16" y1="2" x2="16" y2="6"></line>
+              <line x1="8" y1="2" x2="8" y2="6"></line>
+              <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+            <span>Calendar</span>
+          </a>
+        </nav>
+        
+        <div class="p-4 border-t border-white/10">
+          <!-- User Profile Section -->
+          <div class="mb-4 p-4 rounded-xl bg-white/10 backdrop-blur-sm">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-white font-bold" id="sidebarUserInitials">
+                —
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-semibold text-white truncate" id="sidebarUserName">Loading...</div>
+                <div class="text-xs text-white/60" id="sidebarUserRole">Administrator</div>
+              </div>
+            </div>
+          </div>
+          
+          <a href="./admin-settings.html" class="sidebar-item" data-page="settings">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4"></path>
+            </svg>
+            <span>Settings</span>
+          </a>
+          
+          <button id="signOutBtn" class="sidebar-item w-full text-left mt-2 hover:bg-red-500/20 hover:text-red-300">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            <span>Sign Out</span>
+          </button>
+        </div>
+      </aside>
 
       <!-- Main Content -->
-      <main class="flex-1 lg:ml-72 pt-16 lg:pt-0">
+      <main class="flex-1 lg:ml-72">
         <div class="p-4 lg:p-8">
           <!-- Page Header -->
-          <div class="mb-8">
+          <div class="mb-8 animate-fade-in">
             <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
               <div>
                 <h1 class="text-3xl lg:text-4xl font-bold text-slate-900">
@@ -59,9 +405,9 @@
 
           <!-- Quick Stats -->
           <section class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            <div class="glass-card rounded-2xl p-5 soft-shadow scale-hover">
-              <div class="flex items-center gap-3">
-                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center">
+            <div class="stat-card animate-fade-in" style="animation-delay: 0.1s;">
+              <div class="flex items-center gap-4">
+                <div class="stat-icon bg-gradient-to-br from-blue-400 to-indigo-500 shadow-lg shadow-blue-500/30">
                   <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
                   </svg>
@@ -73,9 +419,9 @@
               </div>
             </div>
 
-            <div class="glass-card rounded-2xl p-5 soft-shadow scale-hover">
-              <div class="flex items-center gap-3">
-                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center">
+            <div class="stat-card animate-fade-in" style="animation-delay: 0.2s;">
+              <div class="flex items-center gap-4">
+                <div class="stat-icon bg-gradient-to-br from-violet-400 to-purple-500 shadow-lg shadow-purple-500/30">
                   <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
                   </svg>
@@ -87,9 +433,9 @@
               </div>
             </div>
 
-            <div class="glass-card rounded-2xl p-5 soft-shadow scale-hover">
-              <div class="flex items-center gap-3">
-                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center">
+            <div class="stat-card animate-fade-in" style="animation-delay: 0.3s;">
+              <div class="flex items-center gap-4">
+                <div class="stat-icon bg-gradient-to-br from-pink-400 to-rose-500 shadow-lg shadow-pink-500/30">
                   <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
                   </svg>
@@ -101,9 +447,9 @@
               </div>
             </div>
 
-            <div class="glass-card rounded-2xl p-5 soft-shadow scale-hover">
-              <div class="flex items-center gap-3">
-                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center">
+            <div class="stat-card animate-fade-in" style="animation-delay: 0.4s;">
+              <div class="flex items-center gap-4">
+                <div class="stat-icon bg-gradient-to-br from-green-400 to-emerald-500 shadow-lg shadow-green-500/30">
                   <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                   </svg>
@@ -117,23 +463,23 @@
           </section>
 
           <!-- People Table -->
-          <div class="glass-card rounded-3xl p-6 soft-shadow">
-            <div class="flex items-center justify-between mb-6">
-              <div class="relative">
+          <div class="premium-card p-6 animate-fade-in" style="animation-delay: 0.5s;">
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
+              <div class="relative flex-1 max-w-md">
                 <svg class="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                 </svg>
-                <input type="text" id="searchInput" placeholder="Search people..." class="pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent w-64">
+                <input type="text" id="searchInput" placeholder="Search people..." class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent bg-slate-50">
               </div>
               <div class="flex items-center gap-2">
-                <select id="roleFilter" class="px-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500">
+                <select id="roleFilter" class="px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500 bg-slate-50">
                   <option value="">All Roles</option>
                   <option value="student">Students</option>
                   <option value="teacher">Teachers</option>
                   <option value="parent">Parents</option>
                   <option value="admin">Admins</option>
                 </select>
-                <select id="statusFilter" class="px-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500">
+                <select id="statusFilter" class="px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500 bg-slate-50">
                   <option value="">All Status</option>
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
@@ -162,12 +508,12 @@
             </div>
 
             <!-- Pagination -->
-            <div class="flex items-center justify-between mt-6 pt-4 border-t border-slate-200">
+            <div class="flex flex-col sm:flex-row items-center justify-between mt-6 pt-4 border-t border-slate-200 gap-4">
               <p class="text-sm text-slate-500" id="paginationInfo">Showing 0 of 0 people</p>
               <div class="flex items-center gap-2" id="paginationControls">
-                <button class="px-3 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50" id="prevPage" disabled>Previous</button>
+                <button class="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50 transition-colors" id="prevPage" disabled>Previous</button>
                 <span class="text-sm text-slate-600" id="pageNumber">Page 1</span>
-                <button class="px-3 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50" id="nextPage" disabled>Next</button>
+                <button class="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50 transition-colors" id="nextPage" disabled>Next</button>
               </div>
             </div>
           </div>
@@ -223,5 +569,29 @@
     </div>
 
     <script type="module" src="./admin-people.js"></script>
+    <script>
+      // Mobile sidebar toggle
+      const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+      const sidebarOverlay = document.getElementById('sidebarOverlay');
+      const appSidebar = document.getElementById('appSidebar');
+      
+      if (sidebarToggleBtn && sidebarOverlay && appSidebar) {
+        sidebarToggleBtn.addEventListener('click', () => {
+          appSidebar.classList.toggle('hidden');
+          appSidebar.classList.toggle('fixed');
+          appSidebar.classList.toggle('inset-y-0');
+          appSidebar.classList.toggle('left-0');
+          appSidebar.classList.toggle('translate-x-0');
+          appSidebar.classList.toggle('-translate-x-full');
+          sidebarOverlay.classList.toggle('hidden');
+        });
+        
+        sidebarOverlay.addEventListener('click', () => {
+          appSidebar.classList.add('-translate-x-full');
+          appSidebar.classList.add('hidden');
+          sidebarOverlay.classList.add('hidden');
+        });
+      }
+    </script>
   </body>
 </html>

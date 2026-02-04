@@ -1,8 +1,8 @@
 // Educare Track Service Worker - Phase 7 Enhanced Version
-const CACHE_NAME = "educare-track-v7.0.0";
-const STATIC_CACHE = "educare-static-v7";
-const DYNAMIC_CACHE = "educare-dynamic-v7";
-const OFFLINE_QUEUE = "educare-offline-queue";
+const CACHE_NAME = "educare-track-v7.0.2";
+const STATIC_CACHE = "educare-static-v7.2";
+const DYNAMIC_CACHE = "educare-dynamic-v7.2";
+const OFFLINE_QUEUE = "educare-offline-queue-v7.2";
 
 // Assets to precache for offline functionality
 const PRECACHE_URLS = [
@@ -144,6 +144,12 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin && !url.hostname.includes("supabase")) {
     return;
   }
+
+  // DEVELOPMENT OVERRIDE: Always network-first on localhost
+  if (url.hostname === "localhost" || url.hostname === "127.0.0.1") {
+    event.respondWith(networkFirst(req));
+    return;
+  }
   
   // API requests - network first, fallback to cache
   if (isApiRequest(url)) {
@@ -187,14 +193,20 @@ async function cacheFirst(req) {
   
   try {
     const response = await fetch(req);
+    // Only cache successful responses
     if (response.status === 200) {
       const cache = await caches.open(STATIC_CACHE);
       cache.put(req, response.clone());
     }
     return response;
   } catch (error) {
-    console.error("[SW] Cache first failed:", error);
-    throw error;
+    // For favicon and other non-critical resources, return a placeholder
+    if (req.url.includes('favicon')) {
+      return new Response('', { status: 200, statusText: 'OK' });
+    }
+    // Return a placeholder for any other failed resources
+    console.warn("[SW] Cache first failed for:", req.url, error);
+    return new Response('', { status: 200 });
   }
 }
 

@@ -1,5 +1,9 @@
 import { supabase } from "./core.js";
 import { getNoClassesEvent } from "./school-calendar.js";
+import { STUDENT_ID_FORMAT, SCANNER_CONFIG } from "./config.js";
+
+// Scanner debounce using config (2000ms default)
+const SCAN_DEBOUNCE_MS = SCANNER_CONFIG.DEBOUNCE_MS || 2000;
 
 function startOfDayIso() {
   const d = new Date();
@@ -8,64 +12,64 @@ function startOfDayIso() {
 }
 
 /**
- * Parse QR Code in format EDU-YYYY-LLLL-XXXX
+ * Parse QR Code in format EDU-YYYY-LAST4LRN-XXXX
  * EDU: Fixed prefix identifying Educare Track system
  * YYYY: 4-digit year (e.g., 2025)
- * LLLL: 4-character location/class code (e.g., GATE, CLIN, 7A, 8B)
- * XXXX: 4-digit student unique identifier
+ * LAST4LRN: Last 4 characters of student's LRN
+ * XXXX: 4-digit sequence number
+ * 
+ * Uses STUDENT_ID_FORMAT from config.js for validation
  * 
  * @param {string} qrCode - The QR code string to parse
- * @returns {Object} { valid: boolean, studentId: string, year: string, location: string, error?: string }
+ * @returns {Object} { valid: boolean, studentId: string, year: string, last4Lrn: string, sequence: string, error?: string }
  */
 export function parseStudentID(qrCode) {
   const qr = String(qrCode ?? "").trim().toUpperCase();
   
   if (!qr) {
-    return { valid: false, studentId: null, year: null, location: null, error: "QR code is empty" };
+    return { valid: false, studentId: null, year: null, last4Lrn: null, sequence: null, error: "QR code is empty" };
   }
   
-  // Validate prefix
-  if (!qr.startsWith("EDU-")) {
-    return { valid: false, studentId: null, year: null, location: null, error: "Invalid QR format: must start with 'EDU-'" };
+  // Validate using pattern from config
+  const pattern = STUDENT_ID_FORMAT.PARSE_PATTERN;
+  const match = qr.match(pattern);
+  
+  if (!match) {
+    return { 
+      valid: false, 
+      studentId: null, 
+      year: null, 
+      last4Lrn: null, 
+      sequence: null, 
+      error: `Invalid QR format: expected ${STUDENT_ID_FORMAT.PREFIX}-YYYY-${STUDENT_ID_FORMAT.LRN_LENGTH}${STUDENT_ID_FORMAT.SEQ_LENGTH}-XXXX` 
+    };
   }
   
-  // Parse components
-  const parts = qr.split("-");
-  if (parts.length !== 4) {
-    return { valid: false, studentId: null, year: null, location: null, error: "Invalid QR format: expected EDU-YYYY-LLLL-XXXX" };
-  }
-  
-  const [, year, location, studentId] = parts;
+  const [, year, last4Lrn, sequence] = match;
   
   // Validate year (must be within ±1 of current year)
   const currentYear = new Date().getFullYear();
   const yearNum = parseInt(year, 10);
   if (isNaN(yearNum) || yearNum < currentYear - 1 || yearNum > currentYear + 1) {
-    return { valid: false, studentId: null, year: null, location: null, error: `Invalid year in QR code: ${year}` };
+    return { valid: false, studentId: null, year: null, last4Lrn: null, sequence: null, error: `Invalid year in QR code: ${year}` };
   }
   
-  // Validate location code (2-6 characters, alphanumeric)
-  if (!location || location.length < 2 || location.length > 6 || !/^[A-Z0-9]+$/.test(location)) {
-    return { valid: false, studentId: null, year: null, location: null, error: `Invalid location code: ${location}` };
-  }
-  
-  // Validate student ID (4 digits, leading zeros allowed)
-  if (!studentId || studentId.length !== 4 || !/^[0-9]{4}$/.test(studentId)) {
-    return { valid: false, studentId: null, year: null, location: null, error: `Invalid student ID: ${studentId}` };
-  }
+  // Construct full student ID: EDU-YYYY-LAST4LRN-XXXX
+  const fullStudentId = `${STUDENT_ID_FORMAT.PREFIX}-${year}-${last4Lrn}-${sequence}`;
   
   return {
     valid: true,
-    studentId: studentId,
+    studentId: fullStudentId,
     year: year,
-    location: location,
+    last4Lrn: last4Lrn,
+    sequence: sequence,
     error: null
   };
 }
 
 /**
  * Enhanced student lookup that handles parsed QR codes
- * Supports both legacy QR format and new EDU-YYYY-LLLL-XXXX format
+ * Supports EDU-YYYY-LAST4LRN-XXXX format
  * 
  * @param {string} qrCode - The QR code string to lookup
  * @returns {Object|null} Student data or null if not found
@@ -74,17 +78,15 @@ export async function lookupStudentByQr(qrCode) {
   const qr = String(qrCode ?? "").trim();
   if (!qr) return null;
   
-  // Try parsing as new format first
+  // Parse the QR code
   const parsed = parseStudentID(qr);
   
   if (parsed.valid) {
-    // Query by student_id format: EDU-YYYY-XXXX (without location)
-    const formattedStudentId = `EDU-${parsed.year}-${parsed.studentId}`;
-    
+    // Use the full student ID from parsed result
     const { data, error } = await supabase
       .from("student_ids")
       .select("student_id,students(id,full_name,grade_level,strand,class_id,parent_id,current_status)")
-      .eq("student_id", formattedStudentId)
+      .eq("student_id", parsed.studentId)
       .eq("is_active", true)
       .single();
     
@@ -98,30 +100,13 @@ export async function lookupStudentByQr(qrCode) {
       return data.students;
     }
     
-    // Fallback: try direct QR lookup if parsed lookup fails
-    console.log("[QR] Parsed lookup failed, trying direct QR lookup");
-  }
-  
-  // Fallback to direct QR code lookup (legacy format)
-  const { data, error } = await supabase
-    .from("student_ids")
-    .select("student_id,students(id,full_name,grade_level,strand,class_id,parent_id,current_status)")
-    .eq("qr_code", qr)
-    .eq("is_active", true)
-    .single();
-  
-  if (error) {
-    console.log("[QR] Student lookup failed:", error.message);
+    console.log("[QR] Student not found for ID:", parsed.studentId);
     return null;
   }
   
-  console.log("[QR] Student found via direct lookup:", {
-    qr,
-    studentId: data?.student_id,
-    studentName: data?.students?.full_name
-  });
-  
-  return data?.students ?? null;
+  // If parsing failed, return null (no legacy support for non-standard formats)
+  console.log("[QR] Invalid QR format:", parsed.error);
+  return null;
 }
 
 function parseTimeToMinutes(value) {
@@ -305,8 +290,9 @@ export async function notify({ recipientId, actorId, verb, object }) {
 
 /**
  * Enhanced recordTap with comprehensive logging
+ * Uses SCAN_DEBOUNCE_MS from config.js
  */
-export async function recordTap({ gatekeeperId, student, tapType, duplicateWindowMs = 15000 }) {
+export async function recordTap({ gatekeeperId, student, tapType, duplicateWindowMs = SCAN_DEBOUNCE_MS }) {
   console.log("[RecordTap] Starting", {
     gatekeeperId,
     studentId: student?.id,

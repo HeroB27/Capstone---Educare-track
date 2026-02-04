@@ -2,6 +2,7 @@ import { supabase } from "../core/core.js";
 import { button, checkbox, el, escapeHtml, openModal, selectInput, textArea, textInput } from "../core/ui.js";
 import { initAppShell } from "../core/shell.js";
 import { initAdminPage } from "./admin-common.js";
+import { SCHOOL_NAME } from "../core/config.js";
 
 initAppShell({ role: "admin", active: "settings" });
 
@@ -133,6 +134,27 @@ function openRuleModal({ mode, rule, onSaved }) {
 async function render() {
   settingsStatus.textContent = "Loading…";
   settingsApp.replaceChildren();
+
+  // School Name - Display Only (Fixed Constant)
+  const schoolBox = el("div", "surface");
+  schoolBox.appendChild(el("div", "text-sm font-semibold text-slate-900", "School Information"));
+  const schoolInfo = el("div", "mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200");
+  schoolInfo.innerHTML = `
+    <div class="flex items-center gap-3">
+      <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/30">
+        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+        </svg>
+      </div>
+      <div>
+        <div class="text-lg font-bold text-slate-900">${escapeHtml(SCHOOL_NAME)}</div>
+        <div class="text-xs text-slate-500">Fixed system constant - Not editable</div>
+      </div>
+    </div>
+  `;
+  schoolBox.appendChild(schoolInfo);
+  settingsApp.appendChild(schoolBox);
 
   const [rules, teachers, gateSetting, attendanceSettings] = await Promise.all([
     loadRules(),

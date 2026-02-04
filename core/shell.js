@@ -109,6 +109,12 @@ function renderSidebar({ role, activeKey }) {
   const sidebar = el("appSidebar");
   if (!sidebar) return;
 
+  // Check if page has already rendered premium sidebar - don't overwrite
+  if (sidebar.dataset.premium === "true" || sidebar.querySelector('.sidebar-premium')) {
+    console.log('[Shell] Premium sidebar already rendered, skipping shell injection');
+    return;
+  }
+
   const items = NAV_ITEMS[role] ?? [];
   const navHtml = items
     .map((item) => {
