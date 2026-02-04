@@ -300,9 +300,9 @@ function renderCalendar({ student, monthDate, attendanceRows, onMonthChange }) {
 }
 
 function renderNotifications({ notifications, onRefresh }) {
-  notifApp.replaceChildren();
+  notifApp?.replaceChildren();
   const unread = notifications.filter((n) => !n.read).length;
-  notifStatus.textContent = `Unread: ${unread}`;
+  if (notifStatus) notifStatus.textContent = `Unread: ${unread}`;
 
   if (!notifications.length) {
     notifApp.appendChild(el("div", "mt-4 text-sm text-slate-600", "No notifications yet."));
@@ -350,15 +350,15 @@ function renderNotifications({ notifications, onRefresh }) {
 }
 
 function renderAnnouncements({ announcements, classLabelById }) {
-  announceApp.replaceChildren();
+  announceApp?.replaceChildren();
 
   if (!announcements.length) {
-    announceStatus.textContent = "No announcements yet.";
-    announceApp.appendChild(el("div", "text-sm text-slate-600", "You will see school and class announcements here."));
+    if (announceStatus) announceStatus.textContent = "No announcements yet.";
+    if (announceApp) announceApp.appendChild(el("div", "text-sm text-slate-600", "You will see school and class announcements here."));
     return;
   }
 
-  announceStatus.textContent = `Latest: ${announcements.length}`;
+  if (announceStatus) announceStatus.textContent = `Latest: ${announcements.length}`;
   const list = el("div", "space-y-2");
   for (const a of announcements) {
     const time = a.created_at ? new Date(a.created_at).toLocaleString() : "";
@@ -420,8 +420,8 @@ async function refresh() {
   isRefreshing = true;
   
   try {
-    parentStatus.textContent = "Loading…";
-    notifStatus.textContent = "Loading…";
+    if (parentStatus) parentStatus.textContent = "Loading…";
+    if (notifStatus) notifStatus.textContent = "Loading…";
     if (announceStatus) announceStatus.textContent = "Loading…";
 
     const children = await loadChildren(currentProfile.id);
@@ -488,16 +488,16 @@ async function refresh() {
         labelByClass.set(c.class_id, label || "Class");
       }
       if (announceRes.status === "rejected") {
-        announceStatus.textContent = announceRes.reason?.message ?? "Failed to load announcements.";
-        announceApp.replaceChildren();
-        announceApp.appendChild(el("div", "text-sm text-red-700", escapeHtml(announceStatus.textContent)));
+        if (announceStatus) announceStatus.textContent = announceRes.reason?.message ?? "Failed to load announcements.";
+        if (announceApp) announceApp.replaceChildren();
+        if (announceApp) announceApp.appendChild(el("div", "text-sm text-red-700", escapeHtml(announceStatus.textContent)));
       } else {
         renderAnnouncements({ announcements, classLabelById: labelByClass });
       }
     }
 
     if (notifRes.status === "rejected") {
-      notifStatus.textContent = notifRes.reason?.message ?? "Failed to load notifications.";
+      if (notifStatus) notifStatus.textContent = notifRes.reason?.message ?? "Failed to load notifications.";
     }
 
     parentStatus.textContent = "Ready.";

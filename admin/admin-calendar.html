@@ -5,26 +5,188 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Educare Track | Admin - Calendar</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../core/theme.css" />
+    <link rel="stylesheet" href="../core/vibrant-theme.css" />
+    <style>
+      * { font-family: 'Inter', sans-serif; }
+      .calendar-day:hover { transform: scale(1.1); }
+    </style>
   </head>
-  <body class="min-h-screen role-admin">
-    <div id="sidebarOverlay" class="sidebar-overlay"></div>
-    <header id="topbar" class="topbar"></header>
-    <div class="app-shell">
-      <aside id="appSidebar" class="sidebar"></aside>
+  <body class="min-h-screen role-admin bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+    <!-- Sidebar Overlay for Mobile -->
+    <div id="sidebarOverlay" class="fixed inset-0 bg-slate-900/60 z-40 hidden lg:hidden backdrop-blur-sm"></div>
 
-      <main class="page">
-        <div class="page-container">
-          <div class="page-header">
-            <h1 class="page-title">School Calendar</h1>
-            <p class="page-subtitle">Tap dates to add events and manage the calendar</p>
+    <!-- Topbar (Mobile) -->
+    <header id="topbar" class="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white/80 backdrop-blur-xl border-b border-white/20"></header>
+
+    <!-- App Shell -->
+    <div class="flex min-h-screen">
+      <!-- Sidebar -->
+      <aside id="appSidebar" class="hidden lg:flex lg:flex-col w-72 glass-sidebar text-white min-h-screen fixed left-0 top-0 z-50 transition-all duration-300"></aside>
+
+      <!-- Main Content -->
+      <main class="flex-1 lg:ml-72 pt-16 lg:pt-0">
+        <div class="p-4 lg:p-8">
+          <!-- Page Header -->
+          <div class="mb-8">
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div>
+                <h1 class="text-3xl lg:text-4xl font-bold text-slate-900">
+                  <span class="gradient-text">School</span> Calendar
+                </h1>
+                <p class="mt-2 text-slate-600">Manage holidays, events, and academic schedule</p>
+              </div>
+              <div class="flex items-center gap-3">
+                <button class="px-5 py-2.5 rounded-xl bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm hover:shadow-md transition-all flex items-center gap-2">
+                  <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                  </svg>
+                  <span class="font-medium text-slate-700">Export</span>
+                </button>
+                <button class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-white font-medium shadow-lg shadow-purple-500/30 hover:shadow-purple-500/40 transition-all flex items-center gap-2">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                  </svg>
+                  <span>Add Event</span>
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div class="surface">
-            <div id="calendarStatus" class="text-sm text-slate-700">Loading…</div>
-            <div id="calendarApp" class="mt-4"></div>
+          <!-- Calendar View -->
+          <div class="grid lg:grid-cols-4 gap-6">
+            <!-- Calendar -->
+            <div class="lg:col-span-3 glass-card rounded-3xl p-6 soft-shadow">
+              <!-- Calendar Header -->
+              <div class="flex items-center justify-between mb-6">
+                <h2 class="text-2xl font-bold text-slate-900" id="currentMonth">February 2025</h2>
+                <div class="flex items-center gap-2">
+                  <button id="prevMonth" class="p-2 rounded-lg hover:bg-slate-100 transition-colors">
+                    <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                    </svg>
+                  </button>
+                  <button id="todayBtn" class="px-4 py-2 rounded-lg bg-gradient-to-r from-violet-100 to-purple-100 text-violet-600 font-medium text-sm hover:from-violet-200 hover:to-purple-200 transition-all">Today</button>
+                  <button id="nextMonth" class="p-2 rounded-lg hover:bg-slate-100 transition-colors">
+                    <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Weekday Headers -->
+              <div class="grid grid-cols-7 gap-2 mb-4">
+                <div class="text-center text-sm font-semibold text-slate-500 py-2">Sun</div>
+                <div class="text-center text-sm font-semibold text-slate-500 py-2">Mon</div>
+                <div class="text-center text-sm font-semibold text-slate-500 py-2">Tue</div>
+                <div class="text-center text-sm font-semibold text-slate-500 py-2">Wed</div>
+                <div class="text-center text-sm font-semibold text-slate-500 py-2">Thu</div>
+                <div class="text-center text-sm font-semibold text-slate-500 py-2">Fri</div>
+                <div class="text-center text-sm font-semibold text-slate-500 py-2">Sat</div>
+              </div>
+
+              <!-- Calendar Days -->
+              <div id="calendarDays" class="grid grid-cols-7 gap-2">
+                <!-- Days will be generated by JS -->
+              </div>
+
+              <!-- Event Types Legend -->
+              <div class="flex flex-wrap gap-4 mt-6 pt-4 border-t border-slate-200">
+                <div class="flex items-center gap-2">
+                  <div class="w-3 h-3 rounded-full bg-violet-500"></div>
+                  <span class="text-sm text-slate-600">Academic</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="w-3 h-3 rounded-full bg-pink-500"></div>
+                  <span class="text-sm text-slate-600">Events</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="w-3 h-3 rounded-full bg-amber-500"></div>
+                  <span class="text-sm text-slate-600">Holidays</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
+                  <span class="text-sm text-slate-600">Activities</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Upcoming Events -->
+            <div class="glass-card rounded-3xl p-6 soft-shadow">
+              <h3 class="text-lg font-bold text-slate-900 mb-4">Upcoming Events</h3>
+              <div id="upcomingEvents" class="space-y-3">
+                <!-- Events will be loaded here -->
+              </div>
+
+              <div id="noEvents" class="hidden text-center py-8">
+                <svg class="w-12 h-12 mx-auto text-slate-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+                <p class="text-slate-500">No upcoming events</p>
+              </div>
+            </div>
           </div>
+
+          <!-- Stats Summary -->
+          <section class="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
+            <div class="glass-card rounded-2xl p-5 soft-shadow scale-hover">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center">
+                  <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500">Total Events</p>
+                  <p class="text-2xl font-bold text-slate-900" id="totalEvents">—</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-5 soft-shadow scale-hover">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
+                  <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500">Holidays</p>
+                  <p class="text-2xl font-bold text-slate-900" id="holidaysCount">—</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-5 soft-shadow scale-hover">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center">
+                  <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500">This Month</p>
+                  <p class="text-2xl font-bold text-slate-900" id="monthEvents">—</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-5 soft-shadow scale-hover">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center">
+                  <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500">School Days</p>
+                  <p class="text-2xl font-bold text-slate-900" id="schoolDays">—</p>
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
       </main>
     </div>

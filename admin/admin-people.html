@@ -5,48 +5,223 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Educare Track | Admin - People</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../core/theme.css" />
+    <link rel="stylesheet" href="../core/vibrant-theme.css" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
+    <style>
+      * { font-family: 'Inter', sans-serif; }
+      .page-bg {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      }
+    </style>
   </head>
-  <body class="min-h-screen role-admin">
-    <div id="sidebarOverlay" class="sidebar-overlay"></div>
-    <header id="topbar" class="topbar"></header>
-    <div class="app-shell">
-      <aside id="appSidebar" class="sidebar"></aside>
+  <body class="min-h-screen role-admin bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+    <!-- Sidebar Overlay for Mobile -->
+    <div id="sidebarOverlay" class="fixed inset-0 bg-slate-900/60 z-40 hidden lg:hidden backdrop-blur-sm"></div>
 
-      <main class="page">
-        <div class="page-container">
-          <div class="page-header">
-            <h1 class="page-title">People</h1>
-            <p class="page-subtitle">Manage staff, parents, students, and IDs</p>
+    <!-- Topbar (Mobile) -->
+    <header id="topbar" class="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white/80 backdrop-blur-xl border-b border-white/20"></header>
+
+    <!-- App Shell -->
+    <div class="flex min-h-screen">
+      <!-- Sidebar -->
+      <aside id="appSidebar" class="hidden lg:flex lg:flex-col w-72 glass-sidebar text-white min-h-screen fixed left-0 top-0 z-50 transition-all duration-300"></aside>
+
+      <!-- Main Content -->
+      <main class="flex-1 lg:ml-72 pt-16 lg:pt-0">
+        <div class="p-4 lg:p-8">
+          <!-- Page Header -->
+          <div class="mb-8">
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div>
+                <h1 class="text-3xl lg:text-4xl font-bold text-slate-900">
+                  <span class="gradient-text">People</span> Management
+                </h1>
+                <p class="mt-2 text-slate-600">Students, teachers, parents, and staff directory</p>
+              </div>
+              <div class="flex items-center gap-3">
+                <button id="exportBtn" class="px-5 py-2.5 rounded-xl bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm hover:shadow-md transition-all flex items-center gap-2 cursor-pointer">
+                  <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                  </svg>
+                  <span class="font-medium text-slate-700">Export</span>
+                </button>
+                <button id="addPersonBtn" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-white font-medium shadow-lg shadow-purple-500/30 hover:shadow-purple-500/40 transition-all flex items-center gap-2 cursor-pointer">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                  </svg>
+                  <span>Add Person</span>
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div class="grid gap-4 md:grid-cols-2">
-            <a class="surface" href="./admin-users.html" style="display:block;">
-              <div class="text-sm font-semibold text-slate-900">Users</div>
-              <div class="mt-1 text-sm text-slate-600">Admins, teachers, parents, guards, clinic staff</div>
-            </a>
-            <a class="surface" href="./admin-parent-students.html" style="display:block;">
-              <div class="text-sm font-semibold text-slate-900">Add Parent + Students</div>
-              <div class="mt-1 text-sm text-slate-600">Guided wizard for parent + multiple students</div>
-            </a>
-            <a class="surface" href="./admin-idcards.html" style="display:block;">
-              <div class="text-sm font-semibold text-slate-900">ID Cards</div>
-              <div class="mt-1 text-sm text-slate-600">Issue and re-issue student IDs</div>
-            </a>
-            <a class="surface" href="./admin-idcards-print.html" style="display:block;">
-              <div class="text-sm font-semibold text-slate-900">Print ID Cards</div>
-              <div class="mt-1 text-sm text-slate-600">Printable 2×3 layout</div>
-            </a>
-          </div>
+          <!-- Quick Stats -->
+          <section class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div class="glass-card rounded-2xl p-5 soft-shadow scale-hover">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center">
+                  <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500">Students</p>
+                  <p class="text-2xl font-bold text-slate-900" id="studentsCount">—</p>
+                </div>
+              </div>
+            </div>
 
-          <div class="mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-            <div id="peopleStatus" class="text-sm text-slate-700">Loading…</div>
+            <div class="glass-card rounded-2xl p-5 soft-shadow scale-hover">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center">
+                  <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500">Teachers</p>
+                  <p class="text-2xl font-bold text-slate-900" id="teachersCount">—</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-5 soft-shadow scale-hover">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center">
+                  <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500">Parents</p>
+                  <p class="text-2xl font-bold text-slate-900" id="parentsCount">—</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-5 soft-shadow scale-hover">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center">
+                  <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500">Active</p>
+                  <p class="text-2xl font-bold text-slate-900" id="activeCount">—</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- People Table -->
+          <div class="glass-card rounded-3xl p-6 soft-shadow">
+            <div class="flex items-center justify-between mb-6">
+              <div class="relative">
+                <svg class="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+                <input type="text" id="searchInput" placeholder="Search people..." class="pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent w-64">
+              </div>
+              <div class="flex items-center gap-2">
+                <select id="roleFilter" class="px-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500">
+                  <option value="">All Roles</option>
+                  <option value="student">Students</option>
+                  <option value="teacher">Teachers</option>
+                  <option value="parent">Parents</option>
+                  <option value="admin">Admins</option>
+                </select>
+                <select id="statusFilter" class="px-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500">
+                  <option value="">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Table -->
+            <div class="overflow-x-auto">
+              <table class="w-full">
+                <thead>
+                  <tr class="text-left text-sm font-semibold text-slate-500 border-b border-slate-200">
+                    <th class="pb-4">Name</th>
+                    <th class="pb-4">Role</th>
+                    <th class="pb-4">Email</th>
+                    <th class="pb-4">Status</th>
+                    <th class="pb-4">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="peopleTableBody" class="text-sm text-slate-700">
+                  <tr>
+                    <td colspan="5" class="py-8 text-center text-slate-500">Loading...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="flex items-center justify-between mt-6 pt-4 border-t border-slate-200">
+              <p class="text-sm text-slate-500" id="paginationInfo">Showing 0 of 0 people</p>
+              <div class="flex items-center gap-2" id="paginationControls">
+                <button class="px-3 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50" id="prevPage" disabled>Previous</button>
+                <span class="text-sm text-slate-600" id="pageNumber">Page 1</span>
+                <button class="px-3 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50" id="nextPage" disabled>Next</button>
+              </div>
+            </div>
           </div>
         </div>
       </main>
     </div>
 
+    <!-- Add/Edit Person Modal -->
+    <div id="personModal" class="fixed inset-0 z-50 hidden">
+      <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" id="modalBackdrop"></div>
+      <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
+          <div class="p-6 border-b border-slate-200">
+            <div class="flex items-center justify-between">
+              <h2 class="text-xl font-bold text-slate-900" id="modalTitle">Add Person</h2>
+              <button id="closeModalBtn" class="p-2 rounded-lg hover:bg-slate-100 transition-colors">
+                <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <form id="personForm" class="p-6 space-y-4">
+            <input type="hidden" id="personId">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
+              <input type="text" id="personName" required class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent" placeholder="Enter full name">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Email</label>
+              <input type="email" id="personEmail" required class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent" placeholder="Enter email">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Role</label>
+              <select id="personRole" required class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent">
+                <option value="student">Student</option>
+                <option value="teacher">Teacher</option>
+                <option value="parent">Parent</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <div id="passwordField">
+              <label class="block text-sm font-medium text-slate-700 mb-1">Password</label>
+              <input type="password" id="personPassword" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent" placeholder="Enter password">
+            </div>
+            <div class="flex items-center justify-end gap-3 pt-4">
+              <button type="button" id="cancelBtn" class="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">Cancel</button>
+              <button type="submit" id="savePersonBtn" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-white font-medium shadow-lg shadow-purple-500/30 hover:shadow-purple-500/40 transition-all">Save Person</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
     <script type="module" src="./admin-people.js"></script>
   </body>
 </html>
-

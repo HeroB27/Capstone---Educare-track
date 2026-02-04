@@ -5,25 +5,121 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Educare Track | Admin - Attendance</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../core/theme.css" />
+    <link rel="stylesheet" href="../core/vibrant-theme.css" />
+    <style>
+      * { font-family: 'Inter', sans-serif; }
+      .page-bg {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      }
+    </style>
   </head>
-  <body class="min-h-screen role-admin">
-    <div id="sidebarOverlay" class="sidebar-overlay"></div>
-    <header id="topbar" class="topbar"></header>
-    <div class="app-shell">
-      <aside id="appSidebar" class="sidebar"></aside>
+  <body class="min-h-screen role-admin bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+    <!-- Sidebar Overlay for Mobile -->
+    <div id="sidebarOverlay" class="fixed inset-0 bg-slate-900/60 z-40 hidden lg:hidden backdrop-blur-sm"></div>
 
-      <main class="page">
-        <div class="page-container">
-          <div class="page-header">
-            <h1 class="page-title">Attendance</h1>
-            <p class="page-subtitle">Filter by date and class, then manually override records</p>
+    <!-- Topbar (Mobile) -->
+    <header id="topbar" class="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white/80 backdrop-blur-xl border-b border-white/20"></header>
+
+    <!-- App Shell -->
+    <div class="flex min-h-screen">
+      <!-- Sidebar (injected by shell.js) -->
+      <aside id="appSidebar" class="hidden lg:flex lg:flex-col w-72 glass-sidebar text-white min-h-screen fixed left-0 top-0 z-50 transition-all duration-300"></aside>
+
+      <!-- Main Content -->
+      <main class="flex-1 lg:ml-72 pt-16 lg:pt-0">
+        <div class="p-4 lg:p-8">
+          <!-- Page Header -->
+          <div class="mb-8">
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div>
+                <h1 class="text-3xl lg:text-4xl font-bold text-slate-900">
+                  <span class="gradient-text">Attendance</span> Management
+                </h1>
+                <p class="mt-2 text-slate-600">Filter by date and class, then manually override records</p>
+              </div>
+              <div class="flex items-center gap-3">
+                <button class="px-5 py-2.5 rounded-xl bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm hover:shadow-md transition-all flex items-center gap-2">
+                  <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
+                  </svg>
+                  <span class="font-medium text-slate-700">Filter</span>
+                </button>
+                <button class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-white font-medium shadow-lg shadow-purple-500/30 hover:shadow-purple-500/40 transition-all flex items-center gap-2">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                  </svg>
+                  <span>Add Record</span>
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div class="surface">
-            <div id="attendanceStatus" class="text-sm text-slate-700">Loading…</div>
-            <div id="attendanceApp" class="mt-4"></div>
-          </div>
+          <!-- Stats Summary -->
+          <section class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div class="glass-card rounded-2xl p-5 soft-shadow scale-hover">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-500 flex items-center justify-center">
+                  <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500">Present</p>
+                  <p class="text-2xl font-bold text-slate-900" id="presentCount">—</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-5 soft-shadow scale-hover">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center">
+                  <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500">Late</p>
+                  <p class="text-2xl font-bold text-slate-900" id="lateCount">—</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-5 soft-shadow scale-hover">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-red-400 to-red-500 flex items-center justify-center">
+                  <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500">Absent</p>
+                  <p class="text-2xl font-bold text-slate-900" id="absentCount">—</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-5 soft-shadow scale-hover">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center">
+                  <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500">Rate</p>
+                  <p class="text-2xl font-bold text-slate-900" id="attendanceRate">—</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Status Message -->
+          <div id="attendanceStatus" class="glass-card rounded-2xl p-4 mb-6"></div>
+
+          <!-- Attendance App -->
+          <div id="attendanceApp" class="glass-card rounded-3xl p-6 soft-shadow"></div>
         </div>
       </main>
     </div>

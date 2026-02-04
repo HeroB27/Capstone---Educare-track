@@ -27,24 +27,24 @@ let gateIsOpen = false;
 // Gate status toggle
 gateOpenBtn?.addEventListener("click", () => {
   gateIsOpen = true;
-  gateOpenBtn.classList.replace("bg-green-500", "bg-green-600");
-  gateClosedBtn.classList.replace("bg-slate-300", "bg-slate-400");
-  gateClosedBtn.classList.replace("text-slate-700", "text-slate-600");
-  gateStatus.textContent = "Gate is currently OPEN";
-  gateStatus.className = "mt-2 text-xs text-green-600 font-medium";
+  if (gateOpenBtn) gateOpenBtn.classList.replace("bg-green-500", "bg-green-600");
+  if (gateClosedBtn) gateClosedBtn.classList.replace("bg-slate-300", "bg-slate-400");
+  if (gateClosedBtn) gateClosedBtn.classList.replace("text-slate-700", "text-slate-600");
+  if (gateStatus) gateStatus.textContent = "Gate is currently OPEN";
+  if (gateStatus) gateStatus.className = "mt-2 text-xs text-green-600 font-medium";
 });
 
 gateClosedBtn?.addEventListener("click", () => {
   gateIsOpen = false;
-  gateClosedBtn.classList.replace("bg-slate-300", "bg-slate-500");
-  gateClosedBtn.classList.replace("text-slate-700", "text-white");
-  gateOpenBtn.classList.replace("bg-green-500", "bg-green-500");
-  gateOpenBtn.classList.replace("hover:bg-green-600", "hover:bg-green-500");
-  gateStatus.textContent = "Gate is currently CLOSED";
-  gateStatus.className = "mt-2 text-xs text-slate-600";
+  if (gateClosedBtn) gateClosedBtn.classList.replace("bg-slate-300", "bg-slate-500");
+  if (gateClosedBtn) gateClosedBtn.classList.replace("text-slate-700", "text-white");
+  if (gateOpenBtn) gateOpenBtn.classList.replace("bg-green-500", "bg-green-500");
+  if (gateOpenBtn) gateOpenBtn.classList.replace("hover:bg-green-600", "hover:bg-green-500");
+  if (gateStatus) gateStatus.textContent = "Gate is currently CLOSED";
+  if (gateStatus) gateStatus.className = "mt-2 text-xs text-slate-600";
 });
 
-signOutBtn.addEventListener("click", async () => {
+signOutBtn?.addEventListener("click", async () => {
   await signOut();
   redirectToLogin();
 });
@@ -314,11 +314,11 @@ async function loadAlerts() {
  * Render attendance alerts
  */
 function renderAlerts(alerts) {
-  alertsApp.replaceChildren();
+  alertsApp?.replaceChildren();
   
   if (!alerts.length) {
-    alertsApp.appendChild(el("div", "text-sm text-slate-600", "No alerts at this time."));
-    alertsStatus.textContent = "Ready.";
+    if (alertsApp) alertsApp.appendChild(el("div", "text-sm text-slate-600", "No alerts at this time."));
+    if (alertsStatus) alertsStatus.textContent = "Ready.";
     return;
   }
   
@@ -345,8 +345,8 @@ function renderAlerts(alerts) {
     list.appendChild(alertCard);
   }
   
-  alertsApp.appendChild(list);
-  alertsStatus.textContent = `${alerts.length} alert(s).`;
+  if (alertsApp) alertsApp.appendChild(list);
+  if (alertsStatus) alertsStatus.textContent = `${alerts.length} alert(s).`;
 }
 
 async function refresh(profileId) {
@@ -356,7 +356,7 @@ async function refresh(profileId) {
     loadAlerts()
   ]);
   
-  recentStatus.textContent = `Loaded ${rows.length} tap(s).`;
+  if (recentStatus) recentStatus.textContent = `Loaded ${rows.length} tap(s).`;
   renderRecent(rows);
   
   // Update statistics cards
@@ -380,19 +380,19 @@ async function init() {
     return;
   }
   currentProfile = profile;
-  profileBadge.textContent = `${profile.full_name} • ${profile.role}`;
-  profileBadge.classList.remove("hidden");
+  if (profileBadge) profileBadge.textContent = `${profile.full_name} • ${profile.role}`;
+  if (profileBadge) profileBadge.classList.remove("hidden");
   setShellProfile({ fullName: profile.full_name, role: profile.role });
   const { count } = await fetchUnreadNotificationsCount(profile.id);
   setShellNotificationsCount(count ?? 0);
 
   const noClassesEvent = await getNoClassesEvent({ dateStr: isoDate(), gradeLevel: null }).catch(() => null);
   renderForm({ profile, noClassesEvent });
-  tapStatus.textContent = "Ready.";
+  if (tapStatus) tapStatus.textContent = "Ready.";
   try {
     await refresh(profile.id);
   } catch (e) {
-    recentStatus.textContent = e?.message ?? "Failed to load recent taps.";
+    if (recentStatus) recentStatus.textContent = e?.message ?? "Failed to load recent taps.";
   }
 
   if (channel) supabase.removeChannel(channel);

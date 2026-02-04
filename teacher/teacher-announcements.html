@@ -4,33 +4,68 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Educare Track | Teacher - Announcements</title>
-    <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#0f172a" />
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../core/theme.css" />
+    <link rel="stylesheet" href="../core/vibrant-theme.css" />
+    <style>
+      * { font-family: 'Inter', sans-serif; }
+    </style>
   </head>
-  <body class="min-h-screen role-teacher">
-    <div id="sidebarOverlay" class="sidebar-overlay"></div>
-    <header id="topbar" class="topbar"></header>
-    <div class="app-shell">
-      <aside id="appSidebar" class="sidebar"></aside>
+  <body class="min-h-screen role-teacher bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+    <!-- Sidebar Overlay for Mobile -->
+    <div id="sidebarOverlay" class="fixed inset-0 bg-slate-900/60 z-40 hidden lg:hidden backdrop-blur-sm"></div>
 
-      <main class="page">
-        <div class="page-container">
-          <div class="page-header">
-            <h1 class="page-title">Announcements</h1>
-            <p class="page-subtitle">Post class announcements to parents</p>
+    <!-- Topbar (Mobile) -->
+    <header id="topbar" class="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white/80 backdrop-blur-xl border-b border-white/20"></header>
+
+    <!-- App Shell -->
+    <div class="flex min-h-screen">
+      <!-- Sidebar -->
+      <aside id="appSidebar" class="hidden lg:flex lg:flex-col w-72 glass-sidebar text-white min-h-screen fixed left-0 top-0 z-50 transition-all duration-300"></aside>
+
+      <!-- Main Content -->
+      <main class="flex-1 lg:ml-72 pt-16 lg:pt-0">
+        <div class="p-4 lg:p-8">
+          <!-- Page Header -->
+          <div class="mb-8">
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div>
+                <h1 class="text-3xl lg:text-4xl font-bold text-slate-900">
+                  <span class="gradient-text">Announcements</span>
+                </h1>
+                <p class="mt-2 text-slate-600">View and manage class announcements</p>
+              </div>
+              <a href="./teacher-dashboard.html" class="px-5 py-2.5 rounded-xl bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm hover:shadow-md transition-all flex items-center gap-2 text-slate-700 font-medium">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                </svg>
+                <span>Back</span>
+              </a>
+            </div>
           </div>
 
-          <div class="grid gap-4 lg:grid-cols-[420px_1fr]">
-            <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-              <div class="text-sm font-semibold text-slate-900">Create announcement</div>
-              <div id="announceFormBox" class="mt-4"></div>
+          <!-- Stats -->
+          <div class="grid grid-cols-3 gap-4 mb-6">
+            <div class="glass-card rounded-2xl p-4 soft-shadow">
+              <p class="text-xs text-slate-500">Total</p>
+              <p class="text-2xl font-bold text-slate-900" id="totalAnnouncements">—</p>
             </div>
+            <div class="glass-card rounded-2xl p-4 soft-shadow">
+              <p class="text-xs text-slate-500">This Week</p>
+              <p class="text-2xl font-bold text-blue-600" id="weekAnnouncements">—</p>
+            </div>
+            <div class="glass-card rounded-2xl p-4 soft-shadow">
+              <p class="text-xs text-slate-500">Classes</p>
+              <p class="text-2xl font-bold text-violet-600" id="totalClasses">—</p>
+            </div>
+          </div>
 
-            <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-              <div id="announceStatus" class="text-sm text-slate-700">Loading…</div>
-              <div id="announceApp" class="mt-4"></div>
+          <!-- Announcements List -->
+          <div class="glass-card rounded-3xl p-6 soft-shadow">
+            <h3 class="text-lg font-bold text-slate-900 mb-4">Recent Announcements</h3>
+            <div id="announcementsList" class="space-y-3">
+              <p class="text-slate-500 text-center py-8">Loading announcements...</p>
             </div>
           </div>
         </div>

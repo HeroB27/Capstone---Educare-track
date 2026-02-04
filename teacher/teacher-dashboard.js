@@ -487,7 +487,7 @@ function buildLatestTapMap(rows) {
 }
 
 function renderDashboard({ teacherId, homeroomClasses, schedules, students, attendanceRows, tapRows, clinicPasses, unreadCount }) {
-  teacherApp.replaceChildren();
+  teacherApp?.replaceChildren();
 
   const classIds = uniq(students.map((s) => s.class_id));
   const homeroomLabel = homeroomClasses.length ? homeroomClasses.map(toClassLabel).join(", ") : "Not assigned";
@@ -666,7 +666,7 @@ async function refresh() {
   isRefreshing = true;
   
   try {
-    teacherStatus.textContent = "Loading…";
+    if (teacherStatus) teacherStatus.textContent = "Loading…";
 
     const dateStr = isoDate();
     const [homeroomClasses, schedules] = await Promise.all([
@@ -785,7 +785,7 @@ async function init() {
   // Initialize page
   const { profile, error } = await initTeacherPage();
   if (error) {
-    teacherStatus.textContent = `Error: ${error.message}`;
+    if (teacherStatus) teacherStatus.textContent = `Error: ${error.message}`;
     return;
   }
   
@@ -794,7 +794,7 @@ async function init() {
   try {
     await refresh();
   } catch (e) {
-    teacherStatus.textContent = e?.message ?? "Failed to load.";
+    if (teacherStatus) teacherStatus.textContent = e?.message ?? "Failed to load.";
     showError(e?.message || "Failed to load dashboard");
   }
 
