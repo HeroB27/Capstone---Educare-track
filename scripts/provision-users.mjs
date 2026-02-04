@@ -102,16 +102,6 @@ function randomFourDigits() {
   return String(Math.floor(Math.random() * 9000) + 1000);
 }
 
-function lastFourDigits(value) {
-  const digits = String(value ?? "").replaceAll(/\D/g, "");
-  return digits.slice(-4).padStart(4, "0");
-}
-
-function generateStudentUserIdFromLrn(lrn) {
-  const year = new Date().getFullYear();
-  return `EDU-${year}-${lastFourDigits(lrn)}-${randomFourDigits()}`;
-}
-
 async function createStudent(adminClient, parentId, student) {
   const { data, error } = await adminClient
     .from("students")
@@ -133,14 +123,24 @@ async function createStudent(adminClient, parentId, student) {
 }
 
 async function createStudentId(adminClient, studentId, qrCode) {
+  const code = String(qrCode ?? "").trim();
+  if (!code) {
+    const { error } = await adminClient.from("student_ids").insert({
+      student_id: studentId,
+      is_active: true,
+    });
+    if (error) throw error;
+    return;
+  }
+
   const { error } = await adminClient.from("student_ids").insert({
     student_id: studentId,
-    qr_code: qrCode,
+    qr_code: code,
     is_active: true,
   });
   if (!error) return;
 
-  const fallback = `${qrCode}-${randomFourDigits()}`;
+  const fallback = `${code}-${randomFourDigits()}`;
   const retry = await adminClient.from("student_ids").insert({
     student_id: studentId,
     qr_code: fallback,
@@ -167,7 +167,7 @@ async function provisionOne(adminClient, account) {
     for (const s of students) {
       if (!s.full_name || !s.grade_level) throw new Error(`Student missing required fields for ${userId}`);
       const studentId = await createStudent(adminClient, authUserId, s);
-      const qr = String(s.qr_code ?? "").trim() || generateStudentUserIdFromLrn(s.lrn);
+      const qr = String(s.qr_code ?? "").trim();
       await createStudentId(adminClient, studentId, qr);
     }
   }

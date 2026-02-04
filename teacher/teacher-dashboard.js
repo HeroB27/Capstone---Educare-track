@@ -1,6 +1,7 @@
+// Educare Track Teacher Dashboard - Phase 7 Enhanced Version
 import { supabase } from "../core/core.js";
-import { checkbox, el, escapeHtml, isoDate, openModal, selectInput, textArea, textInput, button } from "../core/ui.js";
-import { initAppShell } from "../core/shell.js";
+import { checkbox, el, escapeHtml, isoDate, openModal, selectInput, textArea, textInput, button, showToast, showError, showSuccess, loadingOverlay, statusBadge as uiStatusBadge } from "../core/ui.js";
+import { initAppShell, updateNetworkStatusIndicator } from "../core/shell.js";
 import { initTeacherPage } from "./teacher-common.js";
 import { registerPwa } from "../core/pwa.js";
 
@@ -9,6 +10,15 @@ initAppShell({ role: "teacher", active: "dashboard" });
 const teacherStatus = document.getElementById("teacherStatus");
 const teacherApp = document.getElementById("teacherApp");
 
+// State management
+let currentProfile = null;
+let subscriptions = [];
+let isRefreshing = false;
+let pendingRefresh = false;
+let lastRefreshTime = 0;
+let optimisticUpdates = new Map();
+
+// Utility functions
 function uniq(values) {
   return Array.from(new Set(values.filter(Boolean)));
 }
@@ -17,6 +27,32 @@ function toClassLabel(c) {
   return `${c.grade_level}${c.strand ? ` • ${c.strand}` : ""}${c.room ? ` • ${c.room}` : ""}`;
 }
 
+// Status badge helper
+function statusBadgeClass(status) {
+  const s = String(status ?? "").toLowerCase();
+  if (s === "unmarked") return "bg-slate-100 text-slate-700";
+  if (s === "present") return "bg-green-100 text-green-700";
+  if (s === "late") return "bg-yellow-100 text-yellow-800";
+  if (s === "partial") return "bg-amber-100 text-amber-800";
+  if (s === "excused_absent") return "bg-slate-200 text-slate-700";
+  return "bg-red-100 text-red-700";
+}
+
+function statusBadge(status) {
+  return statusBadgeClass(status);
+}
+
+function inOutBadgeClass(value) {
+  const s = String(value ?? "").toLowerCase();
+  if (s === "in") return "bg-blue-100 text-blue-700";
+  return "bg-slate-100 text-slate-700";
+}
+
+function inOutBadge(value) {
+  return inOutBadgeClass(value);
+}
+
+// Data loading functions
 async function loadHomeroomClasses(profileId) {
   const { data, error } = await supabase
     .from("classes")
@@ -95,14 +131,66 @@ async function loadClinicPasses(studentIds, limit = 20) {
   return data ?? [];
 }
 
+async function hasActiveClinicVisit(studentId) {
+  const { data, error } = await supabase
+    .from("clinic_visits")
+    .select("id")
+    .eq("student_id", studentId)
+    .eq("status", "in_clinic")
+    .limit(1);
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
+async function hasApprovedExcuse({ studentId, dateStr }) {
+  const { data, error } = await supabase
+    .from("excuse_letters")
+    .select("id")
+    .eq("student_id", studentId)
+    .eq("absent_date", dateStr)
+    .eq("status", "approved")
+    .limit(1);
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
+// Optimistic update helpers
+function applyOptimisticUpdate(studentId, updateType, newValue) {
+  const key = `${studentId}-${updateType}`;
+  optimisticUpdates.set(key, { value: newValue, timestamp: Date.now() });
+}
+
+function getOptimisticUpdate(studentId, updateType) {
+  const key = `${studentId}-${updateType}`;
+  const update = optimisticUpdates.get(key);
+  if (update && Date.now() - update.timestamp < 30000) {
+    return update.value;
+  }
+  optimisticUpdates.delete(key);
+  return null;
+}
+
+function clearOptimisticUpdate(studentId, updateType) {
+  const key = `${studentId}-${updateType}`;
+  optimisticUpdates.delete(key);
+}
+
+// Action functions with optimistic updates
 async function issueClinicPass({ teacherId, studentId, reason }) {
+  // Apply optimistic update
+  applyOptimisticUpdate(studentId, "clinic_pass", { status: "pending", reason });
+  
   const { error } = await supabase.from("clinic_passes").insert({
     student_id: studentId,
     issued_by: teacherId,
     reason: reason || null,
     status: "pending",
   });
-  if (error) throw error;
+  
+  if (error) {
+    clearOptimisticUpdate(studentId, "clinic_pass");
+    throw error;
+  }
 }
 
 async function upsertHomeroomOverride({ student, dateStr, status, remarks }) {
@@ -113,8 +201,16 @@ async function upsertHomeroomOverride({ student, dateStr, status, remarks }) {
     status,
     remarks: remarks || null,
   };
+  
+  // Apply optimistic update
+  applyOptimisticUpdate(student.id, "attendance", { status, date: dateStr });
+  
   const { error } = await supabase.from("homeroom_attendance").upsert(payload, { onConflict: "student_id,date" });
-  if (error) throw error;
+  
+  if (error) {
+    clearOptimisticUpdate(student.id, "attendance");
+    throw error;
+  }
 }
 
 async function upsertSubjectOverride({ student, dateStr, subjectCode, status, remarks }) {
@@ -125,10 +221,18 @@ async function upsertSubjectOverride({ student, dateStr, subjectCode, status, re
     status,
     remarks: remarks || null,
   };
+  
+  // Apply optimistic update
+  applyOptimisticUpdate(student.id, "subject_attendance", { status, subjectCode, date: dateStr });
+  
   const { error } = await supabase
     .from("subject_attendance")
     .upsert(payload, { onConflict: "student_id,subject_code,date" });
-  if (error) throw error;
+  
+  if (error) {
+    clearOptimisticUpdate(student.id, "subject_attendance");
+    throw error;
+  }
 }
 
 async function notifyParent({ teacherId, parentId, studentId, verb, object }) {
@@ -143,6 +247,7 @@ async function notifyParent({ teacherId, parentId, studentId, verb, object }) {
   if (error) throw error;
 }
 
+// Modal functions
 function openManualOverrideModal({ teacherId, students, subjects, onSaved }) {
   const content = el("div", "");
   content.appendChild(el("div", "text-lg font-semibold text-slate-900", "Manual Attendance Override"));
@@ -219,24 +324,36 @@ function openManualOverrideModal({ teacherId, students, subjects, onSaved }) {
     e.preventDefault();
     errorBox.classList.add("hidden");
     saveBtn.disabled = true;
+    saveBtn.innerHTML = '<span class="flex items-center gap-2"><span class="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>Saving...</span>';
 
     const student = students.find((s) => s.id === studentSel.value);
     if (!student) {
       errorBox.textContent = "Student is required.";
       errorBox.classList.remove("hidden");
       saveBtn.disabled = false;
+      saveBtn.textContent = "Save override";
       return;
     }
     if (!date.value) {
       errorBox.textContent = "Date is required.";
       errorBox.classList.remove("hidden");
       saveBtn.disabled = false;
+      saveBtn.textContent = "Save override";
       return;
     }
 
     try {
+      if (await hasApprovedExcuse({ studentId: student.id, dateStr: date.value })) {
+        errorBox.textContent = "Excuse letter is approved for this date. Attendance status is locked as Excused.";
+        errorBox.classList.remove("hidden");
+        saveBtn.disabled = false;
+        saveBtn.textContent = "Save override";
+        return;
+      }
+      
       if (kindSel.value === "homeroom") {
         await upsertHomeroomOverride({ student, dateStr: date.value, status: statusSel.value, remarks: remarks.value.trim() });
+        showSuccess("Attendance override saved");
         if (announce.input.checked) {
           await notifyParent({
             teacherId,
@@ -251,6 +368,14 @@ function openManualOverrideModal({ teacherId, students, subjects, onSaved }) {
           errorBox.textContent = "Subject is required for subject attendance.";
           errorBox.classList.remove("hidden");
           saveBtn.disabled = false;
+          saveBtn.textContent = "Save override";
+          return;
+        }
+        if (await hasActiveClinicVisit(student.id)) {
+          errorBox.textContent = "Student is currently in clinic. Subject attendance is locked.";
+          errorBox.classList.remove("hidden");
+          saveBtn.disabled = false;
+          saveBtn.textContent = "Save override";
           return;
         }
         await upsertSubjectOverride({
@@ -260,6 +385,7 @@ function openManualOverrideModal({ teacherId, students, subjects, onSaved }) {
           status: statusSel.value,
           remarks: remarks.value.trim(),
         });
+        showSuccess("Subject attendance override saved");
         if (announce.input.checked) {
           await notifyParent({
             teacherId,
@@ -274,9 +400,11 @@ function openManualOverrideModal({ teacherId, students, subjects, onSaved }) {
       overlay.remove();
       await onSaved();
     } catch (err) {
+      showError(err?.message || "Failed to save override");
       errorBox.textContent = err?.message ?? "Failed to save override.";
       errorBox.classList.remove("hidden");
       saveBtn.disabled = false;
+      saveBtn.textContent = "Save override";
     }
   });
 
@@ -320,20 +448,26 @@ function openClinicPassModal({ teacherId, students, onSaved }) {
     e.preventDefault();
     errorBox.classList.add("hidden");
     saveBtn.disabled = true;
+    saveBtn.innerHTML = '<span class="flex items-center gap-2"><span class="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>Sending...</span>';
+    
     if (!studentSel.value) {
       errorBox.textContent = "Student is required.";
       errorBox.classList.remove("hidden");
       saveBtn.disabled = false;
+      saveBtn.textContent = "Send to clinic";
       return;
     }
     try {
       await issueClinicPass({ teacherId, studentId: studentSel.value, reason: reason.value.trim() });
+      showSuccess("Clinic pass issued successfully");
       overlay.remove();
       await onSaved();
     } catch (err) {
+      showError(err?.message || "Failed to issue clinic pass");
       errorBox.textContent = err?.message ?? "Failed to issue clinic pass.";
       errorBox.classList.remove("hidden");
       saveBtn.disabled = false;
+      saveBtn.textContent = "Send to clinic";
     }
   });
 
@@ -343,22 +477,7 @@ function openClinicPassModal({ teacherId, students, onSaved }) {
   const overlay = openModal(content, { maxWidthClass: "max-w-2xl" });
 }
 
-function statusBadge(status) {
-  const s = String(status ?? "").toLowerCase();
-  if (s === "unmarked") return "bg-slate-100 text-slate-700";
-  if (s === "present") return "bg-green-100 text-green-700";
-  if (s === "late") return "bg-yellow-100 text-yellow-800";
-  if (s === "partial") return "bg-amber-100 text-amber-800";
-  if (s === "excused_absent") return "bg-slate-200 text-slate-700";
-  return "bg-red-100 text-red-700";
-}
-
-function inOutBadge(value) {
-  const s = String(value ?? "").toLowerCase();
-  if (s === "in") return "bg-blue-100 text-blue-700";
-  return "bg-slate-100 text-slate-700";
-}
-
+// Render function
 function buildLatestTapMap(rows) {
   const map = new Map();
   for (const r of rows) {
@@ -376,6 +495,7 @@ function renderDashboard({ teacherId, homeroomClasses, schedules, students, atte
   const tapMap = buildLatestTapMap(tapRows);
   const attMap = new Map(attendanceRows.map((r) => [r.student_id, r]));
 
+  // Summary cards
   const cards = el("div", "grid gap-4 md:grid-cols-4");
   const card = (label, value) => {
     const c = el("div", "rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200");
@@ -388,6 +508,7 @@ function renderDashboard({ teacherId, homeroomClasses, schedules, students, atte
   cards.appendChild(card("Subjects", String(subjectCount)));
   cards.appendChild(card("Unread notifications", String(unreadCount)));
 
+  // Action buttons
   const actions = el("div", "mt-4 flex flex-wrap items-center justify-between gap-2");
   actions.appendChild(el("div", "text-sm text-slate-600", "Tip: use Manual Override to correct attendance for today or past dates."));
   const btns = el("div", "flex flex-wrap gap-2");
@@ -409,14 +530,14 @@ function renderDashboard({ teacherId, homeroomClasses, schedules, students, atte
   btns.appendChild(overrideBtn);
 
   const clinicBtn = button("Issue Clinic Pass", "secondary", "blue");
-  clinicBtn.className =
-    "rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50";
+  clinicBtn.className = "rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50";
   clinicBtn.addEventListener("click", () => {
     openClinicPassModal({ teacherId, students, onSaved: async () => refresh() });
   });
   btns.appendChild(clinicBtn);
   actions.appendChild(btns);
 
+  // Students table
   const tableWrap = el("div", "mt-4 overflow-x-auto rounded-2xl ring-1 ring-slate-200");
   const table = el("table", "min-w-full bg-white");
   table.innerHTML = `
@@ -433,10 +554,21 @@ function renderDashboard({ teacherId, homeroomClasses, schedules, students, atte
   const tbody = table.querySelector("tbody");
 
   for (const s of students) {
+    // Check for optimistic updates
+    const optimisticAttendance = getOptimisticUpdate(s.id, "attendance");
+    const optimisticClinic = getOptimisticUpdate(s.id, "clinic_pass");
+    
     const att = attMap.get(s.id);
     const tap = tapMap.get(s.id);
-    const attStatus = att?.status ?? "unmarked";
+    
+    // Use optimistic status if available
+    const attStatus = (optimisticAttendance?.status) || (att?.status ?? "unmarked");
+    
     const tr = document.createElement("tr");
+    if (optimisticAttendance || optimisticClinic) {
+      tr.classList.add("animate-pulse", "bg-blue-50");
+    }
+    
     tr.innerHTML = `
       <td class="px-4 py-3">
         <div class="text-sm font-semibold text-slate-900">${escapeHtml(s.full_name)}</div>
@@ -459,6 +591,7 @@ function renderDashboard({ teacherId, homeroomClasses, schedules, students, atte
   teacherApp.appendChild(actions);
   teacherApp.appendChild(tableWrap);
 
+  // Clinic passes section
   const clinicBox = el("div", "mt-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200");
   clinicBox.appendChild(el("div", "text-sm font-semibold text-slate-900", "Clinic passes"));
   clinicBox.appendChild(
@@ -490,113 +623,189 @@ function renderDashboard({ teacherId, homeroomClasses, schedules, students, atte
   teacherApp.appendChild(clinicBox);
 }
 
-let subscriptions = [];
-let currentProfile = null;
-
+// Subscription management
 function cleanupSubscriptions() {
-  for (const ch of subscriptions) supabase.removeChannel(ch);
+  for (const ch of subscriptions) {
+    try {
+      supabase.removeChannel(ch);
+    } catch (e) {}
+  }
   subscriptions = [];
 }
 
+// Debounced refresh with cooldown
+function debouncedRefresh(delay = 500) {
+  if (pendingRefresh) return;
+  
+  pendingRefresh = true;
+  setTimeout(async () => {
+    pendingRefresh = false;
+    const now = Date.now();
+    // Prevent rapid consecutive refreshes (less than 1 second apart)
+    if (now - lastRefreshTime < 1000) return;
+    lastRefreshTime = now;
+    
+    try {
+      await refresh();
+    } catch (e) {
+      console.error("Refresh error:", e);
+    }
+  }, delay);
+}
+
+// Main refresh function with error handling
 async function refresh() {
   if (!currentProfile) return;
-  teacherStatus.textContent = "Loading…";
+  
+  // Prevent concurrent refreshes
+  if (isRefreshing) {
+    pendingRefresh = true;
+    return;
+  }
+  
+  isRefreshing = true;
+  
+  try {
+    teacherStatus.textContent = "Loading…";
 
-  const dateStr = isoDate();
-  const [homeroomClasses, schedules] = await Promise.all([
-    loadHomeroomClasses(currentProfile.id),
-    loadSchedules(currentProfile.id),
-  ]);
-  const scheduleClassIds = schedules.map((s) => s.class_id);
-  const homeroomClassIds = homeroomClasses.map((c) => c.id);
-  const classIds = uniq([...scheduleClassIds, ...homeroomClassIds]);
+    const dateStr = isoDate();
+    const [homeroomClasses, schedules] = await Promise.all([
+      loadHomeroomClasses(currentProfile.id),
+      loadSchedules(currentProfile.id),
+    ]);
+    const scheduleClassIds = schedules.map((s) => s.class_id);
+    const homeroomClassIds = homeroomClasses.map((c) => c.id);
+    const classIds = uniq([...scheduleClassIds, ...homeroomClassIds]);
 
-  const students = await loadStudentsByClassIds(classIds);
-  const studentIds = students.map((s) => s.id);
+    const students = await loadStudentsByClassIds(classIds);
+    const studentIds = students.map((s) => s.id);
 
-  const [attendanceRows, tapRows, clinicPasses, unreadCount] = await Promise.all([
-    loadTodayHomeroomAttendance(studentIds, dateStr),
-    loadRecentTapLogs(studentIds),
-    loadClinicPasses(studentIds),
-    loadUnreadNotificationsCount(currentProfile.id),
-  ]);
+    const [attendanceRows, tapRows, clinicPasses, unreadCount] = await Promise.all([
+      loadTodayHomeroomAttendance(studentIds, dateStr),
+      loadRecentTapLogs(studentIds),
+      loadClinicPasses(studentIds),
+      loadUnreadNotificationsCount(currentProfile.id),
+    ]);
 
-  renderDashboard({
-    teacherId: currentProfile.id,
-    homeroomClasses,
-    schedules,
-    students,
-    attendanceRows,
-    tapRows,
-    clinicPasses,
-    unreadCount,
-  });
+    renderDashboard({
+      teacherId: currentProfile.id,
+      homeroomClasses,
+      schedules,
+      students,
+      attendanceRows,
+      tapRows,
+      clinicPasses,
+      unreadCount,
+    });
 
-  teacherStatus.textContent = `Loaded ${students.length} student(s).`;
+    teacherStatus.textContent = `Loaded ${students.length} student(s). Ready.`;
 
+    // Setup real-time subscriptions
+    setupSubscriptions(studentIds);
+    
+  } catch (e) {
+    console.error("Refresh error:", e);
+    teacherStatus.textContent = `Error: ${e?.message || "Failed to load data"}`;
+    showError("Failed to load dashboard data");
+  } finally {
+    isRefreshing = false;
+    if (pendingRefresh) {
+      pendingRefresh = false;
+      // Small delay before triggering another refresh
+      setTimeout(() => refresh(), 100);
+    }
+  }
+}
+
+// Real-time subscriptions setup
+function setupSubscriptions(studentIds) {
   cleanupSubscriptions();
 
+  // Notification channel
   const notifyChannel = supabase
     .channel(`teacher-notifications-${currentProfile.id}`)
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "notifications", filter: `recipient_id=eq.${currentProfile.id}` },
-      async () => {
-        await refresh();
-      }
+      debouncedRefresh
     )
     .subscribe();
   subscriptions.push(notifyChannel);
 
-  if (studentIds.length) {
-    const idsFilter = `student_id=in.(${studentIds.join(",")})`;
-    const tapChannel = supabase
-      .channel(`teacher-taps-${currentProfile.id}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "tap_logs", filter: idsFilter }, async () => {
-        await refresh();
-      })
-      .subscribe();
-    subscriptions.push(tapChannel);
+  if (!studentIds.length) return;
 
-    const attChannel = supabase
-      .channel(`teacher-homeroom-att-${currentProfile.id}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "homeroom_attendance", filter: `student_id=in.(${studentIds.join(",")})` },
-        async () => {
-          await refresh();
-        }
-      )
-      .subscribe();
-    subscriptions.push(attChannel);
+  const idsFilter = `student_id=in.(${studentIds.join(",")})`;
 
-    const clinicChannel = supabase
-      .channel(`teacher-clinic-${currentProfile.id}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "clinic_passes", filter: `student_id=in.(${studentIds.join(",")})` },
-        async () => {
-          await refresh();
-        }
-      )
-      .subscribe();
-    subscriptions.push(clinicChannel);
-  }
+  // Tap logs channel
+  const tapChannel = supabase
+    .channel(`teacher-taps-${currentProfile.id}`)
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "tap_logs", filter: idsFilter }, debouncedRefresh)
+    .subscribe();
+  subscriptions.push(tapChannel);
+
+  // Attendance channel
+  const attChannel = supabase
+    .channel(`teacher-homeroom-att-${currentProfile.id}`)
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "homeroom_attendance", filter: idsFilter },
+      debouncedRefresh
+    )
+    .subscribe();
+  subscriptions.push(attChannel);
+
+  // Clinic passes channel
+  const clinicChannel = supabase
+    .channel(`teacher-clinic-${currentProfile.id}`)
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "clinic_passes", filter: idsFilter },
+      debouncedRefresh
+    )
+    .subscribe();
+  subscriptions.push(clinicChannel);
+  
+  // Students channel for status updates
+  const studentChannel = supabase
+    .channel(`teacher-students-${currentProfile.id}`)
+    .on(
+      "postgres_changes",
+      { event: "UPDATE", schema: "public", table: "students", filter: idsFilter },
+      debouncedRefresh
+    )
+    .subscribe();
+  subscriptions.push(studentChannel);
 }
 
+// Initialize page
 async function init() {
+  // Initialize PWA
   registerPwa();
+
+  // Initialize page
   const { profile, error } = await initTeacherPage();
-  if (error) return;
+  if (error) {
+    teacherStatus.textContent = `Error: ${error.message}`;
+    return;
+  }
+  
   currentProfile = profile;
 
   try {
     await refresh();
   } catch (e) {
     teacherStatus.textContent = e?.message ?? "Failed to load.";
+    showError(e?.message || "Failed to load dashboard");
   }
 
-  window.addEventListener("beforeunload", cleanupSubscriptions);
+  // Cleanup on page unload - use shell's cleanup
+  window.addEventListener("beforeunload", () => {
+    cleanupSubscriptions();
+    if (window._shellCleanupFn) {
+      window._shellCleanupFn();
+    }
+  });
 }
 
+// Start the app
 init();

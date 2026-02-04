@@ -74,6 +74,7 @@ sendForgotBtn.addEventListener("click", async () => {
     requested_user_id: userId,
     note: forgotNote.value.trim() || null,
     status: "pending",
+    requested_by: userId, // Self-requested
   });
 
   if (error) {

@@ -1,5 +1,5 @@
 import { supabase } from "../core/core.js";
-import { button, checkbox, el, escapeHtml, formatLocalDateTime, selectInput, textArea, textInput } from "../core/ui.js";
+import { button, checkbox, el, escapeHtml, formatLocalDateTime, openModal, selectInput, textArea, textInput } from "../core/ui.js";
 import { initAppShell } from "../core/shell.js";
 import { initTeacherPage } from "./teacher-common.js";
 import { registerPwa } from "../core/pwa.js";
@@ -46,6 +46,18 @@ async function loadMyAnnouncements(profileId) {
     .select("id,title,body,class_id,created_by,created_at")
     .eq("created_by", profileId)
     .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
+async function loadSchoolAnnouncements() {
+  const { data, error } = await supabase
+    .from("announcements")
+    .select("id,title,body,created_at")
+    .is("class_id", null)
+    .eq("audience_teachers", true)
+    .order("created_at", { ascending: false })
+    .limit(10);
   if (error) throw error;
   return data ?? [];
 }
@@ -167,18 +179,93 @@ function renderCreateForm({ teacherId, classes, onCreated }) {
   announceFormBox.appendChild(errorBox);
 }
 
-function renderList(items, classesById, profileId) {
-  announceApp.replaceChildren();
+function openEditModal({ announcement, classLabel, teacherId, onSaved }) {
+  const content = el("div", "");
+  content.appendChild(el("div", "text-lg font-semibold text-slate-900", "Edit announcement"));
 
-  const list = el("div", "space-y-3");
-  if (!items.length) {
-    list.appendChild(el("div", "text-sm text-slate-600", "No announcements posted yet."));
-    announceApp.appendChild(list);
-    return;
+  const form = el("form", "mt-4 space-y-4");
+  const title = textInput({ value: announcement.title ?? "", placeholder: "Title" });
+  const body = textArea({ value: announcement.body ?? "", placeholder: "Body", rows: 6 });
+
+  const scopeBox = el("div", "rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200");
+  scopeBox.appendChild(el("div", "text-sm font-semibold text-slate-900", "Scope"));
+  scopeBox.appendChild(el("div", "mt-1 text-sm text-slate-600", classLabel || "Class-scoped"));
+  form.appendChild(scopeBox);
+
+  const row = (label, inputEl) => {
+    const w = el("div", "space-y-1");
+    w.appendChild(el("label", "block text-sm font-medium text-slate-700", escapeHtml(label)));
+    w.appendChild(inputEl);
+    return w;
+  };
+
+  form.appendChild(row("Title", title));
+  form.appendChild(row("Body", body));
+
+  const errorBox = el("div", "hidden rounded-xl bg-red-50 p-3 text-sm text-red-700");
+  const actions = el("div", "flex justify-end gap-2");
+  const cancelBtn = button("Cancel", "ghost", "blue");
+  const saveBtn = button("Save", "primary", "blue");
+  saveBtn.type = "submit";
+
+  cancelBtn.addEventListener("click", () => overlay.remove());
+  actions.appendChild(cancelBtn);
+  actions.appendChild(saveBtn);
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    errorBox.classList.add("hidden");
+    saveBtn.disabled = true;
+
+    const nextTitle = title.value.trim();
+    const nextBody = body.value.trim();
+    if (!nextTitle || !nextBody) {
+      errorBox.textContent = "Title and body are required.";
+      errorBox.classList.remove("hidden");
+      saveBtn.disabled = false;
+      return;
+    }
+
+    const { error } = await supabase
+      .from("announcements")
+      .update({ title: nextTitle, body: nextBody })
+      .eq("id", announcement.id)
+      .eq("created_by", teacherId);
+    if (error) {
+      errorBox.textContent = error.message;
+      errorBox.classList.remove("hidden");
+      saveBtn.disabled = false;
+      return;
+    }
+
+    overlay.remove();
+    await onSaved();
+  });
+
+  content.appendChild(form);
+  content.appendChild(errorBox);
+  content.appendChild(actions);
+
+  const overlay = openModal(content, { maxWidthClass: "max-w-2xl" });
+}
+
+function renderList({ title, empty, error, items, classesById, teacherId, editable }) {
+  const section = el("div", "space-y-3");
+  section.appendChild(el("div", "text-sm font-semibold text-slate-900", escapeHtml(title)));
+
+  if (error) {
+    section.appendChild(el("div", "text-sm text-red-700", escapeHtml(error)));
+    return section;
   }
 
+  if (!items.length) {
+    section.appendChild(el("div", "text-sm text-slate-600", empty));
+    return section;
+  }
+
+  const list = el("div", "space-y-3");
   for (const a of items) {
-    const c = a.class_id ? classesById.get(a.class_id) : null;
+    const c = a.class_id ? classesById?.get(a.class_id) : null;
     const meta = `${formatLocalDateTime(a.created_at)}${c ? ` • ${toClassLabel(c)}` : ""}`;
     const card = el("div", "rounded-2xl bg-slate-50 p-4");
     card.innerHTML = `
@@ -187,28 +274,52 @@ function renderList(items, classesById, profileId) {
           <div class="text-sm font-semibold text-slate-900">${escapeHtml(a.title)}</div>
           <div class="mt-1 text-xs text-slate-600">${escapeHtml(meta)}</div>
         </div>
-        <div class="flex gap-2">
-          <button class="rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-white">Delete</button>
-        </div>
+        <div class="flex gap-2"></div>
       </div>
       <div class="mt-3 whitespace-pre-wrap text-sm text-slate-700">${escapeHtml(a.body)}</div>
     `;
-    const delBtn = card.querySelector("button");
-    delBtn.addEventListener("click", async () => {
-      if (!confirm("Delete this announcement?")) return;
-      delBtn.disabled = true;
-      const { error } = await supabase.from("announcements").delete().eq("id", a.id).eq("created_by", profileId);
-      if (error) {
-        alert(error.message);
-        delBtn.disabled = false;
-        return;
-      }
-      await refresh(profileId);
-    });
+
+    const actions = card.querySelector("div.flex.gap-2");
+    if (editable) {
+      const editBtn = el(
+        "button",
+        "btn btn-secondary btn-sm"
+      );
+      editBtn.type = "button";
+      editBtn.textContent = "Edit";
+      const delBtn = el(
+        "button",
+        "btn btn-danger btn-sm"
+      );
+      delBtn.type = "button";
+      delBtn.textContent = "Delete";
+
+      editBtn.addEventListener("click", () => {
+        const label = c ? toClassLabel(c) : "Class-scoped";
+        openEditModal({ announcement: a, classLabel: label, teacherId, onSaved: () => refresh(teacherId) });
+      });
+
+      delBtn.addEventListener("click", async () => {
+        if (!confirm("Delete this announcement?")) return;
+        delBtn.disabled = true;
+        const { error } = await supabase.from("announcements").delete().eq("id", a.id).eq("created_by", teacherId);
+        if (error) {
+          announceStatus.textContent = error.message;
+          delBtn.disabled = false;
+          return;
+        }
+        await refresh(teacherId);
+      });
+
+      actions.appendChild(editBtn);
+      actions.appendChild(delBtn);
+    }
+
     list.appendChild(card);
   }
 
-  announceApp.appendChild(list);
+  section.appendChild(list);
+  return section;
 }
 
 let pageProfile = null;
@@ -221,12 +332,40 @@ function cleanup() {
 
 async function refresh(profileId) {
   announceStatus.textContent = "Loading…";
-  const classes = await loadTeacherClasses(profileId);
-  const items = await loadMyAnnouncements(profileId);
+  const [classes, items] = await Promise.all([loadTeacherClasses(profileId), loadMyAnnouncements(profileId)]);
   const byId = new Map(classes.map((c) => [c.id, c]));
 
+  let schoolItems = [];
+  let schoolError = null;
+  try {
+    schoolItems = await loadSchoolAnnouncements();
+  } catch (e) {
+    schoolError = e?.message ?? "Failed to load school announcements.";
+  }
+
   renderCreateForm({ teacherId: profileId, classes, onCreated: () => refresh(profileId) });
-  renderList(items, byId, profileId);
+  announceApp.replaceChildren();
+  announceApp.appendChild(
+    renderList({
+      title: "School announcements",
+      empty: "No school announcements yet.",
+      error: schoolError,
+      items: schoolItems,
+      classesById: new Map(),
+      teacherId: profileId,
+      editable: false,
+    })
+  );
+  announceApp.appendChild(
+    renderList({
+      title: "My announcements",
+      empty: "No announcements posted yet.",
+      items,
+      classesById: byId,
+      teacherId: profileId,
+      editable: true,
+    })
+  );
 
   announceStatus.textContent = `Loaded ${items.length} announcement(s).`;
 

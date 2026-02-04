@@ -187,6 +187,43 @@ async function render(profileId) {
   clinicStatus.textContent = "Loading…";
   clinicApp.replaceChildren();
 
+  // Fetch data
+  const [visits, passes] = await Promise.all([loadActiveVisits(), loadPasses()]);
+  
+  // Calculate statistics
+  const today = new Date().toISOString().slice(0, 10);
+  const visitsToday = passes.filter(v => v.created_at?.startsWith(today)).length;
+  const activeVisitsCount = visits.length;
+  const pendingCount = passes.filter(p => String(p.status ?? "pending").toLowerCase() === "pending").length;
+  const completedToday = passes.filter(p => 
+    p.status?.toLowerCase() === "done" && p.updated_at?.startsWith(today)
+  ).length;
+
+  // Statistics Cards
+  const statsSection = el("div", "grid grid-cols-2 md:grid-cols-4 gap-3 mb-6");
+  
+  const stats = [
+    { label: "Active Visits", value: activeVisitsCount, icon: "🏥", color: "red" },
+    { label: "Pending Passes", value: pendingCount, icon: "📋", color: "yellow" },
+    { label: "Visits Today", value: visitsToday, icon: "📊", color: "blue" },
+    { label: "Completed", value: completedToday, icon: "✅", color: "green" },
+  ];
+  
+  for (const stat of stats) {
+    const card = el("div", `rounded-xl bg-${stat.color}-50 p-4 border border-${stat.color}-100`);
+    card.innerHTML = `
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="text-xs text-${stat.color}-700 font-medium">${stat.label}</div>
+          <div class="text-2xl font-bold text-${stat.color}-900">${stat.value}</div>
+        </div>
+        <div class="text-2xl">${stat.icon}</div>
+      </div>
+    `;
+    statsSection.appendChild(card);
+  }
+  clinicApp.appendChild(statsSection);
+
   const top = el("div", "flex flex-wrap items-center justify-between gap-2");
   top.appendChild(el("div", "text-sm text-slate-600", "Clinic overview: active visits and pending passes."));
   const controls = el("div", "flex items-center gap-2");
@@ -196,7 +233,6 @@ async function render(profileId) {
   top.appendChild(controls);
   clinicApp.appendChild(top);
 
-  const [visits, passes] = await Promise.all([loadActiveVisits(), loadPasses()]);
   const passByVisitId = new Map(passes.filter((p) => p.clinic_visit_id).map((p) => [p.clinic_visit_id, p]));
 
   const visitsSection = el("div", "mt-4");

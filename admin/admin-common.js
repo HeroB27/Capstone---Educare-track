@@ -19,8 +19,9 @@ export async function initAdminPage({ signOutButtonId = "signOutBtn", profileBad
   }
 
   if (profile.role !== "admin") {
+    const err = new Error("Not authorized.");
     window.location.href = "/";
-    return { error: new Error("Not authorized.") };
+    return { error: err };
   }
 
   if (profileBadge) {

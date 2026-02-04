@@ -23,14 +23,55 @@ function setStatus(message) {
 }
 
 async function isTeacherGatekeeper(profileId) {
+  // Check the teachers table for gatekeeper_role boolean
   const { data, error } = await supabase
-    .from("system_settings")
-    .select("id,key,value")
-    .eq("key", "teacher_gatekeepers")
-    .maybeSingle();
-  if (error) throw error;
-  const ids = Array.isArray(data?.value?.teacher_ids) ? data.value.teacher_ids : [];
-  return ids.includes(profileId);
+    .from("teachers")
+    .select("gatekeeper_role")
+    .eq("id", profileId)
+    .single();
+  
+  if (error) {
+    console.error("[Gatekeeper] Error checking gatekeeper_role:", error.message);
+    // Fallback: check system_settings if teachers lookup fails
+    return checkSystemSettingsFallback(profileId);
+  }
+  
+  const hasRole = data?.gatekeeper_role === true;
+  console.log("[Gatekeeper] Teacher", profileId, "gatekeeper_role:", hasRole);
+  return hasRole;
+}
+
+/**
+ * Fallback: Check system_settings for teacher_gatekeepers
+ * This maintains backward compatibility with existing deployments
+ */
+async function checkSystemSettingsFallback(profileId) {
+  try {
+    const { data, error } = await supabase
+      .from("system_settings")
+      .select("value")
+      .eq("key", "teacher_gatekeepers")
+      .maybeSingle();
+    
+    if (error) {
+      console.error("[Gatekeeper] Fallback check failed:", error.message);
+      return false;
+    }
+    
+    // If setting doesn't exist, deny access (admin needs to configure)
+    if (!data?.value) {
+      console.log("[Gatekeeper] No teacher_gatekeepers setting found");
+      return false;
+    }
+    
+    const ids = Array.isArray(data.value.teacher_ids) ? data.value.teacher_ids : [];
+    const hasAccess = ids.includes(profileId);
+    console.log("[Gatekeeper] Fallback access check:", hasAccess);
+    return hasAccess;
+  } catch (e) {
+    console.error("[Gatekeeper] Fallback exception:", e.message);
+    return false;
+  }
 }
 
 async function handleQr(data) {
@@ -55,6 +96,14 @@ async function handleQr(data) {
 
     if (res.result === "duplicate") {
       setStatus(`Duplicate ignored: ${student.full_name}`);
+      return;
+    }
+    if (res.result === "blocked") {
+      setStatus(res.event?.title ? `No classes today: ${res.event.title}` : "No classes today.");
+      return;
+    }
+    if (res.result === "rejected") {
+      setStatus(res.reason === "no_in" ? "Tap out rejected: no tap-in recorded today." : "Tap rejected.");
       return;
     }
 
@@ -126,4 +175,3 @@ async function init() {
 }
 
 init();
-

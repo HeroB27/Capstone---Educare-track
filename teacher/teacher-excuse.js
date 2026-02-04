@@ -67,8 +67,6 @@ function openReviewModal({ profileId, item, onSaved }) {
 
   const actionsRow = el("div", "mt-4 flex flex-wrap gap-2");
   const openBtn = button("Open attachment", "secondary", "blue");
-  openBtn.className =
-    "rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50";
   openBtn.disabled = !item.attachment_path;
   openBtn.addEventListener("click", async () => {
     try {
@@ -76,7 +74,7 @@ function openReviewModal({ profileId, item, onSaved }) {
       const url = await openAttachment(item.attachment_path);
       if (url) window.open(url, "_blank", "noopener,noreferrer");
     } catch (e) {
-      alert(e?.message ?? "Failed to open attachment.");
+      excuseStatus.textContent = e?.message ?? "Failed to open attachment.";
     } finally {
       openBtn.disabled = false;
     }
@@ -91,8 +89,7 @@ function openReviewModal({ profileId, item, onSaved }) {
   const errorBox = el("div", "mt-4 hidden rounded-xl bg-red-50 p-3 text-sm text-red-700");
   const footer = el("div", "mt-5 flex flex-wrap justify-end gap-2");
   const closeBtn = button("Close", "ghost");
-  const rejectBtn = button("Reject", "secondary", "blue");
-  rejectBtn.className = "rounded-xl border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50";
+  const rejectBtn = button("Reject", "danger");
   const approveBtn = button("Approve", "primary", "blue");
   approveBtn.type = "button";
   closeBtn.addEventListener("click", () => overlay.remove());

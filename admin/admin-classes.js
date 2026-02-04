@@ -333,8 +333,8 @@ function render() {
   header.appendChild(addBtn);
 
   const grid = el("div", "mt-4 grid gap-4 lg:grid-cols-[320px_1fr]");
-  const listBox = el("div", "rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200");
-  const detailBox = el("div", "rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200");
+  const listBox = el("div", "surface");
+  const detailBox = el("div", "surface");
 
   const ul = el("ul", "space-y-1");
   for (const c of state.classes) {
@@ -418,7 +418,7 @@ function render() {
           if (!confirm("Delete this schedule?")) return;
           const { error } = await supabase.from("class_schedules").delete().eq("id", s.id);
           if (error) {
-            alert(error.message);
+            classesStatus.textContent = error.message;
             return;
           }
           await refresh();

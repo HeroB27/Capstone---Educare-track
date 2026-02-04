@@ -182,7 +182,7 @@ function renderResetRequests(requests, onRefresh) {
         doneBtn.disabled = true;
         const { error } = await supabase.from("password_reset_requests").update({ status: "done" }).eq("id", r.id);
         if (error) {
-          alert(error.message);
+          usersStatus.textContent = error.message;
           doneBtn.disabled = false;
           return;
         }
@@ -1055,7 +1055,7 @@ async function render() {
     const next = !Boolean(p.is_active);
     const { error } = await supabase.from("profiles").update({ is_active: next }).eq("id", p.id);
     if (error) {
-      alert(error.message);
+      usersStatus.textContent = error.message;
       return;
     }
     await refresh();

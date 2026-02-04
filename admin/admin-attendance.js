@@ -1,63 +1,13 @@
 import { supabase } from "../core/core.js";
+import { button, el, escapeHtml, selectInput, textInput } from "../core/ui.js";
 import { initAppShell } from "../core/shell.js";
+import { getNoClassesEvent } from "../core/school-calendar.js";
 import { initAdminPage } from "./admin-common.js";
 
 initAppShell({ role: "admin", active: "attendance" });
 
 const attendanceStatus = document.getElementById("attendanceStatus");
 const attendanceApp = document.getElementById("attendanceApp");
-
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function el(tag, className, html) {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (html !== undefined) node.innerHTML = html;
-  return node;
-}
-
-function textInput({ value = "", type = "text" } = {}) {
-  const i = document.createElement("input");
-  i.type = type;
-  i.value = value;
-  i.className =
-    "w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200";
-  return i;
-}
-
-function selectInput(options, value) {
-  const s = document.createElement("select");
-  s.className =
-    "w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200";
-  for (const o of options) {
-    const opt = document.createElement("option");
-    opt.value = o.value;
-    opt.textContent = o.label;
-    if (o.value === value) opt.selected = true;
-    s.appendChild(opt);
-  }
-  return s;
-}
-
-function button(label, variant = "primary") {
-  const b = document.createElement("button");
-  b.type = "button";
-  if (variant === "primary") {
-    b.className = "rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700";
-  } else {
-    b.className =
-      "rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50";
-  }
-  b.textContent = label;
-  return b;
-}
 
 function toLocalISODate(date) {
   const d = date instanceof Date ? date : new Date(date);
@@ -111,7 +61,8 @@ async function render() {
     return;
   }
 
-  const dateInput = textInput({ type: "date", value: toLocalISODate(new Date()) });
+  const today = new Date().toISOString().split('T')[0];
+  const dateInput = textInput({ type: "date", value: toLocalISODate(new Date()), max: today });
   const classSelect = selectInput(
     classes.map((c) => ({
       value: c.id,
@@ -120,6 +71,7 @@ async function render() {
     classes[0].id
   );
   const loadBtn = button("Load", "secondary");
+  const backfillBtn = button("Backfill absences", "secondary");
 
   const controls = el("div", "grid gap-3 md:grid-cols-3");
   controls.appendChild(el("div", "space-y-1", '<label class="block text-sm font-medium text-slate-700">Date</label>'));
@@ -128,6 +80,7 @@ async function render() {
   controls.lastChild.appendChild(classSelect);
   const actionWrap = el("div", "flex items-end");
   actionWrap.appendChild(loadBtn);
+  actionWrap.appendChild(backfillBtn);
   controls.appendChild(actionWrap);
 
   const tableBox = el("div", "mt-4 overflow-x-auto");
@@ -140,6 +93,16 @@ async function render() {
 
     attendanceStatus.textContent = "Loading records…";
 
+    const selectedClass = classes.find((c) => c.id === classId) ?? null;
+    const noClasses = await getNoClassesEvent({ dateStr: date, gradeLevel: selectedClass?.grade_level ?? null });
+    if (noClasses) {
+      tableBox.replaceChildren(
+        el("div", "rounded-xl bg-slate-50 p-3 text-sm text-slate-700 ring-1 ring-slate-200", `No classes today: ${escapeHtml(noClasses.title || noClasses.type)}`)
+      );
+      attendanceStatus.textContent = "No classes today.";
+      return;
+    }
+
     const [students, attendanceRows] = await Promise.all([loadStudentsForClass(classId), loadAttendanceForDate(classId, date)]);
     const attendanceByStudent = new Map(attendanceRows.map((r) => [r.student_id, r]));
 
@@ -149,32 +112,34 @@ async function render() {
       return;
     }
 
-    const table = el("table", "w-full text-left text-sm");
-    table.innerHTML =
-      '<thead class="text-xs uppercase text-slate-500"><tr><th class="py-2 pr-4">Student</th><th class="py-2 pr-4">Tap</th><th class="py-2 pr-4">Status</th><th class="py-2 pr-4">Remarks</th><th class="py-2 pr-4"></th></tr></thead>';
+    const table = el("table", "table");
+    table.innerHTML = "<thead><tr><th>Student</th><th>Tap</th><th>Status</th><th>Remarks</th><th></th></tr></thead>";
 
-    const tbody = el("tbody", "divide-y divide-slate-200");
+    const tbody = el("tbody", "");
     for (const s of students) {
       const row = attendanceByStudent.get(s.id);
       const statusSelect = selectInput(STATUS_OPTIONS, row?.status ?? "absent");
       const remarks = textInput({ value: row?.remarks ?? "" });
       const saveBtn = button("Save", "primary");
-      saveBtn.className = "rounded-xl bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-700";
+      saveBtn.classList.add("btn-sm");
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td class="py-3 pr-4 font-medium text-slate-900">${escapeHtml(s.full_name)}</td>
-        <td class="py-3 pr-4 text-slate-700">${escapeHtml(s.current_status ?? "—")}</td>
-        <td class="py-3 pr-4"></td>
-        <td class="py-3 pr-4"></td>
-        <td class="py-3 pr-4 text-right"></td>
+        <td class="cell-strong">${escapeHtml(s.full_name)}</td>
+        <td>${escapeHtml(s.current_status ?? "—")}</td>
+        <td></td>
+        <td></td>
+        <td></td>
       `;
       tr.children[2].appendChild(statusSelect);
       tr.children[3].appendChild(remarks);
-      tr.children[4].appendChild(saveBtn);
+      const actions = el("div", "table-actions");
+      actions.appendChild(saveBtn);
+      tr.children[4].appendChild(actions);
 
       saveBtn.addEventListener("click", async () => {
         saveBtn.disabled = true;
+        attendanceStatus.textContent = "Saving…";
         const payload = {
           student_id: s.id,
           class_id: classId,
@@ -188,7 +153,7 @@ async function render() {
           : await supabase.from("homeroom_attendance").insert(payload);
 
         if (res.error) {
-          alert(res.error.message);
+          attendanceStatus.textContent = res.error.message;
           saveBtn.disabled = false;
           return;
         }
@@ -204,6 +169,21 @@ async function render() {
   }
 
   loadBtn.addEventListener("click", loadTable);
+  backfillBtn.addEventListener("click", async () => {
+    backfillBtn.disabled = true;
+    attendanceStatus.textContent = "Backfilling…";
+    const classId = classSelect.value;
+    const date = dateInput.value;
+    const { data, error } = await supabase.rpc("backfill_homeroom_attendance", { _class_id: classId, _date: date });
+    if (error) {
+      attendanceStatus.textContent = error.message;
+      backfillBtn.disabled = false;
+      return;
+    }
+    attendanceStatus.textContent = `Backfilled ${Number(data ?? 0)} absent record(s).`;
+    await loadTable();
+    backfillBtn.disabled = false;
+  });
   await loadTable();
 }
 

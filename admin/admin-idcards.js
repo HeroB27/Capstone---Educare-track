@@ -82,13 +82,6 @@ function toLocalISODate(date) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-function generateStudentQrCode({ last4 = "" } = {}) {
-  const year = new Date().getFullYear();
-  const suffix = String(Math.floor(Math.random() * 9000) + 1000);
-  const norm = String(last4).replaceAll(/\D/g, "").slice(-4).padStart(4, "0");
-  return `EDU-${year}-${norm}-${suffix}`;
-}
-
 async function loadAllStudents() {
   const { data, error } = await supabase.from("students").select("id,full_name,lrn,class_id,grade_level").order("full_name", { ascending: true });
   if (error) throw error;
@@ -112,25 +105,18 @@ function openIssueModal({ studentsWithoutId, onSaved }) {
     [{ value: "", label: "Select student…" }].concat(studentsWithoutId.map((s) => ({ value: s.id, label: `${s.full_name} (${s.grade_level ?? "—"})` }))),
     ""
   );
-  const qrCode = textInput({ value: "", placeholder: "QR code" });
-  const regenBtn = button("Generate", "secondary");
-  regenBtn.addEventListener("click", () => {
-    const selected = studentsWithoutId.find((s) => s.id === studentSelect.value);
-    const last4 = String(selected?.lrn ?? "").slice(-4);
-    qrCode.value = generateStudentQrCode({ last4 });
-  });
 
   const form = el("form", "mt-4 grid gap-4 md:grid-cols-2");
   form.appendChild(el("div", "space-y-1 md:col-span-2", '<label class="block text-sm font-medium text-slate-700">Student</label>'));
   form.lastChild.appendChild(studentSelect);
 
-  const qrWrap = el("div", "space-y-1 md:col-span-2");
-  qrWrap.appendChild(el("label", "block text-sm font-medium text-slate-700", "QR code value"));
-  const qrRow = el("div", "flex gap-2");
-  qrRow.appendChild(qrCode);
-  qrRow.appendChild(regenBtn);
-  qrWrap.appendChild(qrRow);
-  form.appendChild(qrWrap);
+  form.appendChild(
+    el(
+      "div",
+      "rounded-xl bg-slate-50 p-3 text-sm text-slate-700 ring-1 ring-slate-200 md:col-span-2",
+      "QR code is generated automatically when you issue an ID."
+    )
+  );
 
   const errorBox = el("div", "hidden rounded-xl bg-red-50 p-3 text-sm text-red-700 md:col-span-2");
   const actions = el("div", "flex justify-end gap-2 md:col-span-2");
@@ -152,18 +138,8 @@ function openIssueModal({ studentsWithoutId, onSaved }) {
       saveBtn.disabled = false;
       return;
     }
-    if (!qrCode.value.trim()) {
-      errorBox.textContent = "QR code is required.";
-      errorBox.classList.remove("hidden");
-      saveBtn.disabled = false;
-      return;
-    }
 
-    const { error } = await supabase.from("student_ids").insert({
-      student_id: studentSelect.value,
-      qr_code: qrCode.value.trim(),
-      is_active: true,
-    });
+    const { data, error } = await supabase.rpc("issue_student_id", { p_student_id: studentSelect.value, p_force: false });
     if (error) {
       errorBox.textContent = error.message;
       errorBox.classList.remove("hidden");
@@ -173,6 +149,7 @@ function openIssueModal({ studentsWithoutId, onSaved }) {
 
     overlay.remove();
     await onSaved();
+    if (data) idStatus.textContent = `Issued new ID: ${data}`;
   });
 
   content.appendChild(form);
@@ -186,8 +163,8 @@ async function render() {
   idApp.replaceChildren();
 
   const [students, ids] = await Promise.all([loadAllStudents(), loadStudentIds()]);
-  const idsByStudent = new Map(ids.map((i) => [i.student_id, i]));
-  const studentsWithoutId = students.filter((s) => !idsByStudent.has(s.id));
+  const activeIdsByStudent = new Map(ids.filter((i) => i.is_active).map((i) => [i.student_id, i]));
+  const studentsWithoutId = students.filter((s) => !activeIdsByStudent.has(s.id));
 
   const header = el("div", "flex flex-col gap-3 md:flex-row md:items-center md:justify-between");
   const left = el("div", "flex flex-1 gap-2");
@@ -207,7 +184,7 @@ async function render() {
 
   issueBtn.addEventListener("click", () => {
     if (!studentsWithoutId.length) {
-      alert("All students already have IDs.");
+      idStatus.textContent = "All students already have IDs.";
       return;
     }
     openIssueModal({ studentsWithoutId, onSaved: render });
@@ -231,35 +208,38 @@ async function render() {
       return;
     }
 
-    const table = el("table", "w-full text-left text-sm");
-    table.innerHTML =
-      '<thead class="text-xs uppercase text-slate-500"><tr><th class="py-2 pr-4">Student</th><th class="py-2 pr-4">Grade</th><th class="py-2 pr-4">QR code</th><th class="py-2 pr-4">Active</th><th class="py-2 pr-4"></th></tr></thead>';
-    const tbody = el("tbody", "divide-y divide-slate-200");
+    const table = el("table", "table");
+    table.innerHTML = "<thead><tr><th>Student</th><th>Grade</th><th>QR code</th><th>Active</th><th></th></tr></thead>";
+    const tbody = el("tbody", "");
 
     for (const r of rows) {
       const tr = document.createElement("tr");
       const studentName = r.student?.full_name ?? "—";
       const grade = r.student?.grade_level ?? "—";
       tr.innerHTML = `
-        <td class="py-3 pr-4 font-medium text-slate-900">${escapeHtml(studentName)}</td>
-        <td class="py-3 pr-4 text-slate-700">${escapeHtml(grade)}</td>
-        <td class="py-3 pr-4 text-slate-700">${escapeHtml(r.qr_code)}</td>
-        <td class="py-3 pr-4 text-slate-700">${r.is_active ? "Yes" : "No"}</td>
-        <td class="py-3 pr-4 text-right">
-          <button class="rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">Re-issue</button>
-        </td>
+        <td class="cell-strong">${escapeHtml(studentName)}</td>
+        <td>${escapeHtml(grade)}</td>
+        <td>${escapeHtml(r.qr_code)}</td>
+        <td>${r.is_active ? "Yes" : "No"}</td>
+        <td></td>
       `;
-      tr.querySelector("button")?.addEventListener("click", async () => {
-        const last4 = String(r.student?.lrn ?? "").slice(-4);
-        const newCode = generateStudentQrCode({ last4 });
-        if (!confirm(`Re-issue ID?\n\nNew QR: ${newCode}`)) return;
-        const { error } = await supabase.from("student_ids").update({ qr_code: newCode, is_active: true }).eq("id", r.id);
-        if (error) {
-          alert(error.message);
-          return;
-        }
-        await render();
-      });
+      const actions = el("div", "table-actions");
+      if (r.is_active) {
+        const reissue = button("Re-issue", "secondary", "violet");
+        reissue.classList.add("btn-sm");
+        reissue.addEventListener("click", async () => {
+          if (!confirm("Re-issue ID? This will deactivate the current active ID and create a new one.")) return;
+          const { data, error } = await supabase.rpc("issue_student_id", { p_student_id: r.student_id, p_force: true });
+          if (error) {
+            idStatus.textContent = error.message;
+            return;
+          }
+          await render();
+          if (data) idStatus.textContent = `Re-issued ID: ${data}`;
+        });
+        actions.appendChild(reissue);
+      }
+      tr.children[4].appendChild(actions);
       tbody.appendChild(tr);
     }
 

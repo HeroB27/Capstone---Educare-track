@@ -2,6 +2,7 @@ import { fetchUnreadNotificationsCount, supabase, redirectToDashboard, redirectT
 import { button, el, escapeHtml, isoDate, selectInput, textInput } from "../core/ui.js";
 import { initAppShell, setShellNotificationsCount, setShellProfile } from "../core/shell.js";
 import { lookupStudentByQr as lookupStudentByQrShared, recordTap } from "../core/scan-actions.js";
+import { getNoClassesEvent } from "../core/school-calendar.js";
 import { registerPwa } from "../core/pwa.js";
 
 initAppShell({ role: "guard", active: "dashboard" });
@@ -12,6 +13,36 @@ const tapStatus = document.getElementById("tapStatus");
 const tapApp = document.getElementById("tapApp");
 const recentStatus = document.getElementById("recentStatus");
 const recentApp = document.getElementById("recentApp");
+const gateOpenBtn = document.getElementById("gateOpenBtn");
+const gateClosedBtn = document.getElementById("gateClosedBtn");
+const gateStatus = document.getElementById("gateStatus");
+const statTapIn = document.getElementById("statTapIn");
+const statTapOut = document.getElementById("statTapOut");
+const statInSchool = document.getElementById("statInSchool");
+const alertsStatus = document.getElementById("alertsStatus");
+const alertsApp = document.getElementById("alertsApp");
+
+let gateIsOpen = false;
+
+// Gate status toggle
+gateOpenBtn?.addEventListener("click", () => {
+  gateIsOpen = true;
+  gateOpenBtn.classList.replace("bg-green-500", "bg-green-600");
+  gateClosedBtn.classList.replace("bg-slate-300", "bg-slate-400");
+  gateClosedBtn.classList.replace("text-slate-700", "text-slate-600");
+  gateStatus.textContent = "Gate is currently OPEN";
+  gateStatus.className = "mt-2 text-xs text-green-600 font-medium";
+});
+
+gateClosedBtn?.addEventListener("click", () => {
+  gateIsOpen = false;
+  gateClosedBtn.classList.replace("bg-slate-300", "bg-slate-500");
+  gateClosedBtn.classList.replace("text-slate-700", "text-white");
+  gateOpenBtn.classList.replace("bg-green-500", "bg-green-500");
+  gateOpenBtn.classList.replace("hover:bg-green-600", "hover:bg-green-500");
+  gateStatus.textContent = "Gate is currently CLOSED";
+  gateStatus.className = "mt-2 text-xs text-slate-600";
+});
 
 signOutBtn.addEventListener("click", async () => {
   await signOut();
@@ -151,7 +182,7 @@ function renderRecent(rows) {
   recentApp.appendChild(list);
 }
 
-function renderForm({ profile }) {
+function renderForm({ profile, noClassesEvent }) {
   tapApp.replaceChildren();
   const form = el("form", "space-y-4");
   const qr = textInput({ placeholder: "Scan or type QR code" });
@@ -163,9 +194,8 @@ function renderForm({ profile }) {
     "in"
   );
   const actions = el("div", "flex justify-end");
-  const submit = button("Submit", "primary", "slate");
+  const submit = button("Submit", "primary", "yellow");
   submit.type = "submit";
-  submit.className = "rounded-xl bg-yellow-500 px-4 py-2 text-sm font-semibold text-white hover:bg-yellow-600";
   actions.appendChild(submit);
 
   const row = (label, inputEl) => {
@@ -178,6 +208,16 @@ function renderForm({ profile }) {
   form.appendChild(row("Action", tapType));
 
   const msg = el("div", "hidden rounded-xl bg-slate-50 p-3 text-sm text-slate-700 ring-1 ring-slate-200");
+
+  if (noClassesEvent) {
+    const banner = el(
+      "div",
+      "rounded-xl bg-slate-50 p-3 text-sm text-slate-700 ring-1 ring-slate-200",
+      `No classes today: ${escapeHtml(noClassesEvent.title || noClassesEvent.type)}`
+    );
+    tapApp.appendChild(banner);
+    submit.disabled = true;
+  }
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -198,6 +238,10 @@ function renderForm({ profile }) {
       const res = await recordTap({ gatekeeperId: profile.id, student, tapType: tapType.value });
       if (res.result === "duplicate") {
         msg.textContent = `Duplicate ignored: ${student.full_name}`;
+      } else if (res.result === "blocked") {
+        msg.textContent = res.event?.title ? `No classes today: ${res.event.title}` : "No classes today.";
+      } else if (res.result === "rejected") {
+        msg.textContent = res.reason === "no_in" ? "Tap out rejected: no tap-in recorded today." : "Tap rejected.";
       } else if (tapType.value === "in") {
         msg.textContent = `Tap in recorded: ${student.full_name}${res.arrival ? ` (${res.arrival})` : ""}`;
       } else {
@@ -222,10 +266,106 @@ function renderForm({ profile }) {
 let currentProfile = null;
 let channel = null;
 
+/**
+ * Load today's tap statistics
+ */
+async function loadTodayStats() {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: taps, error } = await supabase
+    .from("tap_logs")
+    .select("tap_type,status")
+    .gte("timestamp", `${today}T00:00:00`)
+    .lte("timestamp", `${today}T23:59:59`);
+  
+  if (error) {
+    console.error("[Stats] Failed to load tap stats:", error.message);
+    return { tapIn: 0, tapOut: 0, inSchool: 0 };
+  }
+  
+  const tapIn = taps?.filter(t => t.tap_type === "in" && t.status !== "duplicate").length ?? 0;
+  const tapOut = taps?.filter(t => t.tap_type === "out" && t.status !== "duplicate").length ?? 0;
+  
+  return { tapIn, tapOut, inSchool: tapIn - tapOut };
+}
+
+/**
+ * Load attendance alerts (late arrivals, early departures, duplicates)
+ */
+async function loadAlerts() {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: alerts, error } = await supabase
+    .from("tap_logs")
+    .select("id,student_id,tap_type,status,remarks,timestamp,students(full_name)")
+    .gte("timestamp", `${today}T00:00:00`)
+    .lte("timestamp", `${today}T23:59:59`)
+    .in("status", ["late", "early", "duplicate", "rejected"])
+    .order("timestamp", { ascending: false })
+    .limit(10);
+  
+  if (error) {
+    console.error("[Alerts] Failed to load alerts:", error.message);
+    return [];
+  }
+  
+  return alerts ?? [];
+}
+
+/**
+ * Render attendance alerts
+ */
+function renderAlerts(alerts) {
+  alertsApp.replaceChildren();
+  
+  if (!alerts.length) {
+    alertsApp.appendChild(el("div", "text-sm text-slate-600", "No alerts at this time."));
+    alertsStatus.textContent = "Ready.";
+    return;
+  }
+  
+  const list = el("div", "space-y-2");
+  for (const alert of alerts) {
+    const student = alert.students?.full_name ?? "Unknown";
+    const statusIcon = alert.status === "duplicate" ? "⚠️" : alert.status === "late" ? "⏰" : "🚪";
+    const statusText = alert.status.charAt(0).toUpperCase() + alert.status.slice(1);
+    const time = new Date(alert.timestamp).toLocaleTimeString();
+    
+    const alertCard = el("div", "rounded-lg bg-amber-50 p-3 border border-amber-100");
+    alertCard.innerHTML = `
+      <div class="flex items-start justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <span class="text-sm">${statusIcon}</span>
+          <div>
+            <div class="text-sm font-medium text-amber-900">${escapeHtml(student)}</div>
+            <div class="text-xs text-amber-700">${statusText}: ${escapeHtml(alert.remarks ?? "-")}</div>
+          </div>
+        </div>
+        <span class="text-xs text-amber-600">${time}</span>
+      </div>
+    `;
+    list.appendChild(alertCard);
+  }
+  
+  alertsApp.appendChild(list);
+  alertsStatus.textContent = `${alerts.length} alert(s).`;
+}
+
 async function refresh(profileId) {
-  const rows = await loadRecentTaps(profileId);
+  const [rows, stats, alerts] = await Promise.all([
+    loadRecentTaps(profileId),
+    loadTodayStats(),
+    loadAlerts()
+  ]);
+  
   recentStatus.textContent = `Loaded ${rows.length} tap(s).`;
   renderRecent(rows);
+  
+  // Update statistics cards
+  if (statTapIn) statTapIn.textContent = stats.tapIn;
+  if (statTapOut) statTapOut.textContent = stats.tapOut;
+  if (statInSchool) statInSchool.textContent = stats.inSchool;
+  
+  // Update alerts
+  renderAlerts(alerts);
 }
 
 async function init() {
@@ -246,7 +386,8 @@ async function init() {
   const { count } = await fetchUnreadNotificationsCount(profile.id);
   setShellNotificationsCount(count ?? 0);
 
-  renderForm({ profile });
+  const noClassesEvent = await getNoClassesEvent({ dateStr: isoDate(), gradeLevel: null }).catch(() => null);
+  renderForm({ profile, noClassesEvent });
   tapStatus.textContent = "Ready.";
   try {
     await refresh(profile.id);

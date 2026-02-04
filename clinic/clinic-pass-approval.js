@@ -97,6 +97,90 @@ function openApproveModal({ clinicId, pass, onSaved }) {
   const overlay = openModal(content, { maxWidthClass: "max-w-2xl" });
 }
 
+/**
+ * Open reject modal for clinic pass
+ */
+function openRejectModal({ clinicId, pass, onSaved }) {
+  const content = el("div", "");
+  content.appendChild(el("div", "text-lg font-semibold text-red-700", "Reject clinic pass"));
+
+  const rejectionReason = textArea({ placeholder: "Please provide a reason for rejection (required)", rows: 4 });
+  const errorBox = el("div", "mt-4 hidden rounded-xl bg-red-50 p-3 text-sm text-red-700");
+  const actions = el("div", "mt-5 flex justify-end gap-2");
+  const cancelBtn = button("Cancel", "ghost");
+  const rejectBtn = button("Reject", "danger", "red");
+  rejectBtn.type = "button";
+  cancelBtn.addEventListener("click", () => overlay.remove());
+  actions.appendChild(cancelBtn);
+  actions.appendChild(rejectBtn);
+
+  rejectBtn.addEventListener("click", async () => {
+    const reason = rejectionReason.value.trim();
+    if (!reason) {
+      errorBox.textContent = "Rejection reason is required.";
+      errorBox.classList.remove("hidden");
+      return;
+    }
+
+    errorBox.classList.add("hidden");
+    rejectBtn.disabled = true;
+
+    try {
+      await updatePass(pass.id, { 
+        status: "rejected", 
+        rejection_reason: reason,
+        rejected_at: new Date().toISOString()
+      });
+      
+      // Notify issuing teacher
+      await notifyTeacher({
+        clinicId,
+        teacherId: pass.issued_by,
+        verb: "clinic_pass_rejected",
+        object: { 
+          pass_id: pass.id, 
+          student_id: pass.student_id, 
+          rejection_reason: reason,
+          rejected_at: new Date().toISOString() 
+        },
+      });
+      
+      // Notify parent
+      await notify({
+        recipientId: pass.students?.parent_id,
+        actorId: clinicId,
+        verb: "clinic_pass_rejected",
+        object: { 
+          pass_id: pass.id, 
+          student_id: pass.student_id, 
+          rejection_reason: reason,
+          rejected_at: new Date().toISOString() 
+        },
+      });
+      
+      overlay.remove();
+      await onSaved();
+    } catch (e) {
+      errorBox.textContent = e?.message ?? "Failed to reject pass.";
+      errorBox.classList.remove("hidden");
+      rejectBtn.disabled = false;
+    }
+  });
+
+  content.appendChild(
+    el(
+      "div",
+      "mt-3 rounded-2xl bg-slate-50 p-4 text-sm text-slate-700 ring-1 ring-slate-200",
+      `Student: ${escapeHtml(pass.students?.full_name ?? "Student")} • Reason: ${escapeHtml(pass.reason ?? "—")}`
+    )
+  );
+  content.appendChild(el("div", "mt-4 text-sm font-medium text-slate-700", "Rejection Reason *"));
+  content.appendChild(rejectionReason);
+  content.appendChild(errorBox);
+  content.appendChild(actions);
+  const overlay = openModal(content, { maxWidthClass: "max-w-2xl" });
+}
+
 async function render(profile) {
   approvalStatus.textContent = "Loading…";
   approvalApp.replaceChildren();
@@ -120,12 +204,15 @@ async function render(profile) {
           <div class="mt-1 text-xs text-slate-600">${meta}</div>
         </div>
         <div class="flex items-center gap-2">
-          <button data-action="approve" class="rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-white">Approve</button>
+          <button data-action="reject" class="rounded-xl border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50">Reject</button>
+          <button data-action="approve" class="rounded-xl border border-green-300 px-3 py-1.5 text-xs font-semibold text-green-700 hover:bg-green-50">Approve</button>
         </div>
       </div>
     `;
     const approveBtn = card.querySelector('button[data-action="approve"]');
+    const rejectBtn = card.querySelector('button[data-action="reject"]');
     approveBtn.addEventListener("click", () => openApproveModal({ clinicId: profile.id, pass: p, onSaved: () => init() }));
+    rejectBtn.addEventListener("click", () => openRejectModal({ clinicId: profile.id, pass: p, onSaved: () => init() }));
     list.appendChild(card);
   }
 

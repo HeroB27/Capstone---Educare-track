@@ -1,0 +1,69 @@
+date: 2026-02-04
+time: 16:30
+user: HeroB27
+action: ADD
+table: public.uuid_from_text (function)
+column: N/A
+old value: N/A
+new value: Added stable UUID generator for idempotent seeding
+command that was used to make the change: apply_patch
+
+date: 2026-02-04
+time: 16:30
+user: HeroB27
+action: ADD
+table: public.hash_int (function)
+column: N/A
+old value: N/A
+new value: Added deterministic hash helper for realistic seeded distributions
+command that was used to make the change: apply_patch
+
+date: 2026-02-04
+time: 16:30
+user: HeroB27
+action: ADD
+table: public.run_enterprise_seed (function)
+column: N/A
+old value: N/A
+new value: Added transactional enterprise seeding function for full school dataset
+command that was used to make the change: apply_patch
+
+date: 2026-02-04
+time: 16:34
+user: HeroB27
+action: UPDATE
+table: public.run_enterprise_seed (function)
+column: N/A
+old value: Initial draft logic
+new value: Fixed attendance rule joins and timestamp construction for compatibility
+command that was used to make the change: apply_patch
+
+date: 2026-02-04
+time: 16:47
+user: HeroB27
+action: UPDATE
+table: public.run_enterprise_seed (function)
+column: tap_logs seeding
+old value: Used pick_gate CTE and two separate INSERT statements
+new value: Single-gate tap logs (guard only) with one INSERT using UNION ALL
+command that was used to make the change: apply_patch
+
+date: 2026-02-04
+time: 17:00
+user: HeroB27
+action: UPDATE
+table: public.run_enterprise_seed (function)
+column: clinic_passes / clinic_visits ordering
+old value: Inserted clinic_passes before clinic_visits (FK risk)
+new value: Insert clinic_visits first, then clinic_passes referencing them
+command that was used to make the change: apply_patch
+
+date: 2026-02-04
+time: 17:00
+user: HeroB27
+action: UPDATE
+table: public.run_enterprise_seed (function)
+column: preflight checks
+old value: No early schema checks
+new value: Added information_schema checks for announcements.class_id and excuse_letters attachment columns
+command that was used to make the change: apply_patch

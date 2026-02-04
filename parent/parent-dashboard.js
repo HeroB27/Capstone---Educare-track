@@ -1,5 +1,6 @@
+// Educare Track Parent Dashboard - Phase 7 Enhanced Version
 import { supabase } from "../core/core.js";
-import { button, el, escapeHtml, isoDate, selectInput } from "../core/ui.js";
+import { button, el, escapeHtml, isoDate, selectInput, showToast, showSuccess, showError, statusBadge as uiStatusBadge } from "../core/ui.js";
 import { initAppShell } from "../core/shell.js";
 import { initParentPage } from "./parent-common.js";
 import { registerPwa } from "../core/pwa.js";
@@ -10,21 +11,32 @@ const parentStatus = document.getElementById("parentStatus");
 const parentApp = document.getElementById("parentApp");
 const notifStatus = document.getElementById("notifStatus");
 const notifApp = document.getElementById("notifApp");
+const announceStatus = document.getElementById("announceStatus");
+const announceApp = document.getElementById("announceApp");
 
+// State management
+let currentProfile = null;
+let subscriptions = [];
+let isRefreshing = false;
+let pendingRefresh = false;
+let lastRefreshTime = 0;
+let optimisticUpdates = new Map();
+
+// Status helpers
 function statusPill(status) {
   const s = String(status ?? "").toLowerCase();
-  if (s === "present") return "bg-green-100 text-green-700";
-  if (s === "late") return "bg-yellow-100 text-yellow-800";
-  if (s === "partial") return "bg-amber-100 text-amber-800";
-  if (s === "excused_absent") return "bg-slate-200 text-slate-700";
-  if (s === "absent") return "bg-red-100 text-red-700";
-  return "bg-slate-100 text-slate-700";
+  if (s === "present") return "status-indicator status-present";
+  if (s === "late") return "status-indicator status-late";
+  if (s === "partial") return "status-indicator status-partial";
+  if (s === "excused_absent") return "status-indicator status-excused";
+  if (s === "absent") return "status-indicator status-absent";
+  return "status-indicator status-neutral";
 }
 
 function inOutPill(value) {
   const s = String(value ?? "").toLowerCase();
-  if (s === "in") return "bg-green-100 text-green-700";
-  return "bg-slate-100 text-slate-700";
+  if (s === "in") return "status-indicator status-present";
+  return "status-indicator status-neutral";
 }
 
 function monthKey(d) {
@@ -51,6 +63,27 @@ function addDays(d, n) {
   return x;
 }
 
+function uniq(arr) {
+  return [...new Set(arr)];
+}
+
+// Optimistic update helpers
+function applyOptimisticUpdate(childId, updateType, newValue) {
+  const key = `${childId}-${updateType}`;
+  optimisticUpdates.set(key, { value: newValue, timestamp: Date.now() });
+}
+
+function getOptimisticUpdate(childId, updateType) {
+  const key = `${childId}-${updateType}`;
+  const update = optimisticUpdates.get(key);
+  if (update && Date.now() - update.timestamp < 30000) {
+    return update.value;
+  }
+  optimisticUpdates.delete(key);
+  return null;
+}
+
+// Data loading functions
 async function loadChildren(profileId) {
   const { data, error } = await supabase
     .from("students")
@@ -102,6 +135,37 @@ async function loadMonthAttendance(studentId, monthDate) {
   return data ?? [];
 }
 
+async function loadAnnouncementsForParent(classIds, limit = 10) {
+  const base = supabase
+    .from("announcements")
+    .select("id,title,body,class_id,created_at")
+    .eq("audience_parents", true)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (!classIds.length) {
+    const { data, error } = await base.is("class_id", null);
+    if (error) throw error;
+    return data ?? [];
+  }
+
+  const filter = `class_id.is.null,class_id.in.(${classIds.join(",")})`;
+  const { data, error } = await base.or(filter);
+  if (error) throw error;
+  return data ?? [];
+}
+
+async function loadClinicVisits(studentIds) {
+  if (!studentIds.length) return [];
+  const { data, error } = await supabase
+    .from("clinic_visits")
+    .select("id,student_id,status,arrived_at,concluded_at,presenting_symptoms,notes")
+    .in("student_id", studentIds)
+    .order("arrived_at", { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
 function buildLatestTapMap(rows) {
   const map = new Map();
   for (const r of rows) {
@@ -110,9 +174,11 @@ function buildLatestTapMap(rows) {
   return map;
 }
 
+// Render functions
 function renderChildren({ children, taps }) {
   const box = el("div", "");
   const list = el("div", "grid gap-3 md:grid-cols-2");
+  
   if (!children.length) {
     list.appendChild(
       el(
@@ -127,14 +193,22 @@ function renderChildren({ children, taps }) {
 
   for (const c of children) {
     const tap = taps.get(c.id);
+    // Check for optimistic updates
+    const optimisticStatus = getOptimisticUpdate(c.id, "status");
+    const currentStatus = optimisticStatus || c.current_status;
+    
     const card = el("div", "rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200");
+    if (optimisticStatus) {
+      card.classList.add("animate-pulse", "bg-blue-50");
+    }
+    
     card.innerHTML = `
       <div class="flex items-start justify-between gap-3">
         <div>
           <div class="text-sm font-semibold text-slate-900">${escapeHtml(c.full_name)}</div>
           <div class="mt-1 text-xs text-slate-600">${escapeHtml(c.grade_level)}${c.strand ? ` • ${escapeHtml(c.strand)}` : ""}</div>
         </div>
-        <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${inOutPill(c.current_status)}">${escapeHtml(c.current_status ?? "out")}</span>
+        <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${inOutPill(currentStatus)}">${escapeHtml(currentStatus ?? "out")}</span>
       </div>
       <div class="mt-3 text-sm text-slate-700"><span class="font-semibold">Last tap:</span> ${tap?.timestamp ? escapeHtml(new Date(tap.timestamp).toLocaleString()) : "—"}</div>
     `;
@@ -186,13 +260,36 @@ function renderCalendar({ student, monthDate, attendanceRows, onMonthChange }) {
       continue;
     }
     const dateStr = iso(d);
-    const status = map.get(dateStr) ?? "";
-    const pillCls = status ? statusPill(status) : "bg-slate-50 text-slate-600 ring-1 ring-slate-200";
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const day = new Date(d);
+    day.setHours(0, 0, 0, 0);
+    const weekday = day.getDay();
+    const isWeekend = weekday === 0 || weekday === 6;
+    const isPastOrToday = day.getTime() <= today.getTime();
+    const baseStatus = map.get(dateStr) ?? "";
+    const status = baseStatus || (isPastOrToday && !isWeekend ? "absent" : "");
+    const pillCls = status ? statusPill(status) : "status-indicator status-neutral";
+    const tip = status
+      ? status === "absent"
+        ? "Absent: no tap-in recorded"
+        : status === "late"
+          ? "Late: tap-in after the late threshold"
+          : status === "present"
+            ? "Present: tap-in recorded"
+            : status === "excused_absent"
+              ? "Excused: excuse letter approved"
+              : status
+      : isWeekend
+        ? "Weekend"
+        : isPastOrToday
+          ? "No record"
+          : "Future date";
     const cell = el("div", `h-16 rounded-xl p-2 ${status ? "" : ""}`);
     cell.innerHTML = `
       <div class="flex items-start justify-between">
         <div class="text-xs font-semibold text-slate-700">${String(d.getDate())}</div>
-        <div class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${pillCls}">${escapeHtml(status || "—")}</div>
+        <div class="${pillCls}" title="${escapeHtml(tip)}">${escapeHtml(status || "—")}</div>
       </div>
     `;
     grid.appendChild(cell);
@@ -224,7 +321,13 @@ function renderNotifications({ notifications, onRefresh }) {
       return verb;
     })();
     const time = n.created_at ? new Date(n.created_at).toLocaleString() : "";
-    const body = n.object ? JSON.stringify(n.object) : "";
+    let body = "";
+    try {
+      body = typeof n.object === "string" ? n.object : JSON.stringify(n.object);
+    } catch {
+      body = String(n.object || "");
+    }
+    
     card.innerHTML = `
       <div class="flex items-start justify-between gap-2">
         <div class="text-sm font-semibold text-slate-900">${escapeHtml(title)}</div>
@@ -238,7 +341,7 @@ function renderNotifications({ notifications, onRefresh }) {
         await markNotificationRead(n.id);
         await onRefresh();
       } catch (e) {
-        alert(e?.message ?? "Failed to mark as read.");
+        notifStatus.textContent = e?.message ?? "Failed to mark as read.";
       }
     });
     list.appendChild(card);
@@ -246,108 +349,245 @@ function renderNotifications({ notifications, onRefresh }) {
   notifApp.appendChild(list);
 }
 
-let currentProfile = null;
-let channels = [];
-let selectedStudentId = "";
-let currentMonth = new Date();
+function renderAnnouncements({ announcements, classLabelById }) {
+  announceApp.replaceChildren();
 
-function cleanup() {
-  for (const ch of channels) supabase.removeChannel(ch);
-  channels = [];
-}
-
-async function refresh() {
-  if (!currentProfile) return;
-  parentStatus.textContent = "Loading…";
-
-  const children = await loadChildren(currentProfile.id);
-  const studentIds = children.map((c) => c.id);
-  const taps = buildLatestTapMap(await loadTapLogs(studentIds));
-  const notifications = await loadNotifications(currentProfile.id);
-
-  parentApp.replaceChildren();
-
-  const header = el("div", "flex flex-wrap items-center justify-between gap-2");
-  header.appendChild(el("div", "text-sm text-slate-600", `Children: ${children.length}`));
-
-  const childSel = selectInput(
-    [{ value: "", label: children.length ? "Select child for calendar…" : "No children linked" }].concat(
-      children.map((c) => ({ value: c.id, label: c.full_name }))
-    ),
-    selectedStudentId || (children[0]?.id ?? "")
-  );
-  childSel.disabled = !children.length;
-  childSel.addEventListener("change", async () => {
-    selectedStudentId = childSel.value;
-    await refresh();
-  });
-  header.appendChild(el("div", "w-full md:w-80"));
-  header.lastChild.appendChild(childSel);
-
-  parentApp.appendChild(header);
-  parentApp.appendChild(renderChildren({ children, taps }));
-
-  const activeId = childSel.value;
-  if (activeId) {
-    const active = children.find((c) => c.id === activeId);
-    const rows = await loadMonthAttendance(activeId, currentMonth);
-    parentApp.appendChild(
-      renderCalendar({
-        student: active,
-        monthDate: currentMonth,
-        attendanceRows: rows,
-        onMonthChange: async (d) => {
-          currentMonth = d;
-          await refresh();
-        },
-      })
-    );
+  if (!announcements.length) {
+    announceStatus.textContent = "No announcements yet.";
+    announceApp.appendChild(el("div", "text-sm text-slate-600", "You will see school and class announcements here."));
+    return;
   }
 
-  renderNotifications({ notifications, onRefresh: refresh });
+  announceStatus.textContent = `Latest: ${announcements.length}`;
+  const list = el("div", "space-y-2");
+  for (const a of announcements) {
+    const time = a.created_at ? new Date(a.created_at).toLocaleString() : "";
+    const scope = a.class_id ? classLabelById.get(a.class_id) : "School-wide";
+    const card = el("div", "rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200");
+    card.innerHTML = `
+      <div class="flex items-start justify-between gap-2">
+        <div>
+          <div class="text-sm font-semibold text-slate-900">${escapeHtml(a.title)}</div>
+          <div class="mt-1 text-xs text-slate-600">${escapeHtml(scope || "Class")}</div>
+        </div>
+        <div class="text-xs text-slate-600">${escapeHtml(time)}</div>
+      </div>
+      <div class="mt-2 whitespace-pre-wrap text-sm text-slate-700">${escapeHtml(a.body ?? "")}</div>
+    `;
+    list.appendChild(card);
+  }
+  announceApp.appendChild(list);
+}
 
-  parentStatus.textContent = "Ready.";
+// Debounced refresh
+function debouncedRefresh(delay = 500) {
+  if (pendingRefresh) return;
+  
+  pendingRefresh = true;
+  setTimeout(async () => {
+    pendingRefresh = false;
+    const now = Date.now();
+    if (now - lastRefreshTime < 1000) return;
+    lastRefreshTime = now;
+    
+    try {
+      await refresh();
+    } catch (e) {
+      console.error("Refresh error:", e);
+    }
+  }, delay);
+}
 
+// Subscription cleanup
+function cleanup() {
+  for (const ch of subscriptions) {
+    try {
+      supabase.removeChannel(ch);
+    } catch (e) {}
+  }
+  subscriptions = [];
+}
+
+// Main refresh function
+async function refresh() {
+  if (!currentProfile) return;
+  
+  if (isRefreshing) {
+    pendingRefresh = true;
+    return;
+  }
+  
+  isRefreshing = true;
+  
+  try {
+    parentStatus.textContent = "Loading…";
+    notifStatus.textContent = "Loading…";
+    if (announceStatus) announceStatus.textContent = "Loading…";
+
+    const children = await loadChildren(currentProfile.id);
+    const studentIds = children.map((c) => c.id);
+    const classIds = uniq(children.map((c) => c.class_id));
+
+    const [tapRes, notifRes, announceRes, clinicRes] = await Promise.allSettled([
+      loadTapLogs(studentIds),
+      loadNotifications(currentProfile.id),
+      loadAnnouncementsForParent(classIds),
+      loadClinicVisits(studentIds),
+    ]);
+
+    const taps = buildLatestTapMap(tapRes.status === "fulfilled" ? tapRes.value : []);
+    const notifications = notifRes.status === "fulfilled" ? notifRes.value : [];
+    const announcements = announceRes.status === "fulfilled" ? announceRes.value : [];
+    const clinicVisits = clinicRes.status === "fulfilled" ? clinicRes.value : [];
+
+    parentApp.replaceChildren();
+
+    const header = el("div", "flex flex-wrap items-center justify-between gap-2");
+    header.appendChild(el("div", "text-sm text-slate-600", `Children: ${children.length}`));
+
+    const childSel = selectInput(
+      [{ value: "", label: children.length ? "Select child for calendar…" : "No children linked" }].concat(
+        children.map((c) => ({ value: c.id, label: c.full_name }))
+      ),
+      selectedStudentId || (children[0]?.id ?? "")
+    );
+    childSel.disabled = !children.length;
+    childSel.addEventListener("change", async () => {
+      selectedStudentId = childSel.value;
+      await refresh();
+    });
+    header.appendChild(el("div", "w-full md:w-80"));
+    header.lastChild.appendChild(childSel);
+
+    parentApp.appendChild(header);
+    parentApp.appendChild(renderChildren({ children, taps }));
+
+    const activeId = childSel.value;
+    if (activeId) {
+      const active = children.find((c) => c.id === activeId);
+      const rows = await loadMonthAttendance(activeId, currentMonth);
+      parentApp.appendChild(
+        renderCalendar({
+          student: active,
+          monthDate: currentMonth,
+          attendanceRows: rows,
+          onMonthChange: async (d) => {
+            currentMonth = d;
+            await refresh();
+          },
+        })
+      );
+    }
+
+    renderNotifications({ notifications, onRefresh: refresh });
+    if (announceStatus && announceApp) {
+      const labelByClass = new Map();
+      for (const c of children) {
+        if (!c.class_id || labelByClass.has(c.class_id)) continue;
+        const label = `${c.grade_level ?? ""}${c.strand ? ` • ${c.strand}` : ""}`.trim();
+        labelByClass.set(c.class_id, label || "Class");
+      }
+      if (announceRes.status === "rejected") {
+        announceStatus.textContent = announceRes.reason?.message ?? "Failed to load announcements.";
+        announceApp.replaceChildren();
+        announceApp.appendChild(el("div", "text-sm text-red-700", escapeHtml(announceStatus.textContent)));
+      } else {
+        renderAnnouncements({ announcements, classLabelById: labelByClass });
+      }
+    }
+
+    if (notifRes.status === "rejected") {
+      notifStatus.textContent = notifRes.reason?.message ?? "Failed to load notifications.";
+    }
+
+    parentStatus.textContent = "Ready.";
+
+    // Setup subscriptions
+    setupSubscriptions(studentIds, classIds);
+
+    selectedStudentId = activeId;
+    
+  } catch (e) {
+    console.error("Refresh error:", e);
+    parentStatus.textContent = `Error: ${e?.message || "Failed to load"}`;
+    showError("Failed to load dashboard data");
+  } finally {
+    isRefreshing = false;
+    if (pendingRefresh) {
+      pendingRefresh = false;
+      setTimeout(() => refresh(), 100);
+    }
+  }
+}
+
+// Setup real-time subscriptions
+function setupSubscriptions(studentIds, classIds) {
   cleanup();
 
+  // Notification channel
   const notifCh = supabase
     .channel(`parent-notif-${currentProfile.id}`)
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "notifications", filter: `recipient_id=eq.${currentProfile.id}` },
-      async () => {
-        await refresh();
-      }
+      debouncedRefresh
     )
     .subscribe();
-  channels.push(notifCh);
+  subscriptions.push(notifCh);
 
   if (studentIds.length) {
     const idsFilter = `student_id=in.(${studentIds.join(",")})`;
+    
+    // Tap logs channel
     const tapCh = supabase
       .channel(`parent-taps-${currentProfile.id}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "tap_logs", filter: idsFilter }, async () => {
-        await refresh();
-      })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "tap_logs", filter: idsFilter }, debouncedRefresh)
       .subscribe();
-    channels.push(tapCh);
+    subscriptions.push(tapCh);
+    
+    // Students status channel
+    const studentCh = supabase
+      .channel(`parent-students-${currentProfile.id}`)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "students", filter: idsFilter }, debouncedRefresh)
+      .subscribe();
+    subscriptions.push(studentCh);
+    
+    // Clinic visits channel
+    const clinicCh = supabase
+      .channel(`parent-clinic-${currentProfile.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "clinic_visits", filter: idsFilter }, debouncedRefresh)
+      .subscribe();
+    subscriptions.push(clinicCh);
   }
-
-  selectedStudentId = activeId;
 }
+
+// Initialize page
+let selectedStudentId = "";
+let currentMonth = new Date();
 
 async function init() {
   registerPwa();
+
   const { profile, error } = await initParentPage();
-  if (error) return;
+  if (error) {
+    parentStatus.textContent = `Error: ${error.message}`;
+    return;
+  }
   currentProfile = profile;
+
   try {
     await refresh();
   } catch (e) {
     parentStatus.textContent = e?.message ?? "Failed to load.";
-    notifStatus.textContent = "";
+    showError(e?.message || "Failed to load dashboard");
   }
-  window.addEventListener("beforeunload", cleanup);
+
+  window.addEventListener("beforeunload", () => {
+    cleanup();
+    if (window._shellCleanupFn) {
+      window._shellCleanupFn();
+    }
+  });
 }
 
 init();

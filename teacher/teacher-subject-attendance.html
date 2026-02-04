@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Educare Track | Teacher - Subject Attendance</title>
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#0f172a" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="../core/theme.css" />
+  </head>
+  <body class="min-h-screen role-teacher">
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+    <header id="topbar" class="topbar"></header>
+    <div class="app-shell">
+      <aside id="appSidebar" class="sidebar"></aside>
+
+      <main class="page">
+        <div class="page-container">
+          <div class="page-header">
+            <h1 class="page-title">Subject Attendance</h1>
+            <p class="page-subtitle">Mark attendance per subject period</p>
+          </div>
+
+          <div class="surface">
+            <div id="subjectStatus" class="text-sm text-slate-700">Loading…</div>
+            <div id="subjectApp" class="mt-4"></div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="./teacher-subject-attendance.js"></script>
+  </body>
+</html>

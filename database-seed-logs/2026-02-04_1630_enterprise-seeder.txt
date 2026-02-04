@@ -1,0 +1,69 @@
+date: 2026-02-04
+time: 16:30
+user: HeroB27
+action: ADD
+table: data-seeder-files/enterprise
+column: N/A
+old value: N/A
+new value: Added enterprise seeder scripts (users.mjs, seed.mjs)
+command that was used to make the change: apply_patch
+
+date: 2026-02-04
+time: 16:30
+user: HeroB27
+action: UPDATE
+table: package.json
+column: scripts.seed:enterprise
+old value: N/A
+new value: node ./data-seeder-files/enterprise/seed.mjs
+command that was used to make the change: apply_patch
+
+date: 2026-02-04
+time: 16:34
+user: HeroB27
+action: UPDATE
+table: data-seeder-files/enterprise/seed.mjs
+column: runEnterpriseSeed error handling
+old value: Generic RPC failure message
+new value: Clear instruction to apply enterprise seed SQL migration before rerun
+command that was used to make the change: apply_patch
+
+date: 2026-02-04
+time: 16:47
+user: HeroB27
+action: UPDATE
+table: supabase_migrations/2026-02-04_enterprise_seed_v1.0.0.sql
+column: tap_logs seeding
+old value: pick_gate CTE referenced across statements
+new value: Single-gate tap logs insert (guard only)
+command that was used to make the change: apply_patch
+
+date: 2026-02-04
+time: 16:51
+user: HeroB27
+action: UPDATE
+table: data-seeder-files/enterprise/seed.mjs
+column: runEnterpriseSeed error handling
+old value: Did not explain pick_gate failure
+new value: Added explicit message to re-run updated SQL migration when pick_gate error appears
+command that was used to make the change: apply_patch
+
+date: 2026-02-04
+time: 17:00
+user: HeroB27
+action: UPDATE
+table: supabase_migrations/2026-02-04_enterprise_seed_v1.0.0.sql
+column: clinic_passes FK ordering
+old value: clinic_passes inserted before clinic_visits
+new value: clinic_visits inserted before clinic_passes to satisfy FK
+command that was used to make the change: apply_patch
+
+date: 2026-02-04
+time: 17:00
+user: HeroB27
+action: UPDATE
+table: data-seeder-files/enterprise/seed.mjs
+column: runEnterpriseSeed error handling
+old value: Limited error mapping
+new value: Added mapping for clinic_passes FK + missing columns, with clear next steps
+command that was used to make the change: apply_patch

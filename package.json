@@ -4,9 +4,14 @@
   "type": "module",
   "scripts": {
     "seed:users": "node ./scripts/seed-users.mjs",
-    "provision:users": "node ./scripts/provision-users.mjs"
+    "seed:enterprise": "node ./data-seeder-files/enterprise/seed.mjs",
+    "provision:users": "node ./scripts/provision-users.mjs",
+    "screenshots:admin": "node ./scripts/capture-screenshots.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1"
+  },
+  "devDependencies": {
+    "puppeteer": "^24.2.0"
   }
 }

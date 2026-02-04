@@ -321,13 +321,17 @@ async function init() {
   } else {
     attendanceChartNote.textContent = "Live";
     const labels = Array.from(trendByDate.keys()).sort();
-    const values = labels.map((d) => {
-      const v = trendByDate.get(d);
-      if (!v?.total) return null;
-      return Math.round((v.presentish / v.total) * 1000) / 10;
-    }).filter((v) => v !== null);
-    const usableLabels = labels.slice(labels.length - values.length);
-    renderTrend(usableLabels, values);
+    const points = labels
+      .map((d) => {
+        const v = trendByDate.get(d);
+        if (!v?.total) return null;
+        return { d, value: Math.round((v.presentish / v.total) * 1000) / 10 };
+      })
+      .filter(Boolean);
+    renderTrend(
+      points.map((p) => p.d),
+      points.map((p) => p.value)
+    );
   }
 
   const pendingClinicPasses = pendingClinicPassesRes?.error ? null : pendingClinicPassesRes?.count ?? 0;
@@ -338,20 +342,30 @@ async function init() {
   const cVisits = activeClinicVisits === null ? "—" : String(activeClinicVisits);
   const cExcuses = pendingExcuses === null ? "—" : String(pendingExcuses);
   statusBox.innerHTML = `
-    <div class="text-sm text-slate-700">Loaded. (${escapeHtml(dataSource)})</div>
-    <div class="mt-2 grid gap-2 md:grid-cols-3">
-      <div class="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
-        <div class="text-xs font-semibold text-slate-600">Pending clinic passes</div>
-        <div class="mt-1 text-lg font-semibold text-slate-900">${escapeHtml(cPasses)}</div>
-      </div>
-      <div class="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
-        <div class="text-xs font-semibold text-slate-600">Active clinic visits</div>
-        <div class="mt-1 text-lg font-semibold text-slate-900">${escapeHtml(cVisits)}</div>
-      </div>
-      <div class="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
-        <div class="text-xs font-semibold text-slate-600">Pending excuse letters</div>
-        <div class="mt-1 text-lg font-semibold text-slate-900">${escapeHtml(cExcuses)}</div>
-      </div>
+    <div style="font-size:0.9rem;color:var(--secondary-700);">Loaded. (${escapeHtml(dataSource)})</div>
+    <div style="margin-top:0.75rem;">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Queue</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="cell-strong">Pending clinic passes</td>
+            <td>${escapeHtml(cPasses)}</td>
+          </tr>
+          <tr>
+            <td class="cell-strong">Active clinic visits</td>
+            <td>${escapeHtml(cVisits)}</td>
+          </tr>
+          <tr>
+            <td class="cell-strong">Pending excuse letters</td>
+            <td>${escapeHtml(cExcuses)}</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   `;
 }

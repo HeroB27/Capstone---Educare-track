@@ -1,17 +1,56 @@
 {
   "name": "Educare Track",
   "short_name": "Educare",
+  "description": "School management system for attendance, communications, and student tracking",
   "start_url": "/auth/login.html",
   "scope": "/",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#f8fafc",
   "theme_color": "#0f172a",
+  "categories": ["education", "productivity", "utilities"],
+  "lang": "en",
+  "dir": "ltr",
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/pwa/icon.svg",
       "sizes": "any",
-      "type": "image/svg+xml"
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     }
-  ]
+  ],
+  "shortcuts": [
+    {
+      "name": "Teacher Dashboard",
+      "short_name": "Teacher",
+      "description": "Access teacher dashboard",
+      "url": "/teacher/teacher-dashboard.html",
+      "icons": [{ "src": "/pwa/icon.svg", "sizes": "96x96" }]
+    },
+    {
+      "name": "Parent Dashboard",
+      "short_name": "Parent",
+      "description": "Access parent dashboard",
+      "url": "/parent/parent-dashboard.html",
+      "icons": [{ "src": "/pwa/icon.svg", "sizes": "96x96" }]
+    },
+    {
+      "name": "Admin Panel",
+      "short_name": "Admin",
+      "description": "Access admin panel",
+      "url": "/admin/admin-dashboard.html",
+      "icons": [{ "src": "/pwa/icon.svg", "sizes": "96x96" }]
+    }
+  ],
+  "screenshots": [],
+  "related_applications": [],
+  "display_override": ["window-controls-overlay", "standalone", "browser"],
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
+  "handle_links": "preferred",
+  "launch_handler": {
+    "client_mode": ["navigate-existing", "auto"]
+  }
 }
-

@@ -188,6 +188,10 @@ function openEventModal({ mode, event, profileId, onSaved }) {
   const cancelBtn = button("Cancel", "ghost");
   const saveBtn = button("Save", "primary");
   saveBtn.type = "submit";
+
+  // Create overlay first to avoid variable shadowing issues
+  const overlay = openModal(content);
+
   cancelBtn.addEventListener("click", () => overlay.remove());
   actions.appendChild(cancelBtn);
   actions.appendChild(saveBtn);
@@ -274,7 +278,6 @@ function openEventModal({ mode, event, profileId, onSaved }) {
   content.appendChild(form);
   content.appendChild(errorBox);
   content.appendChild(actions);
-  const overlay = openModal(content);
 }
 
 function buildCalendarEvents(rows) {

@@ -10,64 +10,128 @@
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
     <link rel="stylesheet" href="../core/theme.css" />
   </head>
-  <body class="min-h-screen role-clinic">
-    <header class="topbar" style="display:block;">
-      <div class="topbar-inner">
-        <div class="topbar-title">
-          <div class="topbar-rolebar" style="background: var(--clinic-color);"></div>
-          <div style="display:flex;flex-direction:column;line-height:1.1;">
-            <div style="font-size:0.875rem;font-weight:800;">Clinic Scanner</div>
-            <div style="font-size:0.75rem;color:var(--secondary-600);">Educare Track</div>
+  <body class="min-h-screen role-clinic bg-slate-900">
+    <!-- Header -->
+    <header class="fixed top-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-sm border-b border-slate-200">
+      <div class="flex items-center justify-between px-4 py-3 max-w-7xl mx-auto">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-lg bg-red-600 flex items-center justify-center">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+            </svg>
+          </div>
+          <div>
+            <h1 class="text-lg font-bold text-slate-900">Clinic Scanner</h1>
+            <p class="text-xs text-slate-500">Educare Track</p>
           </div>
         </div>
-        <div class="topbar-actions">
-          <a class="btn btn-secondary" href="./clinic-dashboard.html">Dashboard</a>
-          <button id="signOutBtn" class="btn btn-secondary">Sign out</button>
+        <div class="flex items-center gap-2">
+          <a href="./clinic-dashboard.html" class="px-3 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors">
+            Dashboard
+          </a>
+          <button id="signOutBtn" class="px-3 py-2 text-sm font-medium text-white bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors">
+            Sign out
+          </button>
         </div>
       </div>
     </header>
 
-    <main style="position:relative;height:calc(100vh - 56px);">
-      <video id="camera" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;"></video>
+    <!-- Main Content -->
+    <main class="pt-16 min-h-screen">
+      <!-- Camera Section -->
+      <div class="relative h-[calc(100vh-64px)] lg:h-screen lg:fixed lg:inset-0 lg:pt-16">
+        <!-- Video Feed -->
+        <video 
+          id="camera" 
+          autoplay 
+          playsinline 
+          muted 
+          class="absolute inset-0 w-full h-full object-cover"
+        ></video>
 
-      <div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:space-between;padding:1rem;">
-        <div class="surface" style="max-width: 44rem; width: 100%; margin: 0 auto; background: rgba(255,255,255,0.92);">
-          <div>
-            <div class="page-title" style="font-size:1rem;">Scan Student QR</div>
-            <div class="page-subtitle" style="margin-top:0.1rem;">Logs clinic arrival and notifies teacher + parent.</div>
-          </div>
+        <!-- Overlay Gradient -->
+        <div class="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-slate-900/40"></div>
 
-          <div class="mt-3">
-            <label class="block text-sm font-semibold text-slate-700">Notes (optional)</label>
-            <textarea
-              id="notes"
-              rows="3"
-              class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
-              placeholder="e.g., Headache, sent to bed rest"
-            ></textarea>
-          </div>
+        <!-- Scan Panel - Top -->
+        <div class="absolute top-4 left-4 right-4 lg:left-auto lg:right-4 lg:w-96">
+          <div class="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-5">
+            <!-- Header -->
+            <div class="mb-4">
+              <h2 class="text-lg font-bold text-slate-900">Scan Student QR</h2>
+              <p class="text-sm text-slate-600">Logs clinic arrival and notifies teacher + parent.</p>
+            </div>
 
-          <div id="statusBox" class="mt-3 rounded-xl bg-slate-50 p-3 text-sm text-slate-700 ring-1 ring-slate-200">
-            Starting camera…
+            <!-- Notes Input -->
+            <div class="mb-4">
+              <label class="block text-sm font-medium text-slate-700 mb-1.5">Notes (optional)</label>
+              <textarea
+                id="notes"
+                rows="2"
+                class="w-full px-4 py-3 text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-300 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent resize-none"
+                placeholder="e.g., Headache, sent to bed rest"
+              ></textarea>
+            </div>
+
+            <!-- Status -->
+            <div id="statusBox" class="p-4 bg-slate-50 rounded-xl text-sm text-slate-700 border border-slate-200">
+              Starting camera…
+            </div>
           </div>
         </div>
 
-        <div class="surface" style="max-width: 44rem; width: 100%; margin: 0 auto; background: rgba(255,255,255,0.92);">
-          <div class="text-sm font-semibold text-slate-900">Manual fallback</div>
-          <div class="mt-2 flex gap-2">
-            <input
-              id="manualQr"
-              type="text"
-              class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
-              placeholder="Paste or type QR value"
-            />
-            <button id="manualBtn" class="btn btn-primary" style="background: var(--clinic-color);">Submit</button>
+        <!-- Scan Frame Overlay -->
+        <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div class="w-64 h-64 lg:w-80 lg:h-80 border-4 border-white/50 rounded-3xl relative">
+            <!-- Corner markers -->
+            <div class="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-red-400 rounded-tl-xl"></div>
+            <div class="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-red-400 rounded-tr-xl"></div>
+            <div class="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-red-400 rounded-bl-xl"></div>
+            <div class="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-red-400 rounded-br-xl"></div>
+            <!-- Scan line animation -->
+            <div class="absolute inset-x-4 h-0.5 bg-gradient-to-r from-transparent via-red-400 to-transparent animate-scan"></div>
+          </div>
+        </div>
+
+        <!-- Manual Fallback - Bottom -->
+        <div class="absolute bottom-4 left-4 right-4 lg:left-auto lg:right-4 lg:w-96">
+          <div class="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-5">
+            <h3 class="text-sm font-semibold text-slate-900 mb-3">Manual Fallback</h3>
+            <div class="flex gap-2">
+              <input
+                id="manualQr"
+                type="text"
+                class="flex-1 px-4 py-3 text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-300 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                placeholder="Paste or type QR value"
+              />
+              <button 
+                id="manualBtn"
+                class="px-6 py-3 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all duration-200"
+              >
+                Submit
+              </button>
+            </div>
           </div>
         </div>
       </div>
     </main>
 
+    <!-- Scan Animation CSS -->
+    <style>
+      @keyframes scan {
+        0%, 100% {
+          top: 1rem;
+          opacity: 1;
+        }
+        50% {
+          top: calc(100% - 1rem);
+          opacity: 0.8;
+        }
+      }
+      .animate-scan {
+        animation: scan 2.5s ease-in-out infinite;
+      }
+    </style>
+
     <script type="module" src="./clinic-scanner.js"></script>
   </body>
 </html>
-

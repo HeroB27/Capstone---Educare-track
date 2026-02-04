@@ -1,3 +1,7 @@
+// Educare Track App Shell - Phase 7 Enhanced Version
+import { addConnectivityListeners } from "./pwa.js";
+import { showToast } from "./ui.js";
+
 const ROLE_LABEL = {
   admin: "Admin",
   teacher: "Teacher",
@@ -25,6 +29,7 @@ const NAV_ITEMS = {
   ],
   teacher: [
     { key: "dashboard", label: "Dashboard", href: "./teacher-dashboard.html" },
+    { key: "subject-attendance", label: "Subject Attendance", href: "./teacher-subject-attendance.html" },
     { key: "excuse", label: "Excuse Letters", href: "./teacher-excuse.html" },
     { key: "announcements", label: "Announcements", href: "./teacher-announcements.html" },
     { key: "gatekeeper-scanner", label: "Gatekeeper Scanner", href: "./teacher-gatekeeper-scanner.html" },
@@ -57,6 +62,40 @@ function colorStyleForRole(role) {
 
 function el(id) {
   return document.getElementById(id);
+}
+
+// Network status indicator
+let networkStatusElement = null;
+
+function createNetworkStatusIndicator() {
+  const indicator = document.createElement("div");
+  indicator.id = "network-status";
+  indicator.className = "network-status";
+  indicator.innerHTML = `
+    <span class="network-status-dot"></span>
+    <span class="network-status-text"></span>
+  `;
+  document.body.insertBefore(indicator, document.body.firstChild);
+  networkStatusElement = indicator;
+  return indicator;
+}
+
+function updateNetworkStatus(online) {
+  const indicator = networkStatusElement || createNetworkStatusIndicator();
+  const dot = indicator.querySelector(".network-status-dot");
+  const text = indicator.querySelector(".network-status-text");
+  
+  if (online) {
+    indicator.classList.remove("offline", "reconnecting");
+    indicator.classList.add("online");
+    dot.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
+    text.textContent = "Online";
+  } else {
+    indicator.classList.remove("online", "reconnecting");
+    indicator.classList.add("offline");
+    dot.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/><path d="M10.71 5.05A16 16 0 0 1 22.58 9"/><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>`;
+    text.textContent = "Offline - Data will sync when connected";
+  }
 }
 
 function renderSidebar({ role, activeKey }) {
@@ -220,4 +259,45 @@ export function initAppShell({ role, active } = {}) {
   renderSidebar({ role: safe, activeKey: String(active ?? "") });
   renderTopbar({ role: safe });
   wireMobileSidebar();
+  
+  // Initialize network status indicator (prevent duplicates)
+  const existingIndicator = document.getElementById("network-status");
+  if (!existingIndicator) {
+    createNetworkStatusIndicator();
+    updateNetworkStatus(navigator.onLine);
+  }
+  
+  // Add connectivity listeners (prevent duplicates)
+  if (!window._shellCleanup) {
+    const cleanupConnectivity = addConnectivityListeners(
+      () => {
+        updateNetworkStatus(true);
+        showToast("Back online - syncing data", "success");
+      },
+      () => {
+        updateNetworkStatus(false);
+        showToast("You are offline - changes will be synced when connected", "warning");
+      }
+    );
+    window._shellCleanup = cleanupConnectivity;
+  }
+
+  // Store cleanup function for page unload
+  window._shellCleanupFn = () => {
+    if (window._shellCleanup) {
+      window._shellCleanup();
+      window._shellCleanup = null;
+    }
+  };
 }
+
+export function updateNetworkStatusIndicator(online) {
+  updateNetworkStatus(online);
+}
+
+export default {
+  initAppShell,
+  setShellProfile,
+  setShellNotificationsCount,
+  updateNetworkStatusIndicator,
+};

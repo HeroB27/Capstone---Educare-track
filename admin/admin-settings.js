@@ -1,4 +1,5 @@
 import { supabase } from "../core/core.js";
+import { button, checkbox, el, escapeHtml, openModal, selectInput, textArea, textInput } from "../core/ui.js";
 import { initAppShell } from "../core/shell.js";
 import { initAdminPage } from "./admin-common.js";
 
@@ -7,88 +8,10 @@ initAppShell({ role: "admin", active: "settings" });
 const settingsStatus = document.getElementById("settingsStatus");
 const settingsApp = document.getElementById("settingsApp");
 
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function el(tag, className, html) {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (html !== undefined) node.innerHTML = html;
-  return node;
-}
-
-function textInput({ value = "", type = "text", placeholder = "" } = {}) {
-  const i = document.createElement("input");
-  i.type = type;
-  i.value = value;
-  i.placeholder = placeholder;
-  i.className =
-    "w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200";
-  return i;
-}
-
 function numberInput({ value = "", placeholder = "" } = {}) {
   const i = textInput({ value, type: "number", placeholder });
-  i.min = "0";
+  i.min = "-60"; // Allow negative for debugging/testing
   return i;
-}
-
-function selectInput(options, value) {
-  const s = document.createElement("select");
-  s.className =
-    "w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200";
-  for (const o of options) {
-    const opt = document.createElement("option");
-    opt.value = o.value;
-    opt.textContent = o.label;
-    if (o.value === value) opt.selected = true;
-    s.appendChild(opt);
-  }
-  return s;
-}
-
-function checkbox(label, checked = false) {
-  const wrap = el("label", "inline-flex items-center gap-2 text-sm text-slate-700");
-  const c = document.createElement("input");
-  c.type = "checkbox";
-  c.checked = checked;
-  c.className = "h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500";
-  wrap.appendChild(c);
-  wrap.appendChild(document.createTextNode(label));
-  return { wrap, input: c };
-}
-
-function button(label, variant = "primary") {
-  const b = document.createElement("button");
-  b.type = "button";
-  if (variant === "primary") {
-    b.className = "rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700";
-  } else if (variant === "ghost") {
-    b.className = "rounded-xl px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50";
-  } else {
-    b.className =
-      "rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50";
-  }
-  b.textContent = label;
-  return b;
-}
-
-function openModal(contentEl) {
-  const overlay = el("div", "fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4");
-  const card = el("div", "w-full max-w-2xl rounded-2xl bg-white p-5 shadow-lg");
-  card.appendChild(contentEl);
-  overlay.appendChild(card);
-  overlay.addEventListener("click", (e) => {
-    if (e.target === overlay) overlay.remove();
-  });
-  document.body.appendChild(overlay);
-  return overlay;
 }
 
 async function loadRules() {
@@ -114,6 +37,25 @@ async function loadGatekeeperSetting() {
   const { data, error } = await supabase.from("system_settings").select("id,key,value").eq("key", "teacher_gatekeepers").maybeSingle();
   if (error) throw error;
   return data ?? null;
+}
+
+async function loadAttendanceSettings() {
+  const { data, error } = await supabase
+    .from("system_settings")
+    .select("id,key,value")
+    .in("key", ["school_start_time", "late_threshold_minutes"]);
+  if (error) throw error;
+  const map = new Map((data ?? []).map((r) => [r.key, r]));
+  return {
+    schoolStart: map.get("school_start_time") ?? null,
+    lateThreshold: map.get("late_threshold_minutes") ?? null,
+  };
+}
+
+function extractSettingValue(row) {
+  const v = row?.value;
+  if (v && typeof v === "object" && "value" in v) return v.value;
+  return v ?? null;
 }
 
 function openRuleModal({ mode, rule, onSaved }) {
@@ -143,6 +85,10 @@ function openRuleModal({ mode, rule, onSaved }) {
   const cancelBtn = button("Cancel", "ghost");
   const saveBtn = button("Save", "primary");
   saveBtn.type = "submit";
+
+  // Create overlay first to avoid variable shadowing issues
+  const overlay = openModal(content);
+
   cancelBtn.addEventListener("click", () => overlay.remove());
   actions.appendChild(cancelBtn);
   actions.appendChild(saveBtn);
@@ -182,17 +128,69 @@ function openRuleModal({ mode, rule, onSaved }) {
   content.appendChild(form);
   content.appendChild(errorBox);
   content.appendChild(actions);
-  const overlay = openModal(content);
 }
 
 async function render() {
   settingsStatus.textContent = "Loading…";
   settingsApp.replaceChildren();
 
-  const [rules, teachers, gateSetting] = await Promise.all([loadRules(), loadTeachers(), loadGatekeeperSetting()]);
+  const [rules, teachers, gateSetting, attendanceSettings] = await Promise.all([
+    loadRules(),
+    loadTeachers(),
+    loadGatekeeperSetting(),
+    loadAttendanceSettings(),
+  ]);
   const selectedIds = new Set(Array.isArray(gateSetting?.value?.teacher_ids) ? gateSetting.value.teacher_ids : []);
 
-  const rulesBox = el("div", "rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200");
+  const attBox = el("div", "surface");
+  attBox.appendChild(el("div", "text-sm font-semibold text-slate-900", "School attendance settings"));
+  attBox.appendChild(el("div", "mt-1 text-sm text-slate-600", "Used for late detection: Late if tap-in is after start time plus the threshold."));
+
+  const startTime = textInput({
+    type: "time",
+    value: String(extractSettingValue(attendanceSettings.schoolStart) ?? "07:30"),
+  });
+  const threshold = numberInput({
+    value: String(extractSettingValue(attendanceSettings.lateThreshold) ?? 15),
+    placeholder: "15",
+  });
+
+  const grid = el("div", "mt-4 grid gap-4 md:grid-cols-2");
+  grid.appendChild(el("div", "space-y-1", '<label class="block text-sm font-medium text-slate-700">School start time</label>'));
+  grid.lastChild.appendChild(startTime);
+  grid.appendChild(el("div", "space-y-1", '<label class="block text-sm font-medium text-slate-700">Late threshold (minutes)</label>'));
+  grid.lastChild.appendChild(threshold);
+  attBox.appendChild(grid);
+
+  const attActions = el("div", "mt-4 flex justify-end");
+  const saveAtt = button("Save attendance settings", "primary");
+  attActions.appendChild(saveAtt);
+  attBox.appendChild(attActions);
+
+  saveAtt.addEventListener("click", async () => {
+    saveAtt.disabled = true;
+    settingsStatus.textContent = "Saving…";
+    const start = startTime.value;
+    const mins = Number(threshold.value);
+    if (!start || !Number.isFinite(mins) || mins < 0) {
+      settingsStatus.textContent = "Start time is required and threshold must be 0 or more.";
+      saveAtt.disabled = false;
+      return;
+    }
+    const rows = [
+      { key: "school_start_time", value: { value: start } },
+      { key: "late_threshold_minutes", value: { value: mins } },
+    ];
+    const { error } = await supabase.from("system_settings").upsert(rows, { onConflict: "key" });
+    if (error) {
+      settingsStatus.textContent = error.message;
+      saveAtt.disabled = false;
+      return;
+    }
+    await render();
+  });
+
+  const rulesBox = el("div", "surface");
   const rulesHeader = el("div", "flex items-center justify-between");
   rulesHeader.appendChild(el("div", "text-sm font-semibold text-slate-900", "Attendance rules"));
   const addRuleBtn = button("Add rule", "secondary");
@@ -203,23 +201,25 @@ async function render() {
   if (!rules.length) {
     rulesTable.appendChild(el("div", "text-sm text-slate-600", "No rules yet."));
   } else {
-    const table = el("table", "w-full text-left text-sm");
-    table.innerHTML =
-      '<thead class="text-xs uppercase text-slate-500"><tr><th class="py-2 pr-4">Grade</th><th class="py-2 pr-4">Entry</th><th class="py-2 pr-4">Grace</th><th class="py-2 pr-4">Late</th><th class="py-2 pr-4">Min mins</th><th class="py-2 pr-4"></th></tr></thead>';
-    const tbody = el("tbody", "divide-y divide-slate-200");
+    const table = el("table", "table");
+    table.innerHTML = "<thead><tr><th>Grade</th><th>Entry</th><th>Grace</th><th>Late</th><th>Min mins</th><th></th></tr></thead>";
+    const tbody = el("tbody", "");
     for (const r of rules) {
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td class="py-3 pr-4 font-medium text-slate-900">${escapeHtml(r.grade_level)}</td>
-        <td class="py-3 pr-4 text-slate-700">${escapeHtml(r.entry_time)}</td>
-        <td class="py-3 pr-4 text-slate-700">${escapeHtml(r.grace_until)}</td>
-        <td class="py-3 pr-4 text-slate-700">${escapeHtml(r.late_until)}</td>
-        <td class="py-3 pr-4 text-slate-700">${escapeHtml(r.min_subject_minutes)}</td>
-        <td class="py-3 pr-4 text-right">
-          <button class="rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">Edit</button>
-        </td>
+        <td class="cell-strong">${escapeHtml(r.grade_level)}</td>
+        <td>${escapeHtml(r.entry_time)}</td>
+        <td>${escapeHtml(r.grace_until)}</td>
+        <td>${escapeHtml(r.late_until)}</td>
+        <td>${escapeHtml(r.min_subject_minutes)}</td>
+        <td></td>
       `;
-      tr.querySelector("button")?.addEventListener("click", () => openRuleModal({ mode: "edit", rule: r, onSaved: render }));
+      const edit = button("Edit", "secondary", "violet");
+      edit.classList.add("btn-sm");
+      edit.addEventListener("click", () => openRuleModal({ mode: "edit", rule: r, onSaved: render }));
+      const actions = el("div", "table-actions");
+      actions.appendChild(edit);
+      tr.children[5].appendChild(actions);
       tbody.appendChild(tr);
     }
     table.appendChild(tbody);
@@ -228,7 +228,7 @@ async function render() {
   rulesBox.appendChild(rulesTable);
   addRuleBtn.addEventListener("click", () => openRuleModal({ mode: "create", rule: null, onSaved: render }));
 
-  const gateBox = el("div", "mt-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200");
+  const gateBox = el("div", "mt-4 surface");
   gateBox.appendChild(el("div", "text-sm font-semibold text-slate-900", "Teacher gatekeepers"));
   gateBox.appendChild(el("div", "mt-1 text-sm text-slate-600", "Select teachers who can scan as gatekeepers (saved in system_settings)."));
 
@@ -251,18 +251,20 @@ async function render() {
 
   saveBtn.addEventListener("click", async () => {
     saveBtn.disabled = true;
+    settingsStatus.textContent = "Saving…";
     const teacherIds = checkboxes.filter((c) => c.input.checked).map((c) => c.id);
     const { error } = await supabase
       .from("system_settings")
       .upsert({ key: "teacher_gatekeepers", value: { teacher_ids: teacherIds } }, { onConflict: "key" });
     if (error) {
-      alert(error.message);
+      settingsStatus.textContent = error.message;
       saveBtn.disabled = false;
       return;
     }
     await render();
   });
 
+  settingsApp.appendChild(attBox);
   settingsApp.appendChild(rulesBox);
   settingsApp.appendChild(gateBox);
   settingsStatus.textContent = "Loaded settings.";
