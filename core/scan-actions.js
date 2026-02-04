@@ -137,20 +137,6 @@ function minutesFromDate(d) {
   return d.getHours() * 60 + d.getMinutes();
 }
 
-export async function lookupStudentByQr(qrCode) {
-  const qr = String(qrCode ?? "").trim();
-  if (!qr) return null;
-
-  const { data, error } = await supabase
-    .from("student_ids")
-    .select("student_id,students(id,full_name,grade_level,strand,class_id,parent_id,current_status)")
-    .eq("qr_code", qr)
-    .eq("is_active", true)
-    .single();
-
-  if (error) throw error;
-  return data?.students ?? null;
-}
 
 export async function loadAttendanceRule(gradeLevel) {
   const { data, error } = await supabase

@@ -29,9 +29,9 @@ async function loadPasses() {
 async function loadActiveVisits() {
   const { data, error } = await supabase
     .from("clinic_visits")
-    .select("id,student_id,treated_by,status,created_at,notes,students(full_name,grade_level,strand,parent_id)")
+    .select("id,student_id,treated_by,status,visit_time,notes,students(full_name,grade_level,strand,parent_id)")
     .eq("status", "in_clinic")
-    .order("created_at", { ascending: false })
+    .order("visit_time", { ascending: false })
     .limit(50);
   if (error) throw error;
   return data ?? [];
@@ -243,7 +243,7 @@ async function render(profileId) {
   } else {
     for (const v of visits) {
       const student = v.students?.full_name ?? "Student";
-      const meta = `${formatLocalDateTime(v.created_at)}${v.notes ? ` • ${escapeHtml(v.notes)}` : ""}`;
+      const meta = `${formatLocalDateTime(v.visit_time)}${v.notes ? ` • ${escapeHtml(v.notes)}` : ""}`;
       const linkedPass = passByVisitId.get(v.id) ?? null;
       const card = el("div", "rounded-2xl bg-slate-50 p-4");
       card.innerHTML = `
