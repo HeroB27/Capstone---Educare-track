@@ -159,7 +159,7 @@ async function loadClinicVisits(studentIds) {
   if (!studentIds.length) return [];
   const { data, error } = await supabase
     .from("clinic_visits")
-    .select("id,student_id,status,arrived_at,concluded_at,presenting_symptoms,notes")
+    .select("id,student_id,status,visit_time,reason,notes")
     .in("student_id", studentIds)
     .order("arrived_at", { ascending: false });
   if (error) throw error;
@@ -591,3 +591,4 @@ async function init() {
 }
 
 init();
+
