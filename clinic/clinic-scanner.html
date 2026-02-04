@@ -4,133 +4,109 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Educare Track | Clinic - Scanner</title>
-    <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#0f172a" />
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../core/theme.css" />
-  </head>
-  <body class="min-h-screen role-clinic bg-slate-900">
-    <!-- Header -->
-    <header class="fixed top-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-sm border-b border-slate-200">
-      <div class="flex items-center justify-between px-4 py-3 max-w-7xl mx-auto">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-lg bg-red-600 flex items-center justify-center">
-            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
-            </svg>
-          </div>
-          <div>
-            <h1 class="text-lg font-bold text-slate-900">Clinic Scanner</h1>
-            <p class="text-xs text-slate-500">Educare Track</p>
-          </div>
-        </div>
-        <div class="flex items-center gap-2">
-          <a href="./clinic-dashboard.html" class="px-3 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors">
-            Dashboard
-          </a>
-          <button id="signOutBtn" class="px-3 py-2 text-sm font-medium text-white bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors">
-            Sign out
-          </button>
-        </div>
-      </div>
-    </header>
-
-    <!-- Main Content -->
-    <main class="pt-16 min-h-screen">
-      <!-- Camera Section -->
-      <div class="relative h-[calc(100vh-64px)] lg:h-screen lg:fixed lg:inset-0 lg:pt-16">
-        <!-- Video Feed -->
-        <video 
-          id="camera" 
-          autoplay 
-          playsinline 
-          muted 
-          class="absolute inset-0 w-full h-full object-cover"
-        ></video>
-
-        <!-- Overlay Gradient -->
-        <div class="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-slate-900/40"></div>
-
-        <!-- Scan Panel - Top -->
-        <div class="absolute top-4 left-4 right-4 lg:left-auto lg:right-4 lg:w-96">
-          <div class="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-5">
-            <!-- Header -->
-            <div class="mb-4">
-              <h2 class="text-lg font-bold text-slate-900">Scan Student QR</h2>
-              <p class="text-sm text-slate-600">Logs clinic arrival and notifies teacher + parent.</p>
-            </div>
-
-            <!-- Notes Input -->
-            <div class="mb-4">
-              <label class="block text-sm font-medium text-slate-700 mb-1.5">Notes (optional)</label>
-              <textarea
-                id="notes"
-                rows="2"
-                class="w-full px-4 py-3 text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-300 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent resize-none"
-                placeholder="e.g., Headache, sent to bed rest"
-              ></textarea>
-            </div>
-
-            <!-- Status -->
-            <div id="statusBox" class="p-4 bg-slate-50 rounded-xl text-sm text-slate-700 border border-slate-200">
-              Starting camera…
-            </div>
-          </div>
-        </div>
-
-        <!-- Scan Frame Overlay -->
-        <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div class="w-64 h-64 lg:w-80 lg:h-80 border-4 border-white/50 rounded-3xl relative">
-            <!-- Corner markers -->
-            <div class="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-red-400 rounded-tl-xl"></div>
-            <div class="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-red-400 rounded-tr-xl"></div>
-            <div class="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-red-400 rounded-bl-xl"></div>
-            <div class="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-red-400 rounded-br-xl"></div>
-            <!-- Scan line animation -->
-            <div class="absolute inset-x-4 h-0.5 bg-gradient-to-r from-transparent via-red-400 to-transparent animate-scan"></div>
-          </div>
-        </div>
-
-        <!-- Manual Fallback - Bottom -->
-        <div class="absolute bottom-4 left-4 right-4 lg:left-auto lg:right-4 lg:w-96">
-          <div class="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-5">
-            <h3 class="text-sm font-semibold text-slate-900 mb-3">Manual Fallback</h3>
-            <div class="flex gap-2">
-              <input
-                id="manualQr"
-                type="text"
-                class="flex-1 px-4 py-3 text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-300 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                placeholder="Paste or type QR value"
-              />
-              <button 
-                id="manualBtn"
-                class="px-6 py-3 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all duration-200"
-              >
-                Submit
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </main>
-
-    <!-- Scan Animation CSS -->
+    <link rel="stylesheet" href="../core/vibrant-theme.css" />
     <style>
-      @keyframes scan {
-        0%, 100% {
-          top: 1rem;
-          opacity: 1;
-        }
-        50% {
-          top: calc(100% - 1rem);
-          opacity: 0.8;
-        }
-      }
-      .animate-scan {
-        animation: scan 2.5s ease-in-out infinite;
-      }
+      * { font-family: 'Inter', sans-serif; }
     </style>
+  </head>
+  <body class="min-h-screen role-clinic bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+    <!-- Sidebar Overlay for Mobile -->
+    <div id="sidebarOverlay" class="fixed inset-0 bg-slate-900/60 z-40 hidden lg:hidden backdrop-blur-sm"></div>
+
+    <!-- Topbar (Mobile) -->
+    <header id="topbar" class="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white/80 backdrop-blur-xl border-b border-white/20"></header>
+
+    <!-- App Shell -->
+    <div class="flex min-h-screen">
+      <!-- Sidebar -->
+      <aside id="appSidebar" class="hidden lg:flex lg:flex-col w-72 glass-sidebar text-white min-h-screen fixed left-0 top-0 z-50 transition-all duration-300"></aside>
+
+      <!-- Main Content -->
+      <main class="flex-1 lg:ml-72 pt-16 lg:pt-0">
+        <div class="p-4 lg:p-8">
+          <!-- Page Header -->
+          <div class="mb-8">
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div>
+                <h1 class="text-3xl lg:text-4xl font-bold text-slate-900">
+                  <span class="gradient-text">QR</span> Scanner
+                </h1>
+                <p class="mt-2 text-slate-600">Scan student ID cards to verify health passes</p>
+              </div>
+              <a href="./clinic-dashboard.html" class="px-5 py-2.5 rounded-xl bg-white/80 backdrop-blur-sm border border-white/20 shadow-sm hover:shadow-md transition-all flex items-center gap-2 text-slate-700 font-medium">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                </svg>
+                <span>Back</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- Scanner Area -->
+          <div class="grid lg:grid-cols-2 gap-6">
+            <!-- QR Scanner -->
+            <div class="glass-card rounded-3xl p-6 soft-shadow">
+              <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center">
+                  <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path>
+                  </svg>
+                </div>
+                <h3 class="text-lg font-bold text-slate-900">Camera Scanner</h3>
+              </div>
+              
+              <div id="reader" class="w-full rounded-2xl overflow-hidden bg-slate-900"></div>
+              
+              <div class="mt-4 flex gap-2">
+                <button id="startScanner" class="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 text-white font-medium shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/40 transition-all">
+                  Start
+                </button>
+                <button id="stopScanner" class="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-red-500 to-pink-500 text-white font-medium shadow-lg shadow-red-500/30 hover:shadow-red-500/40 transition-all" disabled>
+                  Stop
+                </button>
+              </div>
+            </div>
+
+            <!-- Scan Result -->
+            <div class="glass-card rounded-3xl p-6 soft-shadow">
+              <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center">
+                  <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                </div>
+                <h3 class="text-lg font-bold text-slate-900">Verification Result</h3>
+              </div>
+              
+              <div id="scanResult" class="text-center py-8">
+                <div class="w-20 h-20 mx-auto rounded-full bg-slate-100 flex items-center justify-center mb-4">
+                  <svg class="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path>
+                  </svg>
+                </div>
+                <p class="text-slate-500">Scan a student ID to verify</p>
+              </div>
+
+              <!-- Stats -->
+              <div class="grid grid-cols-2 gap-4 mt-6">
+                <div class="p-4 rounded-xl bg-emerald-50 border border-emerald-100">
+                  <p class="text-xs text-emerald-600">Valid Today</p>
+                  <p class="text-2xl font-bold text-emerald-700" id="validToday">0</p>
+                </div>
+                <div class="p-4 rounded-xl bg-red-50 border border-red-100">
+                  <p class="text-xs text-red-600">Invalid/Expired</p>
+                  <p class="text-2xl font-bold text-red-700" id="invalidToday">0</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
 
     <script type="module" src="./clinic-scanner.js"></script>
   </body>

@@ -493,6 +493,100 @@ export function deepClone(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
+// --- Enhanced Dashboard Components (New) ---
+
+export function createWelcomeBanner({ name, role, date = new Date() }) {
+  const banner = el("div", "glass-panel rounded-2xl p-6 mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4");
+  
+  const left = el("div");
+  const greeting = date.getHours() < 12 ? "Good morning" : date.getHours() < 18 ? "Good afternoon" : "Good evening";
+  left.innerHTML = `
+    <h1 class="text-2xl font-bold text-slate-900 font-display">${greeting}, ${escapeHtml(name)}</h1>
+    <p class="text-slate-600 mt-1">Here's what's happening in your school today.</p>
+  `;
+  
+  const right = el("div", "flex items-center gap-3 bg-white/50 px-4 py-2 rounded-xl border border-white/60");
+  const dateStr = date.toLocaleDateString("en-US", { weekday: 'long', month: 'long', day: 'numeric' });
+  right.innerHTML = `
+    <svg width="20" height="20" class="text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+    <span class="text-sm font-medium text-slate-700">${dateStr}</span>
+  `;
+  
+  banner.appendChild(left);
+  banner.appendChild(right);
+  return banner;
+}
+
+export function createKPICard({ label, value, trend, trendLabel, icon }) {
+  const card = el("div", "kpi-card relative overflow-hidden");
+  
+  // Use theme gradient via CSS variable or fallback
+  card.style.background = `var(--theme-gradient, linear-gradient(135deg, #6366f1 0%, #a855f7 100%))`;
+  
+  const content = el("div", "relative z-10");
+  
+  const header = el("div", "flex items-start justify-between");
+  const iconBox = el("div", "p-2 bg-white/20 rounded-lg backdrop-blur-sm");
+  iconBox.innerHTML = icon || `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`;
+  
+  header.appendChild(iconBox);
+  
+  if (trend) {
+    const isPositive = trend > 0;
+    const trendBadge = el("div", `flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full ${isPositive ? 'bg-white/20 text-white' : 'bg-red-500/20 text-white'}`);
+    trendBadge.innerHTML = `
+      <span>${isPositive ? '↑' : '↓'} ${Math.abs(trend)}%</span>
+    `;
+    header.appendChild(trendBadge);
+  }
+  
+  const body = el("div", "mt-4");
+  body.innerHTML = `
+    <div class="text-3xl font-bold font-display tracking-tight">${escapeHtml(value)}</div>
+    <div class="text-sm opacity-90 font-medium mt-1">${escapeHtml(label)}</div>
+    ${trendLabel ? `<div class="text-xs opacity-75 mt-2">${escapeHtml(trendLabel)}</div>` : ''}
+  `;
+  
+  content.appendChild(header);
+  content.appendChild(body);
+  card.appendChild(content);
+  
+  return card;
+}
+
+export function createChartContainer({ title, subtitle, action }) {
+  const container = el("div", "dashboard-card flex flex-col h-full");
+  
+  const header = el("div", "flex items-center justify-between mb-6");
+  const titleBox = el("div");
+  titleBox.innerHTML = `
+    <h3 class="text-lg font-bold text-slate-900 font-display">${escapeHtml(title)}</h3>
+    ${subtitle ? `<p class="text-sm text-slate-500">${escapeHtml(subtitle)}</p>` : ''}
+  `;
+  header.appendChild(titleBox);
+  
+  if (action) {
+    header.appendChild(action);
+  }
+  
+  container.appendChild(header);
+  
+  const body = el("div", "flex-1 min-h-[300px] relative");
+  // Placeholder for chart library integration
+  body.innerHTML = `
+    <div class="absolute inset-0 flex items-center justify-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+      <div class="text-center">
+        <svg class="w-10 h-10 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path></svg>
+        <span class="text-sm">Chart Visualization Area</span>
+      </div>
+    </div>
+  `;
+  
+  container.appendChild(body);
+  
+  return { container, body };
+}
+
 // Export all utilities
 export default {
   escapeHtml,
@@ -528,5 +622,8 @@ export default {
   debounce,
   throttle,
   generateId,
-  deepClone
+  deepClone,
+  createWelcomeBanner,
+  createKPICard,
+  createChartContainer
 };

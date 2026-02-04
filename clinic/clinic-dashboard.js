@@ -11,7 +11,7 @@ const signOutBtn = document.getElementById("signOutBtn");
 const clinicStatus = document.getElementById("clinicStatus");
 const clinicApp = document.getElementById("clinicApp");
 
-signOutBtn.addEventListener("click", async () => {
+signOutBtn?.addEventListener("click", async () => {
   await signOut();
   redirectToLogin();
 });
@@ -184,8 +184,8 @@ function openDoneModal({ clinicId, pass, onSaved }) {
 }
 
 async function render(profileId) {
-  clinicStatus.textContent = "Loading…";
-  clinicApp.replaceChildren();
+  if (clinicStatus) clinicStatus.textContent = "Loading…";
+  clinicApp?.replaceChildren();
 
   // Fetch data
   const [visits, passes] = await Promise.all([loadActiveVisits(), loadPasses()]);
@@ -268,7 +268,7 @@ async function render(profileId) {
           await updateVisit(v.id, { status: "done" });
           await render(profileId);
         } catch (e) {
-          clinicStatus.textContent = e?.message ?? "Failed to close visit.";
+          if (clinicStatus) clinicStatus.textContent = e?.message ?? "Failed to close visit.";
         }
       });
       visitsList.appendChild(card);
@@ -309,7 +309,7 @@ async function render(profileId) {
   clinicApp.appendChild(pendingSection);
 
   refreshBtn.addEventListener("click", () => render(profileId));
-  clinicStatus.textContent = `Loaded ${visits.length} active visit(s) and ${pending.length} pending pass(es).`;
+  if (clinicStatus) clinicStatus.textContent = `Loaded ${visits.length} active visit(s) and ${pending.length} pending pass(es).`;
 }
 
 let currentProfile = null;
@@ -334,8 +334,8 @@ async function init() {
   }
 
   currentProfile = profile;
-  profileBadge.textContent = `${profile.full_name} • ${profile.role}`;
-  profileBadge.classList.remove("hidden");
+  if (profileBadge) profileBadge.textContent = `${profile.full_name} • ${profile.role}`;
+  if (profileBadge) profileBadge.classList.remove("hidden");
   setShellProfile({ fullName: profile.full_name, role: profile.role });
   const { count } = await fetchUnreadNotificationsCount(profile.id);
   setShellNotificationsCount(count ?? 0);
@@ -343,7 +343,7 @@ async function init() {
   try {
     await render(profile.id);
   } catch (e) {
-    clinicStatus.textContent = e?.message ?? "Failed to load clinic passes.";
+    if (clinicStatus) clinicStatus.textContent = e?.message ?? "Failed to load clinic passes.";
   }
 
   cleanup();

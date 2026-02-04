@@ -4,79 +4,183 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Educare Track | Parent - Dashboard</title>
-    <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#0f172a" />
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../core/theme.css" />
+    <link rel="stylesheet" href="../core/vibrant-theme.css" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
+    <style>
+      * { font-family: 'Inter', sans-serif; }
+    </style>
   </head>
-  <body class="min-h-screen role-parent bg-slate-50">
+  <body class="min-h-screen role-parent bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
     <!-- Sidebar Overlay for Mobile -->
-    <div id="sidebarOverlay" class="fixed inset-0 bg-slate-900/50 z-40 hidden lg:hidden"></div>
+    <div id="sidebarOverlay" class="fixed inset-0 bg-slate-900/60 z-40 hidden lg:hidden backdrop-blur-sm"></div>
 
     <!-- Topbar (Mobile) -->
-    <header id="topbar" class="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200"></header>
+    <header id="topbar" class="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white/80 backdrop-blur-xl border-b border-white/20"></header>
 
     <!-- App Shell -->
     <div class="flex min-h-screen">
       <!-- Sidebar -->
-      <aside id="appSidebar" class="hidden lg:flex lg:flex-col w-64 bg-slate-900 text-white min-h-screen"></aside>
+      <aside id="appSidebar" class="hidden lg:flex lg:flex-col w-72 glass-sidebar text-white min-h-screen fixed left-0 top-0 z-50 transition-all duration-300"></aside>
 
       <!-- Main Content -->
-      <main class="flex-1 lg:ml-0 pt-16 lg:pt-0">
-        <div class="p-4 lg:p-8 max-w-7xl mx-auto">
+      <main class="flex-1 lg:ml-72 pt-16 lg:pt-0">
+        <div class="p-4 lg:p-8">
           <!-- Page Header -->
           <div class="mb-8">
-            <h1 class="text-2xl lg:text-3xl font-bold text-slate-900">Dashboard</h1>
-            <p class="mt-1 text-slate-600">Live status, attendance history, and notifications</p>
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div>
+                <h1 class="text-3xl lg:text-4xl font-bold text-slate-900">
+                  Good <span class="gradient-text">morning!</span> 👋
+                </h1>
+                <p class="mt-2 text-slate-600">Track your child's attendance and school activities</p>
+              </div>
+            </div>
           </div>
 
-          <div class="grid lg:grid-cols-[1fr_360px] gap-6">
-            <!-- Main Content Area -->
-            <div class="space-y-6">
-              <!-- Status Card -->
-              <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
-                <div class="flex items-center justify-between mb-4">
-                  <h2 class="text-lg font-semibold text-slate-900">Children Overview</h2>
-                  <span id="parentStatus" class="text-sm text-slate-500">Loading…</span>
-                </div>
-                <div id="parentApp" class="space-y-4"></div>
+          <!-- Child Info Card -->
+          <div class="glass-card rounded-3xl p-6 soft-shadow mb-8">
+            <div class="flex items-center gap-4">
+              <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center text-white text-2xl font-bold">
+                <span id="childInitial">C</span>
               </div>
+              <div class="flex-1">
+                <h2 class="text-xl font-bold text-slate-900" id="childName">Loading...</h2>
+                <p class="text-slate-600" id="childGrade">—</p>
+              </div>
+              <div class="text-right">
+                <p class="text-sm text-slate-500">Today's Status</p>
+                <p class="text-lg font-bold text-emerald-600" id="todayStatus">—</p>
+              </div>
+            </div>
+          </div>
 
-              <!-- Calendar Section -->
-              <div id="calendarSection" class="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
-                <!-- Calendar will be rendered here by JS -->
+          <!-- Stats Row -->
+          <section class="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+            <div class="glass-card rounded-2xl p-5 soft-shadow scale-hover">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-500 flex items-center justify-center">
+                  <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500">Present Days</p>
+                  <p class="text-2xl font-bold text-slate-900" id="presentDays">—</p>
+                </div>
               </div>
             </div>
 
-            <!-- Sidebar - Notifications & Announcements -->
-            <div class="space-y-6">
-              <!-- Notifications Card -->
-              <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-200 sticky top-24">
-                <div class="flex items-center justify-between mb-4">
-                  <div class="flex items-center gap-2">
-                    <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
-                    </svg>
-                    <h2 class="text-base font-semibold text-slate-900">Notifications</h2>
-                  </div>
-                  <span id="notifStatus" class="text-xs text-slate-500 px-2 py-1 bg-slate-100 rounded-full">Loading…</span>
+            <div class="glass-card rounded-2xl p-5 soft-shadow scale-hover">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center">
+                  <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
                 </div>
-                <div id="notifApp" class="space-y-3 max-h-80 overflow-y-auto"></div>
+                <div>
+                  <p class="text-xs text-slate-500">Late Arrivals</p>
+                  <p class="text-2xl font-bold text-slate-900" id="lateDays">—</p>
+                </div>
               </div>
+            </div>
 
-              <!-- Announcements Card -->
-              <div class="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
-                <div class="flex items-center justify-between mb-4">
-                  <div class="flex items-center gap-2">
-                    <svg class="w-5 h-5 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"></path>
-                    </svg>
-                    <h2 class="text-base font-semibold text-slate-900">Announcements</h2>
-                  </div>
-                  <span id="announceStatus" class="text-xs text-slate-500 px-2 py-1 bg-slate-100 rounded-full">Loading…</span>
+            <div class="glass-card rounded-2xl p-5 soft-shadow scale-hover">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-red-400 to-red-500 flex items-center justify-center">
+                  <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
                 </div>
-                <div id="announceApp" class="space-y-3 max-h-80 overflow-y-auto"></div>
+                <div>
+                  <p class="text-xs text-slate-500">Absent Days</p>
+                  <p class="text-2xl font-bold text-slate-900" id="absentDays">—</p>
+                </div>
               </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-5 soft-shadow scale-hover">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center">
+                  <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500">Attendance Rate</p>
+                  <p class="text-2xl font-bold text-slate-900" id="attendanceRate">—</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Quick Actions -->
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <a href="./parent-excuse-upload.html" class="glass-card rounded-2xl p-5 soft-shadow scale-hover group hover:bg-white/80 transition-all">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                  </svg>
+                </div>
+                <div>
+                  <p class="font-semibold text-slate-900">Upload Excuse</p>
+                  <p class="text-xs text-slate-500">Submit letter</p>
+                </div>
+              </div>
+            </a>
+
+            <div class="glass-card rounded-2xl p-5 soft-shadow scale-hover">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-500 flex items-center justify-center">
+                  <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <p class="font-semibold text-slate-900">Present Today</p>
+                  <p class="text-xs text-slate-500" id="presentStatus">—</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-5 soft-shadow scale-hover">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center">
+                  <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <p class="font-semibold text-slate-900">This Week</p>
+                  <p class="text-xs text-slate-500" id="weekStatus">—</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-5 soft-shadow scale-hover">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center">
+                  <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <p class="font-semibold text-slate-900">Pending</p>
+                  <p class="text-xs text-slate-500" id="pendingExcuse">0 excuses</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Recent Activity -->
+          <div class="glass-card rounded-3xl p-6 soft-shadow">
+            <h3 class="text-lg font-bold text-slate-900 mb-4">Recent Activity</h3>
+            <div id="activityList" class="space-y-3">
+              <p class="text-slate-500 text-center py-8">Loading...</p>
             </div>
           </div>
         </div>
