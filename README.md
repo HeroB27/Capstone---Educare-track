@@ -2,6 +2,48 @@
 
 A comprehensive web-based school management system with role-based access control, real-time attendance tracking, and integrated clinic/guard workflows.
 
+---
+
+## 🎯 Quick Start: How to Open the System
+
+### Step 1: Navigate to the Project
+Open the `Educare Track` folder in your file explorer (or VS Code):
+```
+C:\Users\Lenovo\Desktop\OFFICIAL EDUCARE TRACK
+```
+
+### Step 2: Open the Login Page
+
+**Option 1: Direct File Open**
+1. Go to the `auth` folder
+2. Double-click on `login.html`
+3. The system will open in your default browser
+
+**Option 2: Using VS Code Live Server**
+1. Open the project in VS Code
+2. Install "Live Server" extension if not installed
+3. Right-click on `auth/login.html` → "Open with Live Server"
+
+**Option 3: Using Python HTTP Server**
+1. Open terminal/command prompt
+2. Navigate to the project folder
+3. Run: `python -m http.server 8000`
+4. Open browser: `http://localhost:8000/auth/login.html`
+
+### Step 3: Login
+Use the default credentials below:
+
+| Role    | Email                | Password    |
+|---------|----------------------|-------------|
+| Admin   | admin@educare.edu    | admin123    |
+| Teacher | teacher@educare.edu  | teacher123  |
+| Parent  | parent@educare.edu   | parent123   |
+| Guard   | guard@educare.edu    | guard123    |
+| Clinic  | clinic@educare.edu   | clinic123   |
+
+---
+
+
 ## 🚀 Features
 
 - **Multi-role Dashboard**: Admin, Teacher, Parent, Guard, Clinic roles
