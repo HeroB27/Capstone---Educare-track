@@ -17,23 +17,33 @@ signOutBtn?.addEventListener("click", async () => {
 });
 
 async function loadPasses() {
+  console.log('[DEBUG] Loading clinic passes from database...');
   const { data, error } = await supabase
     .from("clinic_passes")
     .select("id,student_id,clinic_visit_id,issued_by,reason,status,issued_at,students(full_name,grade_level,strand,parent_id)")
     .order("issued_at", { ascending: false })
     .limit(50);
-  if (error) throw error;
+  if (error) {
+    console.error('[DEBUG] Error loading passes:', error);
+    throw error;
+  }
+  console.log('[DEBUG] Loaded passes:', data?.length ?? 0, 'records');
   return data ?? [];
 }
 
 async function loadActiveVisits() {
+  console.log('[DEBUG] Loading active clinic visits...');
   const { data, error } = await supabase
     .from("clinic_visits")
     .select("id,student_id,treated_by,status,visit_time,notes,students(full_name,grade_level,strand,parent_id)")
     .eq("status", "in_clinic")
     .order("visit_time", { ascending: false })
     .limit(50);
-  if (error) throw error;
+  if (error) {
+    console.error('[DEBUG] Error loading visits:', error);
+    throw error;
+  }
+  console.log('[DEBUG] Loaded active visits:', data?.length ?? 0, 'records');
   return data ?? [];
 }
 
@@ -190,14 +200,31 @@ async function render(profileId) {
   // Fetch data
   const [visits, passes] = await Promise.all([loadActiveVisits(), loadPasses()]);
   
+  console.log('[DEBUG] Processing analytics:', { visitsCount: visits.length, passesCount: passes.length });
+  
   // Calculate statistics
   const today = new Date().toISOString().slice(0, 10);
-  const visitsToday = passes.filter(v => v.created_at?.startsWith(today)).length;
+  // clinic_passes uses issued_at (no created_at/updated_at in schema)
+  const visitsToday = passes.filter(v => v.issued_at?.startsWith(today)).length;
   const activeVisitsCount = visits.length;
   const pendingCount = passes.filter(p => String(p.status ?? "pending").toLowerCase() === "pending").length;
+  const approvedCount = passes.filter(p => String(p.status ?? "pending").toLowerCase() === "approved").length;
   const completedToday = passes.filter(p => 
-    p.status?.toLowerCase() === "done" && p.updated_at?.startsWith(today)
+    p.status?.toLowerCase() === "done" && p.issued_at?.startsWith(today)
   ).length;
+
+  console.log('[DEBUG] Statistics calculated:', { visitsToday, activeVisitsCount, pendingCount, approvedCount, completedToday });
+
+  // Update HTML stat elements (these exist in the HTML)
+  const approvedCountEl = document.getElementById("approvedCount");
+  const pendingCountEl = document.getElementById("pendingCount");
+  const activeCountEl = document.getElementById("activeCount");
+  const todayVisitsEl = document.getElementById("todayVisits");
+  
+  if (approvedCountEl) approvedCountEl.textContent = approvedCount;
+  if (pendingCountEl) pendingCountEl.textContent = pendingCount;
+  if (activeCountEl) activeCountEl.textContent = activeVisitsCount;
+  if (todayVisitsEl) todayVisitsEl.textContent = visitsToday;
 
   // Statistics Cards
   const statsSection = el("div", "grid grid-cols-2 md:grid-cols-4 gap-3 mb-6");
