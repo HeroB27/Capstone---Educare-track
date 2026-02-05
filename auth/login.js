@@ -94,7 +94,7 @@ signOutBtn.addEventListener("click", async () => {
 
 async function tryAutoRedirect() {
   const { profile } = await requireAuthAndProfile();
-  if (profile?.role) {
+  if (profile?.role && profile.is_active) {
     signOutBtn.classList.remove("hidden");
     redirectToDashboard(profile.role);
   }

@@ -459,7 +459,7 @@ async function init() {
           plugins: { legend: { display: false } },
           scales: {
             x: { grid: { display: false }, ticks: { display: false } },
-            y: { min: 80, max: 100, grid: { color: "rgba(0,0,0,0.05)" } },
+            y: { min: 0, max: 100, grid: { color: "rgba(0,0,0,0.05)" } },
           },
           interaction: { intersect: false, mode: "index" },
         },

@@ -1,7 +1,7 @@
 import { fetchUnreadNotificationsCount, supabase, redirectToDashboard, redirectToLogin, requireAuthAndProfile, signOut } from "../core/core.js";
 import { initAppShell, setShellNotificationsCount, setShellProfile } from "../core/shell.js";
 import { button, el, escapeHtml, formatLocalDateTime, openModal, textArea } from "../core/ui.js";
-import { createClinicVisit, notify, updateClinicPass } from "../core/scan-actions.js";
+import { createClinicVisit, notify, updateClinicPass, NOTIFICATION_VERBS } from "../core/scan-actions.js";
 import { registerPwa } from "../core/pwa.js";
 
 initAppShell({ role: "clinic", active: "pass-approval" });
@@ -24,18 +24,6 @@ async function loadPendingPasses() {
 
 const createVisit = createClinicVisit;
 const updatePass = updateClinicPass;
-
-async function notifyTeacher({ clinicId, teacherId, verb, object }) {
-  if (!teacherId) return;
-  const { error } = await supabase.from("notifications").insert({
-    recipient_id: teacherId,
-    actor_id: clinicId,
-    verb,
-    object,
-    read: false,
-  });
-  if (error) throw error;
-}
 
 function openApproveModal({ clinicId, pass, onSaved }) {
   const content = el("div", "");
@@ -62,10 +50,11 @@ function openApproveModal({ clinicId, pass, onSaved }) {
         notes: notes.value.trim(),
       });
       await updatePass(pass.id, { status: "approved", clinic_visit_id: visitId });
-      await notifyTeacher({
-        clinicId,
-        teacherId: pass.issued_by,
-        verb: "clinic_pass_approved",
+      // Notify teacher who issued the pass
+      await notify({
+        recipientId: pass.issued_by,
+        actorId: clinicId,
+        verb: NOTIFICATION_VERBS.CLINIC_PASS_APPROVED,
         object: { pass_id: pass.id, student_id: pass.student_id, clinic_visit_id: visitId },
       });
       await notify({
@@ -133,10 +122,10 @@ function openRejectModal({ clinicId, pass, onSaved }) {
       });
       
       // Notify issuing teacher
-      await notifyTeacher({
-        clinicId,
-        teacherId: pass.issued_by,
-        verb: "clinic_pass_rejected",
+      await notify({
+        recipientId: pass.issued_by,
+        actorId: clinicId,
+        verb: NOTIFICATION_VERBS.PASS_REJECTED,
         object: { 
           pass_id: pass.id, 
           student_id: pass.student_id, 
@@ -149,7 +138,7 @@ function openRejectModal({ clinicId, pass, onSaved }) {
       await notify({
         recipientId: pass.students?.parent_id,
         actorId: clinicId,
-        verb: "clinic_pass_rejected",
+        verb: NOTIFICATION_VERBS.PASS_REJECTED,
         object: { 
           pass_id: pass.id, 
           student_id: pass.student_id, 

@@ -81,7 +81,7 @@ function computeArrivalStatus(rule) {
   if (grace === null || lateUntil === null) return "present";
   if (current <= grace) return "present";
   if (current <= lateUntil) return "late";
-  return "late";
+  return "absent"; // Fixed: was returning "late" instead of "absent"
 }
 
 async function lookupStudentByQr(qr) {

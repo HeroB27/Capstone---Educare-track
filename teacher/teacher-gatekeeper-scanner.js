@@ -12,6 +12,7 @@ const signOutBtn = document.getElementById("signOutBtn");
 
 let currentProfile = null;
 let scanner = null;
+let scanningLocked = false;
 
 signOutBtn.addEventListener("click", async () => {
   await signOut();
@@ -76,15 +77,21 @@ async function checkSystemSettingsFallback(profileId) {
 
 async function handleQr(data) {
   if (!currentProfile) return;
+  if (scanningLocked) return;
+  scanningLocked = true;
 
   const qr = String(data ?? "").trim();
-  if (!qr) return;
+  if (!qr) {
+    scanningLocked = false;
+    return;
+  }
 
   setStatus("Processing…");
   try {
     const student = await lookupStudentByQr(qr);
     if (!student) {
       setStatus("Student not found for that QR.");
+      scanningLocked = false;
       return;
     }
 
@@ -96,14 +103,17 @@ async function handleQr(data) {
 
     if (res.result === "duplicate") {
       setStatus(`Duplicate ignored: ${student.full_name}`);
+      scanningLocked = false;
       return;
     }
     if (res.result === "blocked") {
       setStatus(res.event?.title ? `No classes today: ${res.event.title}` : "No classes today.");
+      scanningLocked = false;
       return;
     }
     if (res.result === "rejected") {
       setStatus(res.reason === "no_in" ? "Tap out rejected: no tap-in recorded today." : "Tap rejected.");
+      scanningLocked = false;
       return;
     }
 
@@ -115,6 +125,9 @@ async function handleQr(data) {
   } catch (e) {
     setStatus(e?.message ?? "Failed to record tap.");
   }
+  
+  // Release lock after 2 seconds to prevent duplicate scans
+  setTimeout(() => scanningLocked = false, 2000);
 }
 
 manualBtn.addEventListener("click", async () => {

@@ -30,6 +30,11 @@ export function parseStudentID(qrCode) {
     return { valid: false, studentId: null, year: null, last4Lrn: null, sequence: null, error: "QR code is empty" };
   }
   
+  // MANDATORY: Check EDU- prefix first for fast rejection
+  if (!qr.startsWith("EDU-")) {
+    return { valid: false, studentId: null, year: null, last4Lrn: null, sequence: null, error: "Invalid ID - must start with EDU-" };
+  }
+  
   // Validate using pattern from config
   const pattern = STUDENT_ID_FORMAT.PARSE_PATTERN;
   const match = qr.match(pattern);
@@ -493,6 +498,19 @@ export async function recordClinicArrival({ clinicStaffId, student, notes }) {
     await updateClinicPass(pass.id, { status: nextStatus, clinic_visit_id: visitId });
   }
 
+  // Insert tap_log for clinic arrival
+  console.log("[ClinicArrival] Inserting tap_log for clinic arrival");
+  await insertTapLog({
+    studentId: student.id,
+    gatekeeperId: clinicStaffId,
+    tapType: "in",
+    status: "clinic",
+    remarks: "Clinic arrival" + (pass?.id ? ` (pass: ${pass.id})` : ""),
+  });
+
+  // Update student current status
+  await updateStudentCurrentStatus({ studentId: student.id, status: "in_clinic" });
+
   // Notify teacher who issued the pass
   if (pass?.issued_by) {
     console.log("[ClinicArrival] Notifying teacher:", pass.issued_by);
@@ -520,6 +538,101 @@ export async function recordClinicArrival({ clinicStaffId, student, notes }) {
   });
 
   return { result: "ok", pass, clinicVisitId: visitId };
+}
+
+export async function recordClinicDeparture({ clinicStaffId, student, notes }) {
+  console.log("[ClinicDeparture] Processing clinic departure", {
+    clinicStaffId,
+    studentId: student?.id,
+    studentName: student?.full_name,
+    notes,
+    timestamp: new Date().toISOString()
+  });
+  
+  if (!student?.id) {
+    console.error("[ClinicDeparture] Student not found");
+    throw new Error("Student not found.");
+  }
+
+  // Find the current clinic visit
+  const { data: visit, error: visitError } = await supabase
+    .from("clinic_visits")
+    .select("id, status")
+    .eq("student_id", student.id)
+    .in("status", ["in_clinic", "waiting"])
+    .order("created_at", { ascending: false })
+    .limit(1);
+    
+  if (visitError) {
+    console.error("[ClinicDeparture] Error fetching visit:", visitError);
+    throw visitError;
+  }
+  
+  const currentVisit = visit?.[0];
+  
+  if (!currentVisit) {
+    console.log("[ClinicDeparture] No active clinic visit found for student");
+    // Still create a tap_log for departure even without a visit
+  }
+
+  // Update visit status
+  if (currentVisit) {
+    console.log("[ClinicDeparture] Updating visit status to completed:", currentVisit.id);
+    await updateClinicVisit(currentVisit.id, { 
+      status: "completed", 
+      notes: notes?.trim() || null,
+      treated_by: clinicStaffId
+    });
+  }
+
+  // Insert tap_log for clinic departure
+  console.log("[ClinicDeparture] Inserting tap_log for clinic departure");
+  await insertTapLog({
+    studentId: student.id,
+    gatekeeperId: clinicStaffId,
+    tapType: "out",
+    status: "clinic",
+    remarks: "Clinic departure" + (currentVisit ? ` (visit: ${currentVisit.id})` : ""),
+  });
+
+  // Update student current status back to in
+  await updateStudentCurrentStatus({ studentId: student.id, status: "in" });
+
+  // Notify teacher who issued the pass
+  const pass = await loadLatestPass(student.id);
+  if (pass?.issued_by) {
+    console.log("[ClinicDeparture] Notifying teacher:", pass.issued_by);
+    await notify({
+      recipientId: pass.issued_by,
+      actorId: clinicStaffId,
+      verb: NOTIFICATION_VERBS.CLINIC_EXIT,
+      object: { 
+        student_id: student.id, 
+        clinic_visit_id: currentVisit?.id ?? null, 
+        timestamp: new Date().toISOString() 
+      },
+    });
+  }
+
+  // Notify parent of departure
+  console.log("[ClinicDeparture] Notifying parent:", student.parent_id);
+  await notify({
+    recipientId: student.parent_id,
+    actorId: clinicStaffId,
+    verb: NOTIFICATION_VERBS.CLINIC_EXIT,
+    object: { 
+      student_id: student.id, 
+      clinic_visit_id: currentVisit?.id ?? null, 
+      timestamp: new Date().toISOString() 
+    },
+  });
+
+  console.log("[ClinicDeparture] Clinic departure recorded successfully", {
+    visitId: currentVisit?.id,
+    studentId: student.id
+  });
+
+  return { result: "ok", visit: currentVisit };
 }
 
 /**

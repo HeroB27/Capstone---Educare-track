@@ -13,6 +13,7 @@ const signOutBtn = document.getElementById("signOutBtn");
 let currentProfile = null;
 let scanner = null;
 let confirmationOverlay = null;
+let scanningLocked = false;
 
 function escapeHtml(text) {
   if (!text) return "";
@@ -102,15 +103,21 @@ function setStatus(message) {
 
 async function handleQr(data) {
   if (!currentProfile) return;
+  if (scanningLocked) return;
+  scanningLocked = true;
 
   const qr = String(data ?? "").trim();
-  if (!qr) return;
+  if (!qr) {
+    scanningLocked = false;
+    return;
+  }
 
   setStatus("Processing…");
   try {
     const student = await lookupStudentByQr(qr);
     if (!student) {
       setStatus("Student not found for that QR.");
+      scanningLocked = false;
       return;
     }
 
@@ -132,6 +139,9 @@ async function handleQr(data) {
   } catch (e) {
     setStatus(e?.message ?? "Failed to record clinic arrival.");
   }
+  
+  // Release lock after 2 seconds to prevent duplicate scans
+  setTimeout(() => scanningLocked = false, 2000);
 }
 
 manualBtn.addEventListener("click", async () => {
