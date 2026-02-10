@@ -16,9 +16,10 @@ const recentApp = document.getElementById("recentApp");
 const gateOpenBtn = document.getElementById("gateOpenBtn");
 const gateClosedBtn = document.getElementById("gateClosedBtn");
 const gateStatus = document.getElementById("gateStatus");
-const statTapIn = document.getElementById("statTapIn");
-const statTapOut = document.getElementById("statTapOut");
-const statInSchool = document.getElementById("statInSchool");
+const statTapIn = document.getElementById("arrivedCount");
+const statTapOut = document.getElementById("departedCount");
+const statInSchool = document.getElementById("insideCount");
+const statScansToday = document.getElementById("scansToday");
 const alertsStatus = document.getElementById("alertsStatus");
 const alertsApp = document.getElementById("alertsApp");
 
@@ -271,21 +272,28 @@ let channel = null;
  */
 async function loadTodayStats() {
   const today = new Date().toISOString().slice(0, 10);
+  console.log('[DEBUG] Loading guard tap statistics for:', today);
+  
   const { data: taps, error } = await supabase
     .from("tap_logs")
-    .select("tap_type,status")
+    .select("tap_type,status,timestamp")
     .gte("timestamp", `${today}T00:00:00`)
     .lte("timestamp", `${today}T23:59:59`);
   
   if (error) {
-    console.error("[Stats] Failed to load tap stats:", error.message);
-    return { tapIn: 0, tapOut: 0, inSchool: 0 };
+    console.error('[DEBUG] Failed to load tap stats:', error.message);
+    return { tapIn: 0, tapOut: 0, inSchool: 0, totalScans: 0 };
   }
+  
+  console.log('[DEBUG] Loaded tap logs:', taps?.length ?? 0);
   
   const tapIn = taps?.filter(t => t.tap_type === "in" && t.status !== "duplicate").length ?? 0;
   const tapOut = taps?.filter(t => t.tap_type === "out" && t.status !== "duplicate").length ?? 0;
+  const totalScans = taps?.filter(t => t.status !== "duplicate").length ?? 0;
   
-  return { tapIn, tapOut, inSchool: tapIn - tapOut };
+  console.log('[DEBUG] Statistics:', { tapIn, tapOut, totalScans, inSchool: tapIn - tapOut });
+  
+  return { tapIn, tapOut, inSchool: tapIn - tapOut, totalScans };
 }
 
 /**
@@ -360,9 +368,11 @@ async function refresh(profileId) {
   renderRecent(rows);
   
   // Update statistics cards
+  console.log('[DEBUG] Updating HTML stat elements...');
   if (statTapIn) statTapIn.textContent = stats.tapIn;
   if (statTapOut) statTapOut.textContent = stats.tapOut;
   if (statInSchool) statInSchool.textContent = stats.inSchool;
+  if (statScansToday) statScansToday.textContent = stats.totalScans;
   
   // Update alerts
   renderAlerts(alerts);

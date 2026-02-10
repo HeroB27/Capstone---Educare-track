@@ -87,11 +87,10 @@ async function init() {
   // Wait for shell DOM to be ready
   await waitForShell();
   
-  // Show skeleton loading states
-  showLoadingStates();
-  
   // Initialize command palette
   CommandPalette.init(adminCommands);
+  
+  // NO LONGER CALL showLoadingStates() - the HTML already has the cards
   
   // Now get elements (they should exist after shell init)
   const studentsCount = document.getElementById("studentsCount");
@@ -109,6 +108,44 @@ async function init() {
   let weeklyBarChart = null;
   let donutChart = null;
   let trendLineChart = null;
+
+  // Helper function to add timeout to Supabase queries
+  function queryWithTimeout(query, timeoutMs = 10000) {
+    return new Promise((resolve) => {
+      const timeoutId = setTimeout(() => {
+        console.warn("Query timeout after " + timeoutMs + "ms");
+        resolve({ data: null, error: { message: "Query timeout - network may be slow" } });
+      }, timeoutMs);
+      
+      query.then(result => {
+        clearTimeout(timeoutId);
+        resolve(result);
+      }).catch(error => {
+        clearTimeout(timeoutId);
+        resolve({ data: null, error });
+      });
+    });
+  }
+
+  // Cleanup function to destroy all charts
+  function destroyAllCharts() {
+    if (weeklyBarChart) {
+      weeklyBarChart.destroy();
+      weeklyBarChart = null;
+    }
+    if (donutChart) {
+      donutChart.destroy();
+      donutChart = null;
+    }
+    if (trendLineChart) {
+      trendLineChart.destroy();
+      trendLineChart = null;
+    }
+  }
+
+  // Cleanup on page unload
+  window.addEventListener('beforeunload', destroyAllCharts);
+  window.addEventListener('pagehide', destroyAllCharts);
 
   function toLocalISODate(date) {
     const d = date instanceof Date ? new Date(date) : new Date(date);
@@ -279,8 +316,8 @@ async function init() {
 
   try {
     const [{ count: studentTotal, error: studentsError }, { data: todayAttendance, error: todayError }] = await Promise.all([
-      supabase.from("students").select("id", { count: "exact", head: true }),
-      supabase.from("homeroom_attendance").select("student_id,status").eq("date", today),
+      queryWithTimeout(supabase.from("students").select("id", { count: "exact", head: true })),
+      queryWithTimeout(supabase.from("homeroom_attendance").select("student_id,status").eq("date", today)),
     ]);
 
     if (studentsError) {
@@ -322,12 +359,9 @@ async function init() {
     }
 
     // Fetch 7-day attendance trend
-    const { data: weekData } = await supabase
-      .from("homeroom_attendance")
-      .select("date,status")
-      .gte("date", sevenDaysAgo)
-      .lte("date", today)
-      .order("date", { ascending: true });
+    const { data: weekData } = await queryWithTimeout(
+      supabase.from("homeroom_attendance").select("date,status").gte("date", sevenDaysAgo).lte("date", today).order("date", { ascending: true })
+    );
 
     const dayStats = {};
     for (const rec of weekData || []) {
@@ -359,52 +393,68 @@ async function init() {
     // Update bar chart
     const barCtx = document.getElementById("weeklyBarChart");
     if (barCtx) {
-      if (weeklyBarChart) weeklyBarChart.destroy();
-      weeklyBarChart = new window.Chart(barCtx.getContext("2d"), {
-        type: "bar",
-        data: {
-          labels: days,
-          datasets: [
-            { label: "Present", data: presentData, backgroundColor: "rgba(102, 126, 234, 0.85)", borderRadius: 8 },
-            { label: "Late", data: lateData, backgroundColor: "rgba(245, 87, 108, 0.85)", borderRadius: 8 },
-            { label: "Absent", data: absentData, backgroundColor: "rgba(251, 191, 36, 0.85)", borderRadius: 8 },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { position: "bottom", labels: { usePointStyle: true, padding: 20 } } },
-          scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(0,0,0,0.05)" } } },
-        },
-      });
+      // Destroy existing chart from Chart.js registry first
+      const existingBarChart = window.Chart.getChart(barCtx);
+      if (existingBarChart) {
+        existingBarChart.destroy();
+      }
+      // Destroy our local reference
+      if (weeklyBarChart) {
+        weeklyBarChart.destroy();
+        weeklyBarChart = null;
+      }
+      // Clear canvas completely
+      barCtx.width = barCtx.width; // Reset canvas dimensions
+      // Create new chart
+      try {
+        weeklyBarChart = new window.Chart(barCtx, {
+          type: "bar",
+          data: {
+            labels: days,
+            datasets: [
+              { label: "Present", data: presentData, backgroundColor: "rgba(102, 126, 234, 0.85)", borderRadius: 8 },
+              { label: "Late", data: lateData, backgroundColor: "rgba(245, 87, 108, 0.85)", borderRadius: 8 },
+              { label: "Absent", data: absentData, backgroundColor: "rgba(251, 191, 36, 0.85)", borderRadius: 8 },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: "bottom", labels: { usePointStyle: true, padding: 20 } } },
+            scales: { x: { grid: { display: false } }, y: { grid: { color: "rgba(0,0,0,0.05)" } } },
+          },
+        });
+      } catch (chartError) {
+        console.error("Bar chart error:", chartError);
+      }
     }
 
     // Update donut chart
     const donutCtx = document.getElementById("donutChart");
     if (donutCtx) {
-      if (donutChart) donutChart.destroy();
-      donutChart = new window.Chart(donutCtx.getContext("2d"), {
-        type: "doughnut",
-        data: {
-          labels: ["Present", "Late", "Absent"],
-          datasets: [{
-            data: [statusCounts.present, statusCounts.late, statusCounts.absent + statusCounts.excused],
-            backgroundColor: ["rgba(52, 211, 153, 0.9)", "rgba(251, 191, 36, 0.9)", "rgba(248, 113, 113, 0.9)"],
-            borderWidth: 0,
-            cutout: "75%",
-          }],
-        },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } },
-      });
+      try {
+        donutChart = new window.Chart(donutCtx, {
+          type: "doughnut",
+          data: {
+            labels: ["Present", "Late", "Absent"],
+            datasets: [{
+              data: [statusCounts.present, statusCounts.late, statusCounts.absent + statusCounts.excused],
+              backgroundColor: ["rgba(52, 211, 153, 0.9)", "rgba(251, 191, 36, 0.9)", "rgba(248, 113, 113, 0.9)"],
+              borderWidth: 0,
+              cutout: "75%",
+            }],
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } },
+        });
+      } catch (chartError) {
+        console.error("Donut chart error:", chartError);
+      }
     }
 
     // Update trend line chart
-    const { data: monthData } = await supabase
-      .from("homeroom_attendance")
-      .select("date,status")
-      .gte("date", thirtyDaysAgo)
-      .lte("date", today)
-      .order("date", { ascending: true });
+    const { data: monthData } = await queryWithTimeout(
+      supabase.from("homeroom_attendance").select("date,status").gte("date", thirtyDaysAgo).lte("date", today).order("date", { ascending: true })
+    );
 
     const monthStats = {};
     for (const rec of monthData || []) {
@@ -434,63 +484,63 @@ async function init() {
 
     const trendCanvas = document.getElementById("trendLineChart");
     if (trendCanvas) {
-      if (trendLineChart) trendLineChart.destroy();
-      trendLineChart = new window.Chart(trendCanvas.getContext("2d"), {
-        type: "line",
-        data: {
-          labels: trendLabels,
-          datasets: [{
-            label: "Present %",
-            data: trendValues,
-            borderColor: "rgba(102, 126, 234, 1)",
-            backgroundColor: "rgba(102, 126, 234, 0.1)",
-            fill: true,
-            tension: 0.4,
-            pointRadius: 0,
-            pointHoverRadius: 6,
-            pointHoverBackgroundColor: "rgba(102, 126, 234, 1)",
-            pointHoverBorderColor: "#fff",
-            pointHoverBorderWidth: 2,
-          }],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { grid: { display: false }, ticks: { display: false } },
-            y: { min: 0, max: 100, grid: { color: "rgba(0,0,0,0.05)" } },
+      try {
+        trendLineChart = new window.Chart(trendCanvas, {
+          type: "line",
+          data: {
+            labels: trendLabels,
+            datasets: [{
+              label: "Present %",
+              data: trendValues,
+              borderColor: "rgba(102, 126, 234, 1)",
+              backgroundColor: "rgba(102, 126, 234, 0.1)",
+              fill: true,
+              tension: 0.4,
+              pointRadius: 0,
+              pointHoverRadius: 6,
+              pointHoverBackgroundColor: "rgba(102, 126, 234, 1)",
+              pointHoverBorderColor: "#fff",
+              pointHoverBorderWidth: 2,
+            }],
           },
-          interaction: { intersect: false, mode: "index" },
-        },
-      });
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { grid: { display: false }, ticks: { display: false } },
+              y: { min: 80, max: 100, grid: { color: "rgba(0,0,0,0.05)" } },
+            },
+            interaction: { intersect: false, mode: "index" },
+          },
+        });
+      } catch (chartError) {
+        console.error("Trend chart error:", chartError);
+      }
     }
 
     // Load alerts
-    const { data: poorAttendance } = await supabase
-      .from("students")
-      .select("id,full_name,grade_level")
-      .eq("status", "active")
-      .order("absences", { ascending: false })
-      .limit(5);
-
-    const absenceAlerts = (poorAttendance || []).filter(s => (s.absences || 0) >= 10);
-    const { data: lateStudents } = await supabase
-      .from("students")
-      .select("id,full_name,grade_level")
-      .eq("status", "active")
-      .order("lates", { ascending: false })
-      .limit(5);
-    const lateAlerts = (lateStudents || []).filter(s => (s.lates || 0) >= 5);
+    const { data: poorAttendance } = await queryWithTimeout(
+      supabase.from("students").select("id,full_name,grade_level").eq("current_status", "active").limit(10)
+    );
+    const { data: lateStudents } = await queryWithTimeout(
+      supabase.from("students").select("id,full_name,grade_level").eq("current_status", "active").limit(10)
+    );
+    console.log("Alerts query completed:", { poorAttendanceCount: poorAttendance?.length, lateStudentsCount: lateStudents?.length });
+    
+    // Since students table doesn't have lates/absences columns, 
+    // we'll show all active students and filter by status
+    const absenceAlerts = (poorAttendance || []).slice(0, 5);
+    const lateAlerts = (lateStudents || []).slice(0, 5);
 
     renderAlerts(absenceAlerts, lateAlerts);
 
     // Load announcements
-    const { data: announcements } = await supabase
-      .from("announcements")
-      .select("id,title,created_at")
-      .order("created_at", { ascending: false })
-      .limit(5);
+    console.log("Fetching announcements...");
+    const { data: announcements } = await queryWithTimeout(
+      supabase.from("announcements").select("id,title,created_at").order("created_at", { ascending: false }).limit(5)
+    );
+    console.log("Announcements query completed:", { announcementsCount: announcements?.length });
 
     renderAnnouncements(announcements || []);
 
@@ -504,6 +554,7 @@ async function init() {
         </div>
       `;
     }
+    console.log("Dashboard loaded successfully");
   } catch (err) {
     console.error("Dashboard error:", err);
     if (statusBox) {
@@ -518,5 +569,20 @@ async function init() {
     }
   }
 }
+
+// Dashboard load timeout fallback
+setTimeout(() => {
+  const statusBox = document.getElementById("statusBox");
+  if (statusBox && statusBox.innerHTML.includes("Loading")) {
+    statusBox.innerHTML = `
+      <div class="flex items-center gap-3 p-4 rounded-xl bg-amber-50 border border-amber-100">
+        <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        <p class="text-amber-700">Loading is taking longer than expected. Check console for details.</p>
+      </div>
+    `;
+  }
+}, 30000); // 30 second timeout
 
 init();

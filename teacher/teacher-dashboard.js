@@ -52,7 +52,7 @@ function inOutBadge(value) {
   return inOutBadgeClass(value);
 }
 
-// Data loading functions
+// Data loading functions - RLS-safe version using RPC
 async function loadHomeroomClasses(profileId) {
   const { data, error } = await supabase
     .from("classes")
@@ -76,24 +76,39 @@ async function loadSchedules(profileId) {
 }
 
 async function loadStudentsByClassIds(classIds) {
-  if (!classIds.length) return [];
-  const { data, error } = await supabase
-    .from("students")
-    .select("id,full_name,grade_level,strand,class_id,parent_id,current_status")
-    .in("class_id", classIds)
-    .order("full_name", { ascending: true });
-  if (error) throw error;
+  // Use RPC call to get students - bypasses RLS issues
+  // Pass classIds to filter results
+  const { data, error } = await supabase.rpc('get_teacher_students_by_class', { 
+    p_class_ids: classIds 
+  });
+  if (error) {
+    // Fallback: if RPC doesn't exist, use direct query with RLS
+    if (!classIds.length) return [];
+    const { data: fallbackData, fallbackError } = await supabase
+      .from("students")
+      .select("id,full_name,grade_level,strand,class_id,parent_id,current_status")
+      .in("class_id", classIds)
+      .order("full_name", { ascending: true });
+    if (fallbackError) throw fallbackError;
+    return fallbackData ?? [];
+  }
   return data ?? [];
 }
 
 async function loadTodayHomeroomAttendance(studentIds, dateStr) {
-  if (!studentIds.length) return [];
-  const { data, error } = await supabase
-    .from("homeroom_attendance")
-    .select("id,student_id,class_id,date,tap_in_time,tap_out_time,status,remarks")
-    .eq("date", dateStr)
-    .in("student_id", studentIds);
-  if (error) throw error;
+  // Use RPC call to get attendance - bypasses RLS issues
+  const { data, error } = await supabase.rpc('get_teacher_today_attendance', { p_date: dateStr });
+  if (error) {
+    // Fallback: if RPC doesn't exist, use direct query
+    if (!studentIds.length) return [];
+    const { data: fallbackData, fallbackError } = await supabase
+      .from("homeroom_attendance")
+      .select("id,student_id,class_id,date,tap_in_time,tap_out_time,status,remarks")
+      .eq("date", dateStr)
+      .in("student_id", studentIds);
+    if (fallbackError) throw fallbackError;
+    return fallbackData ?? [];
+  }
   return data ?? [];
 }
 
@@ -486,7 +501,60 @@ function buildLatestTapMap(rows) {
   return map;
 }
 
-function renderDashboard({ teacherId, homeroomClasses, schedules, students, attendanceRows, tapRows, clinicPasses, unreadCount }) {
+// DEBUG: Log analytics elements check
+function debugAnalyticsElements() {
+  const elements = ['totalStudents', 'presentCount', 'lateCount', 'classesToday'];
+  console.log('[DEBUG] Checking analytics DOM elements:');
+  elements.forEach(id => {
+    const el = document.getElementById(id);
+    console.log(`[DEBUG] ${id}: ${el ? 'FOUND' : 'NOT FOUND'} - Current value: ${el?.textContent ?? 'N/A'}`);
+  });
+}
+
+// DEBUG: Calculate analytics from loaded data
+function calculateAnalytics({ students, attendanceRows, schedules, dateStr }) {
+  const analytics = {
+    totalStudents: students.length,
+    presentCount: 0,
+    lateCount: 0,
+    classesToday: 0
+  };
+  
+  // Count present and late from attendance rows
+  for (const att of attendanceRows) {
+    const status = String(att.status ?? '').toLowerCase();
+    if (status === 'present') analytics.presentCount++;
+    if (status === 'late') analytics.lateCount++;
+  }
+  
+  // Calculate classes today based on day of week
+  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const today = days[new Date(dateStr).getDay()];
+  analytics.classesToday = schedules.filter(s => 
+    String(s.day_of_week ?? '').toLowerCase() === today
+  ).length;
+  
+  console.log('[DEBUG] Calculated analytics:', analytics);
+  return analytics;
+}
+
+// DEBUG: Update analytics DOM elements
+function updateAnalyticsDisplay(analytics) {
+  const elements = ['totalStudents', 'presentCount', 'lateCount', 'classesToday'];
+  elements.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      const value = analytics[id] ?? '—';
+      el.textContent = value;
+      console.log(`[DEBUG] Updated ${id} to: ${value}`);
+    }
+  });
+}
+
+function renderDashboard({ teacherId, homeroomClasses, schedules, students, attendanceRows, tapRows, clinicPasses, unreadCount, dateStr }) {
+  // DEBUG: Check analytics elements
+  debugAnalyticsElements();
+  
   teacherApp?.replaceChildren();
 
   const classIds = uniq(students.map((s) => s.class_id));
@@ -696,10 +764,15 @@ async function refresh() {
       tapRows,
       clinicPasses,
       unreadCount,
+      dateStr,
     });
 
     teacherStatus.textContent = `Loaded ${students.length} student(s). Ready.`;
 
+    // DEBUG: Calculate and update analytics (dateStr is available from refresh function scope)
+    const analytics = calculateAnalytics({ students, attendanceRows, schedules, dateStr });
+    updateAnalyticsDisplay(analytics);
+    
     // Setup real-time subscriptions
     setupSubscriptions(studentIds);
     

@@ -12,13 +12,34 @@ const profileBadge = document.getElementById("profileBadge");
 const signOutBtn = document.getElementById("signOutBtn");
 
 async function loadPendingPasses() {
+  console.log('[DEBUG] Loading pending clinic passes...');
   const { data, error } = await supabase
     .from("clinic_passes")
     .select("id,student_id,clinic_visit_id,issued_by,reason,status,issued_at,students(full_name,grade_level,strand,parent_id)")
     .eq("status", "pending")
     .order("issued_at", { ascending: false })
     .limit(100);
-  if (error) throw error;
+  if (error) {
+    console.error('[DEBUG] Error loading pending passes:', error);
+    throw error;
+  }
+  console.log('[DEBUG] Loaded pending passes:', data?.length ?? 0);
+  return data ?? [];
+}
+
+async function loadAllPassesForStats() {
+  console.log('[DEBUG] Loading all clinic passes for statistics...');
+  // Load all passes to calculate stats (pending, approved, rejected)
+  const { data, error } = await supabase
+    .from("clinic_passes")
+    .select("id,status,issued_at")
+    .order("issued_at", { ascending: false })
+    .limit(200);
+  if (error) {
+    console.error('[DEBUG] Error loading all passes:', error);
+    throw error;
+  }
+  console.log('[DEBUG] Loaded all passes for stats:', data?.length ?? 0);
   return data ?? [];
 }
 
@@ -115,11 +136,8 @@ function openRejectModal({ clinicId, pass, onSaved }) {
     rejectBtn.disabled = true;
 
     try {
-      await updatePass(pass.id, { 
-        status: "rejected", 
-        rejection_reason: reason,
-        rejected_at: new Date().toISOString()
-      });
+      // Update status to rejected (reject_reason stored in notes field since it's not in schema)
+      await updatePass(pass.id, { status: "rejected", notes: reason });
       
       // Notify issuing teacher
       await notify({
@@ -174,7 +192,28 @@ async function render(profile) {
   approvalStatus.textContent = "Loading…";
   approvalApp.replaceChildren();
 
-  const passes = await loadPendingPasses();
+  // Load pending passes and all passes for stats
+  const [pendingPasses, allPasses] = await Promise.all([loadPendingPasses(), loadAllPassesForStats()]);
+  
+  console.log('[DEBUG] Processing pass approval analytics...');
+  
+  // Calculate statistics from all passes
+  const pendingCount = allPasses.filter(p => String(p.status ?? "pending").toLowerCase() === "pending").length;
+  const approvedCount = allPasses.filter(p => String(p.status ?? "pending").toLowerCase() === "approved").length;
+  const rejectedCount = allPasses.filter(p => String(p.status ?? "pending").toLowerCase() === "rejected").length;
+
+  console.log('[DEBUG] Statistics:', { pendingCount, approvedCount, rejectedCount });
+
+  // Update HTML stat elements
+  const pendingCountEl = document.getElementById("pendingCount");
+  const approvedCountEl = document.getElementById("approvedCount");
+  const rejectedCountEl = document.getElementById("rejectedCount");
+  
+  if (pendingCountEl) pendingCountEl.textContent = pendingCount;
+  if (approvedCountEl) approvedCountEl.textContent = approvedCount;
+  if (rejectedCountEl) rejectedCountEl.textContent = rejectedCount;
+
+  const passes = pendingPasses;
   if (!passes.length) {
     approvalApp.appendChild(el("div", "text-sm text-slate-600", "No pending passes."));
     approvalStatus.textContent = "Ready.";
