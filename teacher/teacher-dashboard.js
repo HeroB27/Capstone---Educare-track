@@ -145,17 +145,6 @@ async function loadClinicPasses(studentIds, limit = 20) {
   return data ?? [];
 }
 
-async function hasActiveClinicVisit(studentId) {
-  const { data, error } = await supabase
-    .from("clinic_visits")
-    .select("id")
-    .eq("student_id", studentId)
-    .eq("status", "in_clinic")
-    .limit(1);
-  if (error) throw error;
-  return (data?.length ?? 0) > 0;
-}
-
 async function hasApprovedExcuse({ studentId, dateStr }) {
   const { data, error } = await supabase
     .from("excuse_letters")
