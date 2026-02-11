@@ -63,7 +63,7 @@ async function uploadFile({ parentId, studentId, file }) {
   return path;
 }
 
-async function createExcuseLetter({ parentId, studentId, absentDate, reason, attachment }) {
+async function createExcuseLetter({ parentId, studentId, absentDate, reason }) {
   const { data, error } = await supabase
     .from("excuse_letters")
     .insert({
@@ -72,9 +72,6 @@ async function createExcuseLetter({ parentId, studentId, absentDate, reason, att
       absent_date: absentDate,
       reason,
       status: "pending",
-      attachment_path: attachment.path,
-      attachment_name: attachment.name,
-      attachment_mime: attachment.mime,
     })
     .select("id")
     .limit(1);
@@ -209,11 +206,6 @@ async function render(profileId) {
         studentId: selectedChildId,
         absentDate: absenceDate.value,
         reason: reasonSelect.value + (description.value ? ": " + description.value : ""),
-        attachment: file ? { 
-          path: attachmentPath, 
-          name: file.name, 
-          mime: file.type || null 
-        } : null
       });
 
       const teacherId = await findHomeroomTeacherIdForClass(selectedChild.class_id);

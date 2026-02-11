@@ -106,7 +106,7 @@ async function loadTapLogs(studentIds, limit = 250) {
   if (!studentIds.length) return [];
   const { data, error } = await supabase
     .from("tap_logs")
-    .select("id,student_id,tap_type,timestamp,status,remarks")
+    .select("id,student_id,tap_type,timestamp,gatekeeper_id")
     .in("student_id", studentIds)
     .order("timestamp", { ascending: false })
     .limit(limit);
@@ -117,7 +117,7 @@ async function loadTapLogs(studentIds, limit = 250) {
 async function loadNotifications(profileId, limit = 30) {
   const { data, error } = await supabase
     .from("notifications")
-    .select("id,actor_id,verb,object,read,created_at")
+    .select("id,recipient_id,verb,read,created_at")
     .eq("recipient_id", profileId)
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -215,7 +215,7 @@ async function loadTeacherDetails(teacherId) {
 async function loadClinicVisits(studentId, limit = 10) {
   const { data, error } = await supabase
     .from("clinic_visits")
-    .select("id,student_id,reason,findings,disposition,created_at,updated_at")
+    .select("id,student_id,reason,notes,status,created_at,entry_timestamp,exit_timestamp")
     .eq("student_id", studentId)
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -226,7 +226,7 @@ async function loadClinicVisits(studentId, limit = 10) {
 async function loadDetailedTapLogs(studentId, limit = 20) {
   const { data, error } = await supabase
     .from("tap_logs")
-    .select("id,student_id,tap_type,timestamp,status,remarks,scanner_id")
+    .select("id,student_id,tap_type,timestamp,gatekeeper_id")
     .eq("student_id", studentId)
     .order("timestamp", { ascending: false })
     .limit(limit);
