@@ -1,0 +1,9 @@
+date: 2026-02-11
+time: 18:45
+user: Trae Assistant
+action: Update seed script to reset passwords for existing auth users and reseed test users
+table: auth.users, profiles, students
+column: email, password, username, role, full_name, phone, parent_id
+old value: Existing auth users without updated password for User ID login
+new value: Auth users reset to Password123! with @educare.local emails matching User IDs
+command that was used to make the change: node scripts/seed-test-users.mjs

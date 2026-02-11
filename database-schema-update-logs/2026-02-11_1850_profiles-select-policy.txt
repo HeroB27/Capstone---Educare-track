@@ -1,0 +1,9 @@
+date: 2026-02-11
+time: 18:50
+user: Trae Assistant
+action: ADD
+table: public.profiles
+column: SELECT policy
+old value: No authenticated SELECT policy (login fetch blocked)
+new value: profiles_select_authenticated policy added; SELECT granted to authenticated
+command that was used to make the change: apply_patch

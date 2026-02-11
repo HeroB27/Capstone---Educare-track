@@ -8,6 +8,10 @@ function getEnv(name) {
   return value && String(value).trim() ? String(value).trim() : null;
 }
 
+function emailFromUsername(username) {
+  return `${String(username ?? "").trim().toLowerCase()}@educare.local`;
+}
+
 function getJwtRole(token) {
   const parts = String(token ?? "").split(".");
   if (parts.length < 2) return null;
@@ -70,7 +74,14 @@ async function createOrGetUserId(adminClient, { email, password }) {
   if (!error && data?.user?.id) return data.user.id;
 
   const existingId = await findUserIdByEmail(adminClient, email);
-  if (existingId) return existingId;
+  if (existingId) {
+    const { error: updateError } = await adminClient.auth.admin.updateUserById(existingId, {
+      email,
+      password,
+    });
+    if (updateError) throw updateError;
+    return existingId;
+  }
 
   throw error ?? new Error("Failed to create user.");
 }
@@ -105,35 +116,30 @@ async function main() {
       username: "ADM-2026-0001-0001",
       role: "admin",
       full_name: "Test Administrator",
-      email: "admin.test@educare.local",
       phone: "+639123456789"
     },
     {
       username: "TCH-2026-0001-0001", 
       role: "teacher",
       full_name: "Test Teacher",
-      email: "teacher.test@educare.local",
       phone: "+639123456780"
     },
     {
       username: "PAR-2026-0001-0001",
       role: "parent", 
       full_name: "Test Parent",
-      email: "parent.test@educare.local",
       phone: "+639123456781"
     },
     {
       username: "GRD-2026-0001-0001",
       role: "guard",
       full_name: "Test Guard",
-      email: "guard.test@educare.local", 
       phone: "+639123456782"
     },
     {
       username: "CLC-2026-0001-0001",
       role: "clinic",
       full_name: "Test Clinic Staff",
-      email: "clinic.test@educare.local",
       phone: "+639123456783"
     }
   ];
@@ -141,8 +147,9 @@ async function main() {
   console.log("Creating test users...");
   
   for (const u of testUsers) {
+    const email = emailFromUsername(u.username);
     const userId = await createOrGetUserId(adminClient, { 
-      email: u.email, 
+      email, 
       password: commonPassword 
     });
 
@@ -150,20 +157,21 @@ async function main() {
       id: userId,
       full_name: u.full_name,
       username: u.username,
-      email: u.email,
+      email,
       phone: u.phone,
       role: u.role,
       is_active: true,
       is_gatekeeper: u.role === "guard", // Set gatekeeper flag for guards
     });
 
-    console.log(`✓ Created ${u.role}: ${u.full_name} (${u.email})`);
+    console.log(`✓ Created ${u.role}: ${u.full_name} (${email})`);
   }
 
   // Create a test student linked to the parent
   console.log("\nCreating test student...");
   const parentUser = testUsers.find(u => u.role === "parent");
-  const parentUserId = await findUserIdByEmail(adminClient, parentUser.email);
+  const parentEmail = emailFromUsername(parentUser.username);
+  const parentUserId = await findUserIdByEmail(adminClient, parentEmail);
   
   const testStudent = {
     id: "550e8400-e29b-41d4-a716-446655440001", // Fixed UUID for consistency
@@ -185,14 +193,15 @@ async function main() {
   console.log("\n👥 User Accounts:");
   
   testUsers.forEach(u => {
-    console.log(`- ${u.role.toUpperCase()}: ${u.email} (${u.full_name})`);
+    const email = emailFromUsername(u.username);
+    console.log(`- ${u.role.toUpperCase()}: ${email} (${u.full_name})`);
   });
   
   console.log("\n👨‍🎓 Test Student:");
   console.log(`- Name: ${testStudent.full_name}`);
   console.log(`- LRN: ${testStudent.lrn}`);
   console.log(`- Grade: ${testStudent.grade_level} ${testStudent.strand}`);
-  console.log(`- Parent: ${parentUser.full_name} (${parentUser.email})`);
+  console.log(`- Parent: ${parentUser.full_name} (${parentEmail})`);
   
   console.log("\n🔗 Access the system at: /auth/login.html");
 }

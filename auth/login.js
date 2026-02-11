@@ -118,6 +118,7 @@ loginForm.addEventListener("submit", async (e) => {
     return;
   }
 
+  // [Date Checked: 2026-02-11] | [Remarks: Login profile fetch validated with updated profiles SELECT policy.]
   const { profile, error: profileError } = await fetchMyProfile();
   if (profileError) {
     await signOut();
