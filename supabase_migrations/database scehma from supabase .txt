@@ -1,0 +1,227 @@
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
+
+CREATE TABLE public.announcements (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  title text,
+  body text,
+  audience_teachers boolean,
+  audience_parents boolean,
+  audience_guard boolean,
+  audience_clinic boolean,
+  created_by uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  audience_staff boolean DEFAULT false,
+  CONSTRAINT announcements_pkey PRIMARY KEY (id),
+  CONSTRAINT announcements_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.attendance_rules (
+  grade_level text NOT NULL,
+  entry_time time without time zone,
+  grace_until time without time zone,
+  late_until time without time zone,
+  CONSTRAINT attendance_rules_pkey PRIMARY KEY (grade_level)
+);
+CREATE TABLE public.classes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  grade_level text NOT NULL,
+  strand text,
+  homeroom_teacher_id uuid,
+  room text,
+  subject_teachers ARRAY DEFAULT '{}'::uuid[],
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT classes_pkey PRIMARY KEY (id),
+  CONSTRAINT classes_homeroom_teacher_id_fkey FOREIGN KEY (homeroom_teacher_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.clinic_passes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  student_id uuid,
+  issued_by uuid,
+  status text DEFAULT 'pending'::text,
+  created_at timestamp with time zone DEFAULT now(),
+  pass_type text DEFAULT 'regular'::text CHECK (pass_type = ANY (ARRAY['regular'::text, 'emergency'::text])),
+  urgency text CHECK (urgency = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text])),
+  teacher_notes text,
+  CONSTRAINT clinic_passes_pkey PRIMARY KEY (id),
+  CONSTRAINT clinic_passes_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.students(id),
+  CONSTRAINT clinic_passes_issued_by_fkey FOREIGN KEY (issued_by) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.clinic_visits (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  student_id uuid,
+  reason text,
+  notes text,
+  status text DEFAULT 'in_clinic'::text CHECK (status = ANY (ARRAY['pending'::text, 'in_clinic'::text, 'treated'::text, 'teacher_approval'::text, 'parent_notified'::text, 'completed'::text, 'referred'::text, 'sent_home'::text])),
+  created_at timestamp with time zone DEFAULT now(),
+  entry_timestamp timestamp with time zone DEFAULT now(),
+  exit_timestamp timestamp with time zone,
+  symptoms text,
+  diagnosis text,
+  treatment_notes text,
+  follow_up_required boolean DEFAULT false,
+  teacher_approved boolean DEFAULT false,
+  teacher_approval_timestamp timestamp with time zone,
+  parent_notified boolean DEFAULT false,
+  parent_notification_timestamp timestamp with time zone,
+  visit_type text DEFAULT 'regular'::text CHECK (visit_type = ANY (ARRAY['regular'::text, 'emergency'::text, 'follow_up'::text])),
+  severity text CHECK (severity = ANY (ARRAY['mild'::text, 'moderate'::text, 'severe'::text])),
+  action_taken text CHECK (action_taken = ANY (ARRAY['rest'::text, 'medication'::text, 'sent_home'::text, 'referred'::text, 'hospitalized'::text])),
+  CONSTRAINT clinic_visits_pkey PRIMARY KEY (id),
+  CONSTRAINT clinic_visits_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.students(id)
+);
+CREATE TABLE public.excuse_letters (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  student_id uuid,
+  parent_id uuid,
+  absent_date date,
+  reason text,
+  status text DEFAULT 'pending'::text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT excuse_letters_pkey PRIMARY KEY (id),
+  CONSTRAINT excuse_letters_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.students(id),
+  CONSTRAINT excuse_letters_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.homeroom_attendance (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  student_id uuid,
+  class_id uuid,
+  date date,
+  tap_in_time timestamp with time zone,
+  tap_out_time timestamp with time zone,
+  status text,
+  remarks text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT homeroom_attendance_pkey PRIMARY KEY (id),
+  CONSTRAINT homeroom_attendance_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.students(id),
+  CONSTRAINT homeroom_attendance_class_id_fkey FOREIGN KEY (class_id) REFERENCES public.classes(id)
+);
+CREATE TABLE public.notifications (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  recipient_id uuid,
+  verb text,
+  read boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT notifications_pkey PRIMARY KEY (id),
+  CONSTRAINT notifications_recipient_id_fkey FOREIGN KEY (recipient_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.password_reset_requests (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  requested_user_id text,
+  requested_by_profile_id uuid,
+  status text DEFAULT 'pending'::text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT password_reset_requests_pkey PRIMARY KEY (id),
+  CONSTRAINT password_reset_requests_requested_by_profile_id_fkey FOREIGN KEY (requested_by_profile_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.profiles (
+  id uuid NOT NULL,
+  full_name text NOT NULL,
+  username text UNIQUE,
+  phone text,
+  email text,
+  role text CHECK (role = ANY (ARRAY['admin'::text, 'teacher'::text, 'parent'::text, 'guard'::text, 'clinic'::text])),
+  is_active boolean DEFAULT true,
+  is_gatekeeper boolean DEFAULT false,
+  address text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT profiles_pkey PRIMARY KEY (id),
+  CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.scanners (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  location text NOT NULL,
+  description text,
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT scanners_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.school_calendar (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  type text,
+  title text,
+  start_date date,
+  end_date date,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT school_calendar_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.student_ids (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  student_id uuid,
+  qr_code text UNIQUE,
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT student_ids_pkey PRIMARY KEY (id),
+  CONSTRAINT student_ids_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.students(id)
+);
+CREATE TABLE public.students (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  full_name text NOT NULL,
+  lrn text UNIQUE,
+  grade_level text NOT NULL,
+  strand text,
+  class_id uuid,
+  address text,
+  parent_id uuid,
+  current_status text DEFAULT 'out'::text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT students_pkey PRIMARY KEY (id),
+  CONSTRAINT students_class_id_fkey FOREIGN KEY (class_id) REFERENCES public.classes(id),
+  CONSTRAINT students_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.subject_attendance (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  student_id uuid,
+  subject_code text,
+  date date,
+  status text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT subject_attendance_pkey PRIMARY KEY (id),
+  CONSTRAINT subject_attendance_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.students(id),
+  CONSTRAINT subject_attendance_subject_code_fkey FOREIGN KEY (subject_code) REFERENCES public.subjects(code)
+);
+CREATE TABLE public.subjects (
+  code text NOT NULL,
+  name text NOT NULL,
+  grade_level text,
+  strand text,
+  CONSTRAINT subjects_pkey PRIMARY KEY (code)
+);
+CREATE TABLE public.system_settings (
+  key text NOT NULL,
+  value jsonb,
+  CONSTRAINT system_settings_pkey PRIMARY KEY (key)
+);
+CREATE TABLE public.clinic_visits (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  student_id uuid,
+  visit_time timestamp with time zone DEFAULT now(),
+  reason text NOT NULL,
+  treated_by uuid,
+  notes text,
+  status text DEFAULT 'in_clinic',
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT clinic_visits_pkey PRIMARY KEY (id),
+  CONSTRAINT clinic_visits_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.students(id),
+  CONSTRAINT clinic_visits_treated_by_fkey FOREIGN KEY (treated_by) REFERENCES public.profiles(id),
+  CONSTRAINT clinic_visits_status_check CHECK (status = ANY (ARRAY['in_clinic'::text, 'treated'::text, 'referred'::text]))
+);
+CREATE TABLE public.tap_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  student_id uuid,
+  gatekeeper_id uuid,
+  tap_type text,
+  timestamp timestamp with time zone DEFAULT now(),
+  CONSTRAINT tap_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT tap_logs_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.students(id),
+  CONSTRAINT tap_logs_gatekeeper_id_fkey FOREIGN KEY (gatekeeper_id) REFERENCES public.profiles(id)
+);

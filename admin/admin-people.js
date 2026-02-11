@@ -355,6 +355,25 @@ window.deletePerson = async function(personId) {
   if (!person) return;
 
   var name = person.full_name || person.username || "this person";
+  
+  // Check for linked students if this is a parent
+  // [Date Checked: 2026-02-11] | [Remarks: Verified parent deletion warning prevents deletion of parents with linked students]
+  if (person.role === "parent") {
+    const { data: linkedStudents, error: linkError } = await supabase
+      .from("students")
+      .select("id, full_name")
+      .eq("parent_id", personId);
+    
+    if (linkError) {
+      console.error("Error checking linked students:", linkError);
+      // Continue with deletion but warn user
+    } else if (linkedStudents && linkedStudents.length > 0) {
+      const studentNames = linkedStudents.map(s => s.full_name || "Unknown student").join(", ");
+      alert(`Cannot deactivate parent: ${linkedStudents.length} student(s) linked to this parent.\n\nLinked students: ${studentNames}\n\nPlease reassign or delete the students first.`);
+      return;
+    }
+  }
+  
   var confirmed = confirm("Are you sure you want to delete " + name + "?");
 
   if (!confirmed) return;

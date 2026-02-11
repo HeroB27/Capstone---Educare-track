@@ -4,6 +4,7 @@ import { checkbox, el, escapeHtml, isoDate, openModal, selectInput, textArea, te
 import { initAppShell, updateNetworkStatusIndicator } from "../core/shell.js";
 import { initTeacherPage } from "./teacher-common.js";
 import { registerPwa } from "../core/pwa.js";
+import { hasPendingClinicPass, hasActiveClinicVisit } from "../core/scan-actions.js";
 
 initAppShell({ role: "teacher", active: "dashboard" });
 
@@ -33,8 +34,6 @@ function statusBadgeClass(status) {
   if (s === "unmarked") return "bg-slate-100 text-slate-700";
   if (s === "present") return "bg-green-100 text-green-700";
   if (s === "late") return "bg-yellow-100 text-yellow-800";
-  if (s === "partial") return "bg-amber-100 text-amber-800"; // Maps to 'present' in schema
-  if (s === "excused_absent") return "bg-slate-200 text-slate-700"; // Maps to 'excused' in schema
   return "bg-red-100 text-red-700";
 }
 
@@ -192,6 +191,19 @@ function clearOptimisticUpdate(studentId, updateType) {
 
 // Action functions with optimistic updates
 async function issueClinicPass({ teacherId, studentId, reason }) {
+  // Check for existing pending pass (both in database and optimistic updates)
+  const hasPendingPass = await hasPendingClinicPass(studentId);
+  const optimisticClinic = getOptimisticUpdate(studentId, "clinic_pass");
+  if (hasPendingPass || (optimisticClinic && optimisticClinic.status === "pending")) {
+    throw new Error("Student already has a pending clinic pass");
+  }
+  
+  // Check for active clinic visit
+  const hasActiveVisit = await hasActiveClinicVisit(studentId);
+  if (hasActiveVisit) {
+    throw new Error("Student has an active clinic visit");
+  }
+  
   // Apply optimistic update
   applyOptimisticUpdate(studentId, "clinic_pass", { status: "pending", reason });
   
@@ -285,9 +297,8 @@ function openManualOverrideModal({ teacherId, students, subjects, onSaved }) {
     [
       { value: "present", label: "Present" },
       { value: "late", label: "Late" },
-      { value: "present", label: "Partial" }, // Maps to 'present' in schema
       { value: "absent", label: "Absent" },
-      { value: "excused", label: "Excused absent" }, // Maps to 'excused' in schema
+      { value: "excused", label: "Excused" },
     ],
     "present"
   );
@@ -563,6 +574,312 @@ function updateAttendancePercentages(analytics) {
   if (absentPercentEl) absentPercentEl.textContent = `${absentPercent}%`;
 }
 
+/**
+ * Calculate 7-day attendance trend for teacher's class
+ * @param {string} teacherId - Teacher ID
+ * @param {Array} classIds - Array of class IDs
+ * @returns {Promise<Object>} 7-day attendance trend data
+ */
+async function calculate7DayAttendanceTrend(teacherId, classIds) {
+  if (!classIds.length) return { labels: [], datasets: [] };
+  
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  
+  const { data, error } = await supabase
+    .from("homeroom_attendance")
+    .select(`
+      date,
+      status,
+      students (class_id)
+    `)
+    .in("students.class_id", classIds)
+    .gte("date", sevenDaysAgo.toISOString().split('T')[0])
+    .order("date", { ascending: true });
+  
+  if (error) throw error;
+  
+  // Group by date and calculate percentages
+  const dateMap = new Map();
+  const today = new Date().toISOString().split('T')[0];
+  
+  // Initialize last 7 days
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date();
+    date.setDate(date.getDate() - i);
+    const dateStr = date.toISOString().split('T')[0];
+    dateMap.set(dateStr, { present: 0, total: 0 });
+  }
+  
+  // Count attendance
+  data?.forEach(record => {
+    const dateStr = record.date;
+    if (dateMap.has(dateStr)) {
+      const stats = dateMap.get(dateStr);
+      stats.total++;
+      if (record.status === 'present' || record.status === 'late') {
+        stats.present++;
+      }
+    }
+  });
+  
+  // Prepare chart data
+  const labels = Array.from(dateMap.keys()).map(date => 
+    new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+  );
+  
+  const attendanceRates = Array.from(dateMap.values()).map(stats => 
+    stats.total > 0 ? Math.round((stats.present / stats.total) * 100) : 0
+  );
+  
+  return {
+    labels,
+    datasets: [{
+      label: 'Attendance Rate (%)',
+      data: attendanceRates,
+      borderColor: 'rgb(59, 130, 246)',
+      backgroundColor: 'rgba(59, 130, 246, 0.1)',
+      tension: 0.4,
+      fill: true
+    }]
+  };
+}
+
+/**
+ * Calculate subject-level analytics for teacher
+ * @param {Array} schedules - Teacher's schedules
+ * @param {Array} attendanceRows - Attendance data
+ * @returns {Object} Subject analytics
+ */
+function calculateSubjectAnalytics(schedules, attendanceRows) {
+  const subjectMap = new Map();
+  
+  // Initialize subjects
+  schedules.forEach(schedule => {
+    const subjectCode = schedule.subject_code;
+    const subjectName = schedule.subjects?.name || subjectCode;
+    if (!subjectMap.has(subjectCode)) {
+      subjectMap.set(subjectCode, {
+        name: subjectName,
+        totalStudents: 0,
+        presentCount: 0,
+        attendanceRate: 0
+      });
+    }
+  });
+  
+  // Count attendance by subject (simplified - assumes subject attendance correlates with homeroom)
+  attendanceRows.forEach(attendance => {
+    subjectMap.forEach((stats, subjectCode) => {
+      stats.totalStudents++;
+      if (attendance.status === 'present' || attendance.status === 'late') {
+        stats.presentCount++;
+      }
+    });
+  });
+  
+  // Calculate rates
+  subjectMap.forEach(stats => {
+    stats.attendanceRate = stats.totalStudents > 0 
+      ? Math.round((stats.presentCount / stats.totalStudents) * 100) 
+      : 0;
+  });
+  
+  return Array.from(subjectMap.values()).sort((a, b) => b.attendanceRate - a.attendanceRate);
+}
+
+/**
+ * Identify frequent late students
+ * @param {Array} tapRows - Tap log data
+ * @param {Array} students - Teacher's students
+ * @returns {Array} Frequent late students
+ */
+function identifyFrequentLateStudents(tapRows, students) {
+  const studentMap = new Map(students.map(s => [s.id, { ...s, lateCount: 0 }]));
+  
+  // Count late arrivals (tap_type = 'in' with late status)
+  tapRows.forEach(tap => {
+    if (tap.tap_type === 'in' && tap.status === 'late') {
+      const student = studentMap.get(tap.student_id);
+      if (student) {
+        student.lateCount++;
+      }
+    }
+  });
+  
+  return Array.from(studentMap.values())
+    .filter(student => student.lateCount > 0)
+    .sort((a, b) => b.lateCount - a.lateCount)
+    .slice(0, 5); // Top 5 frequent late students
+}
+
+/**
+ * Render advanced analytics sections for teacher dashboard
+ */
+async function renderAdvancedAnalytics({ teacherId, classIds, students, schedules, attendanceRows, tapRows, dateStr }) {
+  const analyticsContainer = document.getElementById('advancedAnalytics');
+  if (!analyticsContainer) return;
+  
+  analyticsContainer.innerHTML = '';
+  
+  try {
+    // 7-Day Attendance Trend
+    const trendData = await calculate7DayAttendanceTrend(teacherId, classIds);
+    if (trendData.labels.length > 0) {
+      const trendSection = createTrendChartSection(trendData);
+      analyticsContainer.appendChild(trendSection);
+    }
+    
+    // Subject Analytics
+    const subjectAnalytics = calculateSubjectAnalytics(schedules, attendanceRows);
+    if (subjectAnalytics.length > 0) {
+      const subjectSection = createSubjectAnalyticsSection(subjectAnalytics);
+      analyticsContainer.appendChild(subjectSection);
+    }
+    
+    // Frequent Late Students
+    const lateStudents = identifyFrequentLateStudents(tapRows, students);
+    if (lateStudents.length > 0) {
+      const lateStudentsSection = createLateStudentsSection(lateStudents);
+      analyticsContainer.appendChild(lateStudentsSection);
+    }
+    
+  } catch (error) {
+    console.error("Failed to render advanced analytics:", error);
+    analyticsContainer.innerHTML = `
+      <div class="rounded-2xl bg-white p-6 border border-slate-200">
+        <p class="text-slate-500 text-center">Analytics data temporarily unavailable</p>
+      </div>
+    `;
+  }
+}
+
+/**
+ * Create 7-day attendance trend chart section
+ */
+function createTrendChartSection(trendData) {
+  const section = document.createElement('div');
+  section.className = 'rounded-2xl bg-white p-6 border border-slate-200 mb-6';
+  section.innerHTML = `
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+        <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+        </svg>
+      </div>
+      <h3 class="text-lg font-semibold text-slate-900">7-Day Attendance Trend</h3>
+    </div>
+    <div class="chart-container" style="position: relative; height: 250px;">
+      <canvas id="attendanceTrendChart"></canvas>
+    </div>
+  `;
+  
+  // Render chart after DOM insertion
+  setTimeout(() => {
+    const ctx = section.querySelector('#attendanceTrendChart')?.getContext('2d');
+    if (ctx && window.Chart) {
+      new Chart(ctx, {
+        type: 'line',
+        data: trendData,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              mode: 'index',
+              intersect: false,
+              callbacks: {
+                label: (context) => `${context.dataset.label}: ${context.parsed.y}%`
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100,
+              ticks: { callback: (value) => `${value}%` }
+            }
+          }
+        }
+      });
+    }
+  }, 100);
+  
+  return section;
+}
+
+/**
+ * Create subject analytics section
+ */
+function createSubjectAnalyticsSection(subjectAnalytics) {
+  const section = document.createElement('div');
+  section.className = 'rounded-2xl bg-white p-6 border border-slate-200 mb-6';
+  
+  let subjectHTML = '';
+  subjectAnalytics.forEach(subject => {
+    subjectHTML += `
+      <div class="flex items-center justify-between py-3 border-b border-slate-100 last:border-b-0">
+        <span class="text-sm font-medium text-slate-700">${escapeHtml(subject.name)}</span>
+        <span class="text-sm font-semibold ${
+          subject.attendanceRate >= 90 ? 'text-emerald-600' :
+          subject.attendanceRate >= 80 ? 'text-amber-600' : 'text-red-600'
+        }">${subject.attendanceRate}%</span>
+      </div>
+    `;
+  });
+  
+  section.innerHTML = `
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
+        <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+        </svg>
+      </div>
+      <h3 class="text-lg font-semibold text-slate-900">Subject Attendance Rates</h3>
+    </div>
+    <div class="space-y-2">
+      ${subjectHTML}
+    </div>
+  `;
+  
+  return section;
+}
+
+/**
+ * Create frequent late students section
+ */
+function createLateStudentsSection(lateStudents) {
+  const section = document.createElement('div');
+  section.className = 'rounded-2xl bg-white p-6 border border-slate-200 mb-6';
+  
+  let studentsHTML = '';
+  lateStudents.forEach(student => {
+    studentsHTML += `
+      <div class="flex items-center justify-between py-3 border-b border-slate-100 last:border-b-0">
+        <span class="text-sm font-medium text-slate-700">${escapeHtml(student.full_name)}</span>
+        <span class="text-sm font-semibold text-amber-600">${student.lateCount} late arrival(s)</span>
+      </div>
+    `;
+  });
+  
+  section.innerHTML = `
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+        <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+      </div>
+      <h3 class="text-lg font-semibold text-slate-900">Frequent Late Arrivals</h3>
+    </div>
+    <div class="space-y-2">
+      ${studentsHTML}
+    </div>
+  `;
+  
+  return section;
+}
+
 function renderDashboard({ teacherId, homeroomClasses, schedules, students, attendanceRows, tapRows, clinicPasses, unreadCount, dateStr }) {
   
   teacherApp?.replaceChildren();
@@ -782,6 +1099,17 @@ async function refresh() {
     // Calculate and update analytics
     const analytics = calculateAnalytics({ students, attendanceRows, schedules, dateStr });
     updateAnalyticsDisplay(analytics);
+    
+    // Calculate and render advanced analytics
+    await renderAdvancedAnalytics({
+      teacherId,
+      classIds,
+      students,
+      schedules,
+      attendanceRows,
+      tapRows,
+      dateStr
+    });
     
     // Setup real-time subscriptions
     setupSubscriptions(studentIds);

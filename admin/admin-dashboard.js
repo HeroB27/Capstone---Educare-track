@@ -17,9 +17,101 @@ const adminCommands = [
   { category: 'Actions', action: 'settings', label: 'Open Settings', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>', execute: () => window.location.href = './admin-settings.html' },
 ];
 
-// Export report placeholder - TODO: Implement export functionality
-function exportReport() {
-  Toast.info('Export feature is being developed.');
+// Export comprehensive dashboard report
+async function exportReport() {
+  try {
+    Toast.info('Preparing export...');
+    
+    const today = toLocalISODate(new Date());
+    const sevenDaysAgo = toLocalISODate(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000));
+    
+    // Fetch comprehensive data for export
+    const [
+      { count: studentTotal },
+      { data: todayAttendance },
+      { data: weeklyAttendance },
+      { data: teacherCount },
+      { data: parentCount },
+      { data: absenceAlerts },
+      { data: lateAlerts }
+    ] = await Promise.all([
+      supabase.from("students").select("id", { count: "exact", head: true }),
+      supabase.from("homeroom_attendance").select("student_id, status").eq("date", today),
+      supabase.from("homeroom_attendance").select("date, status").gte("date", sevenDaysAgo).lte("date", today),
+      supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "teacher"),
+      supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "parent"),
+      supabase.from("students").select("full_name, grade_level, absences").gte("absences", 10).order("absences", { ascending: false }),
+      supabase.from("students").select("full_name, grade_level, lates").gte("lates", 5).order("lates", { ascending: false })
+    ]);
+    
+    // Calculate attendance statistics
+    const statusCounts = { present: 0, late: 0, absent: 0, excused: 0 };
+    if (todayAttendance) {
+      todayAttendance.forEach(record => {
+        statusCounts[record.status] = (statusCounts[record.status] || 0) + 1;
+      });
+    }
+    
+    const totalToday = todayAttendance?.length || 0;
+    const presentPercent = totalToday > 0 ? Math.round((statusCounts.present / totalToday) * 100) : 0;
+    const latePercent = totalToday > 0 ? Math.round((statusCounts.late / totalToday) * 100) : 0;
+    const absentPercent = totalToday > 0 ? Math.round((statusCounts.absent / totalToday) * 100) : 0;
+    
+    // Create CSV content
+    const csvContent = [
+      'EDUCARE TRACK - ADMIN DASHBOARD REPORT',
+      `Generated: ${new Date().toLocaleString()}`,
+      '',
+      'OVERVIEW STATISTICS',
+      `Total Students,${studentTotal || 0}`,
+      `Total Teachers,${teacherCount?.count || 0}`,
+      `Total Parents,${parentCount?.count || 0}`,
+      '',
+      "TODAY'S ATTENDANCE",
+      `Present,${statusCounts.present || 0} (${presentPercent}%)`,
+      `Late,${statusCounts.late || 0} (${latePercent}%)`,
+      `Absent,${statusCounts.absent || 0} (${absentPercent}%)`,
+      `Total Recorded,${totalToday}`,
+      '',
+      'ATTENDANCE ALERTS',
+      'Type,Student Name,Grade Level,Count',
+      ...(absenceAlerts?.map(a => `Absence,${a.full_name},${a.grade_level},${a.absences}`) || ['No absence alerts']),
+      ...(lateAlerts?.map(a => `Late,${a.full_name},${a.grade_level},${a.lates}`) || ['No late alerts']),
+      '',
+      'WEEKLY ATTENDANCE SUMMARY (Last 7 Days)',
+      'Date,Present,Late,Absent,Excused',
+      ...(weeklyAttendance ? 
+        Object.entries(
+          weeklyAttendance.reduce((acc, record) => {
+            const date = record.date;
+            if (!acc[date]) acc[date] = { present: 0, late: 0, absent: 0, excused: 0 };
+            acc[date][record.status]++;
+            return acc;
+          }, {})
+        ).map(([date, counts]) => 
+          `${date},${counts.present || 0},${counts.late || 0},${counts.absent || 0},${counts.excused || 0}`
+        )
+        : ['No weekly data available']
+      )
+    ].join('\n');
+    
+    // Create and trigger download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `educare-track-report-${today}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    Toast.success('Report exported successfully!');
+    
+  } catch (error) {
+    console.error('Export error:', error);
+    Toast.error('Failed to export report');
+  }
 }
 
 // Initialize skeleton loading states

@@ -245,8 +245,16 @@ function renderForm({ profile, noClassesEvent }) {
         msg.textContent = res.reason === "no_in" ? "Tap out rejected: no tap-in recorded today." : "Tap rejected.";
       } else if (tapType.value === "in") {
         msg.textContent = `Tap in recorded: ${student.full_name}${res.arrival ? ` (${res.arrival})` : ""}`;
+        // Notify parent about tap in
+        if (student.parent_id) {
+          await notifyParent({ guardId: profile.id, parentId: student.parent_id, studentId: student.id, tapType: "in" });
+        }
       } else {
         msg.textContent = `Tap out recorded: ${student.full_name}`;
+        // Notify parent about tap out
+        if (student.parent_id) {
+          await notifyParent({ guardId: profile.id, parentId: student.parent_id, studentId: student.id, tapType: "out" });
+        }
       }
 
       msg.classList.remove("hidden");
@@ -297,10 +305,12 @@ async function loadTodayStats() {
 }
 
 /**
- * Load attendance alerts (late arrivals, early departures, duplicates)
+ * Load attendance alerts (late arrivals, early departures, duplicates, incomplete days)
  */
 async function loadAlerts() {
   const today = new Date().toISOString().slice(0, 10);
+  
+  // Load standard alerts from tap_logs
   const { data: alerts, error } = await supabase
     .from("tap_logs")
     .select("id,student_id,tap_type,status,remarks,timestamp,students(full_name)")
@@ -315,7 +325,50 @@ async function loadAlerts() {
     return [];
   }
   
-  return alerts ?? [];
+  // Load incomplete day alerts (students who tapped in but never tapped out)
+  const { data: incompleteStudents, error: incompleteError } = await supabase
+    .from("tap_logs")
+    .select("student_id, timestamp, students(full_name)")
+    .gte("timestamp", `${today}T00:00:00`)
+    .lte("timestamp", `${today}T23:59:59`)
+    .eq("tap_type", "in")
+    .not("status", "in", ["duplicate", "rejected"]);
+  
+  if (incompleteError) {
+    console.error("[Alerts] Failed to load incomplete days:", incompleteError.message);
+    return alerts ?? [];
+  }
+  
+  // Get students who tapped out today
+  const { data: tapOutStudents, error: tapOutError } = await supabase
+    .from("tap_logs")
+    .select("student_id")
+    .gte("timestamp", `${today}T00:00:00`)
+    .lte("timestamp", `${today}T23:59:59`)
+    .eq("tap_type", "out")
+    .not("status", "in", ["duplicate", "rejected"]);
+  
+  if (tapOutError) {
+    console.error("[Alerts] Failed to load tap-out students:", tapOutError.message);
+    return alerts ?? [];
+  }
+  
+  // Find students who tapped in but never tapped out
+  const tapOutStudentIds = new Set(tapOutStudents?.map(t => t.student_id) ?? []);
+  const incompleteAlerts = incompleteStudents
+    ?.filter(student => !tapOutStudentIds.has(student.student_id))
+    .map(student => ({
+      id: `incomplete-${student.student_id}`,
+      student_id: student.student_id,
+      tap_type: "in",
+      status: "incomplete",
+      remarks: "Student tapped in but never tapped out",
+      timestamp: student.timestamp,
+      students: student.students
+    })) ?? [];
+  
+  // Combine standard alerts with incomplete day alerts
+  return [...(alerts ?? []), ...incompleteAlerts];
 }
 
 /**

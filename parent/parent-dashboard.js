@@ -47,14 +47,13 @@ let lastRefreshTime = 0;
 let currentMonth = new Date();
 let selectedChildId = null;
 
-// Status helpers
+// Status helpers - only handle required statuses: present, late, absent, excused
 function statusPill(status) {
   const s = String(status ?? "").toLowerCase();
   if (s === "present") return "status-indicator status-present";
   if (s === "late") return "status-indicator status-late";
-  if (s === "partial") return "status-indicator status-partial";
-  if (s === "excused_absent") return "status-indicator status-excused";
   if (s === "absent") return "status-indicator status-absent";
+  if (s === "excused") return "status-indicator status-excused";
   return "status-indicator status-neutral";
 }
 
@@ -145,6 +144,52 @@ async function loadMonthAttendance(studentId, monthDate) {
   return data ?? [];
 }
 
+// Load total absences for absence warning system
+async function loadTotalAbsences(studentId) {
+  const { data, error } = await supabase
+    .from("homeroom_attendance")
+    .select("status")
+    .eq("student_id", studentId)
+    .in("status", ["absent", "excused"]);
+  if (error) throw error;
+  return data?.length ?? 0;
+}
+
+// Show absence warnings based on threshold
+async function showAbsenceWarnings(totalAbsences, studentName) {
+  // Remove any existing warnings
+  const existingWarnings = document.querySelectorAll('.absence-warning');
+  existingWarnings.forEach(warning => warning.remove());
+  
+  // Show warning for 10+ absences
+  if (totalAbsences >= 10 && totalAbsences < 20) {
+    showWarning(`⚠️  Warning: ${studentName} has ${totalAbsences} absences. Please monitor attendance.`);
+  }
+  
+  // Show critical alert for 20+ absences
+  if (totalAbsences >= 20) {
+    showCriticalAlert(`🚨  Critical: ${studentName} has ${totalAbsences} absences! Please contact the school.`);
+  }
+}
+
+// Show warning toast
+function showWarning(message) {
+  showToast(message, { 
+    type: 'warning', 
+    className: 'absence-warning',
+    duration: 8000 
+  });
+}
+
+// Show critical alert toast
+function showCriticalAlert(message) {
+  showToast(message, { 
+    type: 'error', 
+    className: 'absence-warning',
+    duration: 12000 
+  });
+}
+
 async function loadClassDetails(classId) {
   if (!classId) return null;
   const { data, error } = await supabase
@@ -190,14 +235,8 @@ async function loadDetailedTapLogs(studentId, limit = 20) {
 }
 
 async function loadScannerDetails(scannerId) {
-  if (!scannerId) return null;
-  const { data, error } = await supabase
-    .from("scanners")
-    .select("id,name,location")
-    .eq("id", scannerId)
-    .single();
-  if (error) return null;
-  return data;
+  // Scanner details functionality removed - scanners table doesn't exist in schema
+  return null;
 }
 
 function buildLatestTapMap(rows) {
@@ -206,6 +245,59 @@ function buildLatestTapMap(rows) {
     if (!map.has(r.student_id)) map.set(r.student_id, r);
   }
   return map;
+}
+
+// Get today's subject for a class
+async function getTodaysSubject(classId) {
+  if (!classId) return null;
+  
+  const today = new Date().toLocaleString('en-US', { weekday: 'long' }).toLowerCase();
+  const now = new Date();
+  const currentTime = now.toTimeString().slice(0, 5); // HH:MM format (without seconds)
+  
+  try {
+    // First try to find current subject (within time range)
+    const { data: currentData, error: currentError } = await supabase
+      .from('class_schedules')
+      .select('subject_code, subjects(name), start_time, end_time')
+      .eq('class_id', classId)
+      .eq('day_of_week', today)
+      .lte('start_time', currentTime)
+      .gte('end_time', currentTime)
+      .limit(1);
+    
+    if (currentError) {
+      console.error('Error fetching current subject:', currentError);
+    }
+    
+    if (currentData && currentData.length > 0) {
+      return currentData[0].subjects?.name || currentData[0].subject_code;
+    }
+    
+    // If no current subject, find the next subject today
+    const { data: nextData, error: nextError } = await supabase
+      .from('class_schedules')
+      .select('subject_code, subjects(name), start_time')
+      .eq('class_id', classId)
+      .eq('day_of_week', today)
+      .gt('start_time', currentTime)
+      .order('start_time', { ascending: true })
+      .limit(1);
+    
+    if (nextError) {
+      console.error('Error fetching next subject:', nextError);
+      return null;
+    }
+    
+    if (nextData && nextData.length > 0) {
+      return `Next: ${nextData[0].subjects?.name || nextData[0].subject_code}`;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error in getTodaysSubject:', error);
+    return null;
+  }
 }
 
 // Update Student Overview Card
@@ -236,8 +328,9 @@ async function updateStudentOverview(child, latestTap, classDetails, teacherDeta
   }
   
   if (todaysSubject) {
-    // TODO: Implement today's subject logic
-    todaysSubject.textContent = "—";
+    // Implement today's subject logic
+    const subject = await getTodaysSubject(child.class_id);
+    todaysSubject.textContent = subject || "—";
   }
   
   if (classroom && classDetails) {
@@ -259,7 +352,7 @@ async function updateStudentOverview(child, latestTap, classDetails, teacherDeta
   }
 }
 
-// Update Attendance History
+// Update Attendance History with Monthly Summary
 function updateAttendanceHistory(attendanceData) {
   if (!attendanceHistoryBody) return;
   
@@ -272,7 +365,43 @@ function updateAttendanceHistory(attendanceData) {
     return;
   }
   
+  // Calculate monthly summary
+  const summary = {
+    present: 0,
+    late: 0,
+    absent: 0,
+    excused: 0
+  };
+  
+  for (const record of attendanceData) {
+    const status = record.status.toLowerCase();
+    if (summary.hasOwnProperty(status)) {
+      summary[status]++;
+    }
+  }
+  
   let html = '';
+  
+  // Add summary row
+  html += `
+    <tr class="bg-slate-50 border-b-2 border-slate-200 font-semibold">
+      <td class="py-3 text-sm text-slate-900">Monthly Summary</td>
+      <td class="py-3">
+        <span class="flex items-center gap-2">
+          <span class="status-indicator status-present">${summary.present}</span>
+          <span class="status-indicator status-late">${summary.late}</span>
+          <span class="status-indicator status-absent">${summary.absent}</span>
+          <span class="status-indicator status-excused">${summary.excused}</span>
+        </span>
+      </td>
+      <td class="py-3 text-sm text-slate-600">—</td>
+      <td class="py-3 text-sm text-slate-600">
+        Total: ${attendanceData.length} days
+      </td>
+    </tr>
+  `;
+  
+  // Add individual records
   for (const record of attendanceData) {
     const date = new Date(record.date);
     const statusClass = `status-indicator status-${record.status}`;
@@ -431,17 +560,19 @@ async function refresh() {
     const studentIds = children.map((c) => c.id);
     
     // Load data in parallel
-    const [tapRes, notifRes, detailedTapRes, clinicRes] = await Promise.allSettled([
+    const [tapRes, notifRes, detailedTapRes, clinicRes, absencesRes] = await Promise.allSettled([
       loadTapLogs(studentIds),
       loadNotifications(currentProfile.id),
       selectedChildId ? loadDetailedTapLogs(selectedChildId) : Promise.resolve([]),
       selectedChildId ? loadClinicVisits(selectedChildId) : Promise.resolve([]),
+      selectedChildId ? loadTotalAbsences(selectedChildId) : Promise.resolve(0),
     ]);
 
     const taps = buildLatestTapMap(tapRes.status === "fulfilled" ? tapRes.value : []);
     const notifications = notifRes.status === "fulfilled" ? notifRes.value : [];
     const detailedTaps = detailedTapRes.status === "fulfilled" ? detailedTapRes.value : [];
     const clinicVisitsData = clinicRes.status === "fulfilled" ? clinicRes.value : [];
+    const totalAbsences = absencesRes.status === "fulfilled" ? absencesRes.value : 0;
     
     // Populate child selector
     if (childSelector) {
@@ -500,6 +631,9 @@ async function refresh() {
         await updateStudentOverview(selectedChild, todayTap, classDetails, teacherDetails);
         await updateGateActivity(detailedTaps);
         await updateClinicVisits(clinicVisitsData);
+        
+        // Show absence warnings if applicable
+        await showAbsenceWarnings(totalAbsences, selectedChild.full_name);
     } else {
       if (childName) childName.textContent = "No children linked";
       if (childGrade) childGrade.textContent = "—";

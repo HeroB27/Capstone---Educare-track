@@ -385,6 +385,9 @@ CREATE POLICY "Announcements are viewable based on audience" ON public.announcem
             OR
             -- Clinic sees clinic announcements
             (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'clinic') AND audience_clinic)
+            OR
+            -- Staff (clinic+guard) see staff announcements
+            (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('clinic', 'guard')) AND audience_staff)
         )
     );
 

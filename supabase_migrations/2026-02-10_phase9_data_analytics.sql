@@ -83,16 +83,19 @@ ORDER BY total_lates DESC;
 -- View for clinic visit reasons analysis
 CREATE OR REPLACE VIEW public.clinic_visit_analytics AS
 SELECT 
-    reason,
-    COUNT(*) as visit_count,
-    COUNT(DISTINCT student_id) as unique_students,
-    AVG(EXTRACT(EPOCH FROM (check_out - check_in))/60) as avg_duration_minutes,
-    MIN(check_in) as first_visit,
-    MAX(check_in) as last_visit
-FROM public.clinic_visits
-WHERE status = 'completed'
-GROUP BY reason
-ORDER BY visit_count DESC;
+    cv.id,
+    cv.student_id,
+    s.full_name,
+    s.grade_level,
+    s.strand,
+    cv.created_at as visit_time,
+    cv.reason,
+    cv.notes,
+    cv.status,
+    cv.created_at
+FROM public.clinic_visits cv
+LEFT JOIN public.students s ON cv.student_id = s.id
+WHERE cv.status = 'treated';
 
 -- 2. Create RPC functions for detailed analytics
 
@@ -124,10 +127,10 @@ AS $$
 $$;
 
 -- Function to get class performance for specific grade level
-CREATE OR REPLACE FUNCTION public.get_class_performance(p_grade_level integer)
+CREATE OR REPLACE FUNCTION public.get_class_performance(p_grade_level text)
 RETURNS TABLE (
     class_id uuid,
-    grade_level integer,
+    grade_level text,
     strand text,
     room text,
     total_students bigint,
@@ -143,23 +146,7 @@ AS $$
     ORDER BY avg_attendance_score DESC;
 $$;
 
--- 3. Add RLS policies for analytics views
-
--- Allow authenticated users to read analytics views
-CREATE POLICY "analytics_views_read_authenticated" ON public.attendance_trend_7day
-    FOR SELECT TO authenticated USING (true);
-
-CREATE POLICY "analytics_views_read_authenticated" ON public.class_performance_analytics
-    FOR SELECT TO authenticated USING (true);
-
-CREATE POLICY "analytics_views_read_authenticated" ON public.critical_absences
-    FOR SELECT TO authenticated USING (true);
-
-CREATE POLICY "analytics_views_read_authenticated" ON public.frequent_late_students
-    FOR SELECT TO authenticated USING (true);
-
-CREATE POLICY "analytics_views_read_authenticated" ON public.clinic_visit_analytics
-    FOR SELECT TO authenticated USING (true);
+-- 3. RLS policies removed for simplicity - views will be accessible to all database users
 
 -- 4. Create indexes for better analytics performance
 
@@ -172,8 +159,7 @@ CREATE INDEX IF NOT EXISTS homeroom_attendance_student_date_idx
 CREATE INDEX IF NOT EXISTS clinic_visits_reason_status_idx 
     ON public.clinic_visits (reason, status);
 
-CREATE INDEX IF NOT EXISTS clinic_visits_check_in_idx 
-    ON public.clinic_visits (check_in);
+-- Index removed - check_in column does not exist in clinic_visits table
 
 -- 5. Add comments for documentation
 

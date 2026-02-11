@@ -1,0 +1,1 @@
+if there is an update in the schema add it immidately so that we can back track everything

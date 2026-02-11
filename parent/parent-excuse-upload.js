@@ -84,115 +84,259 @@ async function createExcuseLetter({ parentId, studentId, absentDate, reason, att
 
 async function render(profileId) {
   uploadStatus.textContent = "Loading…";
-  uploadApp.replaceChildren();
 
   const children = await loadChildren(profileId);
   if (!children.length) {
-    uploadApp.appendChild(
-      el(
-        "div",
-        "rounded-2xl bg-yellow-50 p-4 text-sm text-yellow-900 ring-1 ring-yellow-200",
-        "No linked children found. Ask the admin to link your account to your student(s)."
-      )
-    );
+    document.getElementById("uploadApp").innerHTML = `
+      <div class="rounded-2xl bg-yellow-50 p-4 text-sm text-yellow-900 ring-1 ring-yellow-200">
+        No linked children found. Ask the admin to link your account to your student(s).
+      </div>
+    `;
     uploadStatus.textContent = "Ready.";
     return;
   }
 
-  const form = el("form", "grid gap-4");
-  const childSel = selectInput(children.map((c) => ({ value: c.id, label: c.full_name })), children[0].id);
-  const date = textInput({ type: "date", value: "" });
-  const reason = textArea({ placeholder: "Reason for absence", rows: 4 });
-  const file = document.createElement("input");
-  file.type = "file";
-  file.accept = "application/pdf,image/*";
-  file.className =
-    "block w-full cursor-pointer rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-slate-700";
+  // Get HTML elements - ensure they exist before accessing
+  await new Promise(resolve => setTimeout(resolve, 100)); // Brief delay to ensure DOM is ready
+  
+  const childSelect = document.getElementById("childSelect");
+  const absenceDate = document.getElementById("absenceDate");
+  const reasonSelect = document.getElementById("reasonSelect");
+  const description = document.getElementById("description");
+  const fileInput = document.getElementById("fileInput");
+  const dropZone = document.getElementById("dropZone");
+  const filePreview = document.getElementById("filePreview");
+  const fileName = document.getElementById("fileName");
+  const removeFile = document.getElementById("removeFile");
+  const submitBtn = document.getElementById("submitBtn");
+  const errorBox = document.getElementById("errorBox") || createErrorBox();
+  const okBox = document.getElementById("okBox") || createOkBox();
+  
+  // Check if all required elements exist
+  if (!childSelect || !absenceDate || !reasonSelect || !fileInput || !submitBtn) {
+    console.error("Missing form elements:", { childSelect, absenceDate, reasonSelect, fileInput, submitBtn });
+    uploadStatus.textContent = "Form elements not found. Please refresh the page.";
+    return;
+  }
 
-  const row = (label, inputEl) => {
-    const w = el("div", "space-y-1");
-    w.appendChild(el("label", "block text-sm font-medium text-slate-700", escapeHtml(label)));
-    w.appendChild(inputEl);
-    return w;
-  };
+  // Populate child select
+  childSelect.innerHTML = '';
+  children.forEach(child => {
+    const option = document.createElement("option");
+    option.value = child.id;
+    option.textContent = child.full_name;
+    childSelect.appendChild(option);
+  });
 
-  form.appendChild(row("Child", childSel));
-  form.appendChild(row("Date of absence", date));
-  form.appendChild(row("Reason", reason));
-  form.appendChild(row("Attachment (PDF / Image)", file));
+  // Set current date as default
+  absenceDate.value = new Date().toISOString().split('T')[0];
 
-  const errorBox = el("div", "hidden rounded-xl bg-red-50 p-3 text-sm text-red-700");
-  const okBox = el("div", "hidden rounded-xl bg-green-50 p-3 text-sm text-green-800 ring-1 ring-green-200");
-  const actions = el("div", "flex justify-end");
-  const submit = button("Submit", "primary", "green");
-  submit.type = "submit";
-  actions.appendChild(submit);
+  // Load recent excuses on initial render
+  await loadRecentExcuses(profileId);
 
-  form.addEventListener("submit", async (e) => {
+  // File upload handling
+  dropZone.addEventListener("click", () => fileInput.click());
+  dropZone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropZone.classList.add("border-violet-500", "bg-violet-50");
+  });
+  dropZone.addEventListener("dragleave", () => {
+    dropZone.classList.remove("border-violet-500", "bg-violet-50");
+  });
+  dropZone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropZone.classList.remove("border-violet-500", "bg-violet-50");
+    if (e.dataTransfer.files.length > 0) {
+      fileInput.files = e.dataTransfer.files;
+      handleFileSelect();
+    }
+  });
+
+  fileInput.addEventListener("change", handleFileSelect);
+  removeFile.addEventListener("click", () => {
+    fileInput.value = "";
+    filePreview.classList.add("hidden");
+  });
+
+  function handleFileSelect() {
+    const file = fileInput.files[0];
+    if (file) {
+      fileName.textContent = file.name;
+      filePreview.classList.remove("hidden");
+    } else {
+      filePreview.classList.add("hidden");
+    }
+  }
+
+  // Form submission
+  submitBtn.addEventListener("click", async (e) => {
     e.preventDefault();
     errorBox.classList.add("hidden");
     okBox.classList.add("hidden");
-    submit.disabled = true;
+    submitBtn.disabled = true;
 
-    const selected = children.find((c) => c.id === childSel.value);
-    if (!selected) {
-      errorBox.textContent = "Child is required.";
-      errorBox.classList.remove("hidden");
-      submit.disabled = false;
+    const selectedChildId = childSelect.value;
+    const selectedChild = children.find(c => c.id === selectedChildId);
+    
+    if (!selectedChildId) {
+      showError("Please select a child");
       return;
     }
-    if (!date.value) {
-      errorBox.textContent = "Date is required.";
-      errorBox.classList.remove("hidden");
-      submit.disabled = false;
+    if (!absenceDate.value) {
+      showError("Please select a date of absence");
       return;
     }
-    if (!reason.value.trim()) {
-      errorBox.textContent = "Reason is required.";
-      errorBox.classList.remove("hidden");
-      submit.disabled = false;
+    if (!reasonSelect.value) {
+      showError("Please select a reason");
       return;
     }
 
-    const picked = file.files?.[0] ?? null;
-    const valid = isAllowedFile(picked);
-    if (!valid.ok) {
-      errorBox.textContent = valid.message;
-      errorBox.classList.remove("hidden");
-      submit.disabled = false;
+    const file = fileInput.files[0];
+    const valid = isAllowedFile(file);
+    if (file && !valid.ok) {
+      showError(valid.message);
       return;
     }
 
     try {
-      const attachmentPath = await uploadFile({ parentId: profileId, studentId: selected.id, file: picked });
+      let attachmentPath = null;
+      if (file) {
+        attachmentPath = await uploadFile({ parentId: profileId, studentId: selectedChildId, file });
+      }
+
       const excuseId = await createExcuseLetter({
         parentId: profileId,
-        studentId: selected.id,
-        absentDate: date.value,
-        reason: reason.value.trim(),
-        attachment: { path: attachmentPath, name: picked.name, mime: picked.type || null },
+        studentId: selectedChildId,
+        absentDate: absenceDate.value,
+        reason: reasonSelect.value + (description.value ? ": " + description.value : ""),
+        attachment: file ? { 
+          path: attachmentPath, 
+          name: file.name, 
+          mime: file.type || null 
+        } : null
       });
 
-      const teacherId = await findHomeroomTeacherIdForClass(selected.class_id);
-      await notifyTeacher({ parentId: profileId, teacherId, studentId: selected.id, absentDate: date.value });
+      const teacherId = await findHomeroomTeacherIdForClass(selectedChild.class_id);
+      await notifyTeacher({ parentId: profileId, teacherId, studentId: selectedChildId, absentDate: absenceDate.value });
 
-      okBox.textContent = `Submitted successfully.${excuseId ? ` Ref: ${excuseId}` : ""}`;
-      okBox.classList.remove("hidden");
-      date.value = "";
-      reason.value = "";
-      file.value = "";
+      showSuccess(`Excuse submitted successfully!${excuseId ? ` Reference: ${excuseId}` : ""}`);
+      
+      // Reset form
+      absenceDate.value = new Date().toISOString().split('T')[0];
+      reasonSelect.value = "illness";
+      description.value = "";
+      fileInput.value = "";
+      filePreview.classList.add("hidden");
+      
+      // Load recent excuses
+      await loadRecentExcuses(profileId, selectedChildId);
+      
     } catch (err) {
-      errorBox.textContent = err?.message ?? "Failed to submit excuse letter.";
-      errorBox.classList.remove("hidden");
+      showError(err?.message ?? "Failed to submit excuse letter");
     } finally {
-      submit.disabled = false;
+      submitBtn.disabled = false;
     }
   });
 
-  uploadApp.appendChild(form);
-  uploadApp.appendChild(errorBox);
-  uploadApp.appendChild(okBox);
+  function showError(message) {
+    errorBox.textContent = message;
+    errorBox.classList.remove("hidden");
+    submitBtn.disabled = false;
+  }
+
+  function showSuccess(message) {
+    okBox.textContent = message;
+    okBox.classList.remove("hidden");
+  }
+
   uploadStatus.textContent = "Ready.";
+}
+
+function createErrorBox() {
+  const errorBox = document.createElement("div");
+  errorBox.id = "errorBox";
+  errorBox.className = "hidden rounded-xl bg-red-50 p-3 text-sm text-red-700 mt-4";
+  document.getElementById("uploadApp").appendChild(errorBox);
+  return errorBox;
+}
+
+function createOkBox() {
+  const okBox = document.createElement("div");
+  okBox.id = "okBox";
+  okBox.className = "hidden rounded-xl bg-green-50 p-3 text-sm text-green-800 ring-1 ring-green-200 mt-4";
+  document.getElementById("uploadApp").appendChild(okBox);
+  return okBox;
+}
+
+async function loadRecentExcuses(parentId, studentId = null) {
+  const recentExcusesEl = document.getElementById("recentExcuses");
+  if (!recentExcusesEl) return;
+
+  try {
+    recentExcusesEl.innerHTML = '<p class="text-slate-500 text-center py-4">Loading recent excuses...</p>';
+
+    let query = supabase
+      .from("excuse_letters")
+      .select(`
+        id,
+        student_id,
+        absent_date,
+        reason,
+        status,
+        created_at,
+        attachment_name,
+        attachment_path,
+        students (full_name)
+      `)
+      .eq("parent_id", parentId)
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    if (studentId) {
+      query = query.eq("student_id", studentId);
+    }
+
+    const { data, error } = await query;
+    
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
+      recentExcusesEl.innerHTML = '<p class="text-slate-500 text-center py-8">No recent excuses found.</p>';
+      return;
+    }
+
+    recentExcusesEl.innerHTML = data.map(excuse => `
+      <div class="rounded-xl bg-white p-4 border border-slate-200 hover:border-slate-300 transition-colors">
+        <div class="flex items-start justify-between mb-2">
+          <div>
+            <div class="font-medium text-slate-900">${escapeHtml(excuse.students?.full_name || 'Unknown Student')}</div>
+            <div class="text-sm text-slate-500">${new Date(excuse.absent_date).toLocaleDateString()}</div>
+          </div>
+          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+            excuse.status === 'approved' ? 'bg-green-100 text-green-800' :
+            excuse.status === 'rejected' ? 'bg-red-100 text-red-800' :
+            'bg-yellow-100 text-yellow-800'
+          }">
+            ${excuse.status}
+          </span>
+        </div>
+        <div class="text-sm text-slate-700 mb-3">${escapeHtml(excuse.reason || 'No reason provided')}</div>
+        ${excuse.attachment_path ? `
+          <div class="flex items-center text-sm text-slate-500">
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            ${escapeHtml(excuse.attachment_name || 'Attachment')}
+          </div>
+        ` : ''}
+        <div class="text-xs text-slate-400 mt-2">Submitted ${new Date(excuse.created_at).toLocaleDateString()}</div>
+      </div>
+    `).join('');
+
+  } catch (error) {
+    console.error("Failed to load recent excuses:", error);
+    recentExcusesEl.innerHTML = '<p class="text-red-500 text-center py-4">Failed to load recent excuses.</p>';
+  }
 }
 
 async function init() {

@@ -494,6 +494,54 @@ function openParentStudentsWizard({ parents }) {
         },
       },
       {
+        label: "Photos",
+        render: ({ state }) => {
+          const wrap = el("div", "space-y-4");
+          wrap.appendChild(el("div", "text-sm text-slate-600", "Upload student photos for ID cards (optional)."));
+          
+          const list = el("div", "mt-4 space-y-4");
+          state.students.forEach((s, idx) => {
+            const card = el("div", "rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200");
+            card.appendChild(el("div", "text-sm font-semibold text-slate-900", escapeHtml(s.full_name || `Student ${idx + 1}`)));
+            
+            const photoContainer = el("div", "mt-3");
+            const photoInput = document.createElement("input");
+            photoInput.type = "file";
+            photoInput.accept = "image/jpeg,image/png,image/gif";
+            photoInput.className = "block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-slate-50 file:text-slate-700 hover:file:bg-slate-100";
+            
+            // Store photo file in state
+            photoInput.addEventListener("change", (e) => {
+              const file = e.target.files[0];
+              if (file) {
+                s.photoFile = file;
+                if (photoPreview) {
+                  photoPreview.src = URL.createObjectURL(file);
+                  photoPreview.classList.remove("hidden");
+                }
+              }
+            });
+            
+            const photoPreview = document.createElement("img");
+            photoPreview.className = "mt-2 hidden h-32 w-32 rounded-xl object-cover ring-1 ring-slate-200";
+            photoPreview.alt = "Photo preview";
+            
+            if (s.photoFile) {
+              photoPreview.src = URL.createObjectURL(s.photoFile);
+              photoPreview.classList.remove("hidden");
+            }
+            
+            photoContainer.appendChild(photoInput);
+            photoContainer.appendChild(photoPreview);
+            card.appendChild(photoContainer);
+            list.appendChild(card);
+          });
+          
+          wrap.appendChild(list);
+          return wrap;
+        },
+      },
+      {
         label: "IDs",
         render: ({ state }) => {
           const wrap = el("div", "");
@@ -578,9 +626,60 @@ function openParentStudentsWizard({ parents }) {
           const row = el("div", "mt-4 flex flex-wrap gap-2");
           const downloadBtn = button("Download JSON", "primary");
           const copyBtn = button("Copy credentials", "secondary");
-          downloadBtn.addEventListener("click", () => {
+          downloadBtn.addEventListener("click", async () => {
+            // Upload photos first if any
+            const uploadedStudents = [];
+            
+            for (const student of state.students) {
+              let photoPath = null;
+              let photoMime = null;
+              
+              if (student.photoFile) {
+                try {
+                  const fileName = `${student.student_id || student.full_name.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.${student.photoFile.name.split('.').pop()}`;
+                  const { error: uploadError } = await supabase.storage
+                    .from('student-photos')
+                    .upload(fileName, student.photoFile);
+                  
+                  if (uploadError) {
+                    console.warn("Photo upload failed for", student.full_name, ":", uploadError);
+                    // Continue without photo if upload fails
+                  } else {
+                    photoPath = fileName;
+                    photoMime = student.photoFile.type;
+                  }
+                } catch (error) {
+                  console.warn("Photo upload error for", student.full_name, ":", error);
+                }
+              }
+              
+              uploadedStudents.push({
+                ...student,
+                photo_path: photoPath,
+                photo_mime: photoMime
+              });
+            }
+            
+            // Update payload with uploaded photo info
+            const finalPayload = {
+              ...payload,
+              accounts: payload.accounts.map(account => ({
+                ...account,
+                students: uploadedStudents.map(s => ({
+                  full_name: s.full_name.trim(),
+                  lrn: s.lrn.trim() || null,
+                  address: s.address.trim() || null,
+                  grade_level: s.grade_level.trim(),
+                  strand: s.strand.trim() || null,
+                  qr_code: s.student_id.trim(),
+                  photo_path: s.photo_path,
+                  photo_mime: s.photo_mime
+                }))
+              }))
+            };
+            
             const safe = `parent_students_${userId}.json`.replaceAll(/[^a-zA-Z0-9_.-]/g, "_");
-            downloadJson(safe, payload);
+            downloadJson(safe, finalPayload);
           });
           copyBtn.addEventListener("click", async () => {
             await navigator.clipboard.writeText(`user_id: ${userId}\npassword: ${password || ""}`.trim());

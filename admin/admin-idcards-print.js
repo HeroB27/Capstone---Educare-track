@@ -32,7 +32,23 @@ async function loadClasses() {
 async function loadStudentsWithIds({ classId }) {
   let query = supabase
     .from("student_ids")
-    .select("id,qr_code,is_active,student:students(id,full_name,grade_level,class_id)")
+    .select(`
+      id,
+      qr_code,
+      is_active,
+      student:students(
+        id,
+        full_name,
+        lrn,
+        grade_level,
+        strand,
+        class_id,
+        address,
+        photo_path,
+        parent_id,
+        parent:profiles!students_parent_id_fkey(full_name, phone)
+      )
+    `)
     .eq("is_active", true)
     .order("created_at", { ascending: false });
 
@@ -46,6 +62,7 @@ async function loadStudentsWithIds({ classId }) {
 }
 
 function renderCards(rows) {
+  // [Date Checked: 2026-02-11] | [Remarks: Enhanced ID card print layout with student photo, address, parent info, student ID, and lost return note]
   cardsGrid.replaceChildren();
   if (!rows.length) {
     cardsGrid.appendChild(el("div", "text-sm text-slate-600", "No student IDs found for this selection."));
@@ -54,24 +71,64 @@ function renderCards(rows) {
 
   for (const r of rows) {
     const card = el("div", "rounded-xl border border-slate-300 bg-white p-3 print:break-inside-avoid");
-    const top = el(
-      "div",
-      "flex items-start justify-between gap-2",
-      `<div><div class="text-sm font-semibold text-slate-900">${escapeHtml(r.student.full_name)}</div><div class="text-xs text-slate-600">${escapeHtml(r.student.grade_level ?? "")}</div></div><div class="text-xs font-semibold text-slate-700">EDUCARE</div>`
-    );
-    const qrWrap = el("div", "mt-3 flex items-center justify-center");
+    
+    // Header with photo and student info
+    const header = el("div", "flex items-start justify-between gap-2");
+    
+    // Student photo (if available)
+    const photoContainer = el("div", "w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center overflow-hidden");
+    if (r.student.photo_path) {
+      const photoUrl = supabase.storage.from("student-photos").getPublicUrl(r.student.photo_path).data.publicUrl;
+      photoContainer.innerHTML = `<img src="${photoUrl}" alt="Student Photo" class="w-full h-full object-cover" onerror="this.style.display='none'">`;
+    } else {
+      photoContainer.innerHTML = '<div class="text-2xl text-slate-400">👤</div>';
+    }
+    
+    // Student info
+    const studentInfo = el("div", "flex-1");
+    studentInfo.innerHTML = `
+      <div class="text-sm font-semibold text-slate-900 leading-tight">${escapeHtml(r.student.full_name)}</div>
+      <div class="text-[10px] text-slate-600">ID: ${escapeHtml(r.student.lrn || "N/A")}</div>
+      <div class="text-[10px] text-slate-600">${escapeHtml(r.student.grade_level || "")}${r.student.strand ? ` • ${escapeHtml(r.student.strand)}` : ""}</div>
+    `;
+    
+    // School logo
+    const schoolLogo = el("div", "text-xs font-semibold text-slate-700", "EDUCARE");
+    
+    header.appendChild(photoContainer);
+    header.appendChild(studentInfo);
+    header.appendChild(schoolLogo);
+    
+    // Contact information
+    const contactInfo = el("div", "mt-2 text-[9px] text-slate-700 leading-tight");
+    contactInfo.innerHTML = `
+      <div>${escapeHtml(r.student.address || "Address not provided")}</div>
+      ${r.student.parent ? `<div>Parent: ${escapeHtml(r.student.parent.full_name || "N/A")}</div>` : ""}
+      ${r.student.parent?.phone ? `<div>Phone: ${escapeHtml(r.student.parent.phone)}</div>` : ""}
+    `;
+    
+    // QR code section
+    const qrWrap = el("div", "mt-2 flex flex-col items-center");
     const canvas = document.createElement("canvas");
-    canvas.width = 120;
-    canvas.height = 120;
+    canvas.width = 100;
+    canvas.height = 100;
+    const code = el("div", "mt-1 text-center text-[8px] text-slate-700 font-mono", escapeHtml(r.qr_code));
+    
     qrWrap.appendChild(canvas);
-    const code = el("div", "mt-2 text-center text-[10px] text-slate-700", escapeHtml(r.qr_code));
-
-    card.appendChild(top);
+    qrWrap.appendChild(code);
+    
+    // Lost and found notice
+    const notice = el("div", "mt-2 text-center text-[6px] text-slate-500 border-t border-slate-200 pt-1", 
+      "If found, please return to EDUCARE COLLEGES INC. Reward may be offered."
+    );
+    
+    card.appendChild(header);
+    card.appendChild(contactInfo);
     card.appendChild(qrWrap);
-    card.appendChild(code);
+    card.appendChild(notice);
     cardsGrid.appendChild(card);
 
-    window.QRCode.toCanvas(canvas, r.qr_code, { width: 120, margin: 1 }, () => {});
+    window.QRCode.toCanvas(canvas, r.qr_code, { width: 100, margin: 0 }, () => {});
   }
 }
 

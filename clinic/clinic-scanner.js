@@ -3,12 +3,23 @@ import { initCameraScanner } from "../core/qr-camera.js";
 import { lookupStudentByQr, recordClinicArrival } from "../core/scan-actions.js";
 import { registerPwa } from "../core/pwa.js";
 
-const videoEl = document.getElementById("camera");
-const notes = document.getElementById("notes");
-const statusBox = document.getElementById("statusBox");
-const manualQr = document.getElementById("manualQr");
-const manualBtn = document.getElementById("manualBtn");
+// Get HTML elements
+const videoEl = document.getElementById("video");
+const statusBox = document.getElementById("scanStatus");
+const studentInfo = document.getElementById("studentInfo");
 const signOutBtn = document.getElementById("signOutBtn");
+const openScannerBtn = document.getElementById("openScanner");
+const startScannerBtn = document.getElementById("startScanner");
+const closeScannerBtn = document.getElementById("closeScanner");
+const scannerContainer = document.getElementById("scannerContainer");
+const landingPage = document.getElementById("landingPage");
+const verifiedCountEl = document.getElementById("verifiedCount");
+const todayCountEl = document.getElementById("todayCount");
+
+// Create dynamic elements for manual input (not in HTML)
+const notes = document.createElement("textarea");
+const manualQr = document.createElement("input");
+const manualBtn = document.createElement("button");
 
 let currentProfile = null;
 let scanner = null;
@@ -98,7 +109,47 @@ signOutBtn.addEventListener("click", async () => {
 });
 
 function setStatus(message) {
-  statusBox.textContent = message;
+  if (statusBox) {
+    statusBox.textContent = message;
+  }
+  
+  if (studentInfo) {
+    studentInfo.textContent = message;
+  }
+}
+
+function showScanner() {
+  scannerContainer.style.display = "flex";
+  landingPage.style.display = "none";
+  initCamera();
+}
+
+function hideScanner() {
+  scannerContainer.style.display = "none";
+  landingPage.style.display = "block";
+  if (scanner) {
+    scanner.stop();
+  }
+}
+
+async function initCamera() {
+  setStatus("Starting camera…");
+  
+  try {
+    scanner = await initCameraScanner({
+      videoEl,
+      onCode: async ({ data }) => {
+        await handleQr(data);
+      },
+      onState: (s) => {
+        if (s.status === "requesting_camera") setStatus("Requesting camera permission…");
+        if (s.status === "scanning") setStatus("Ready. Point camera at a QR code.");
+        if (s.status === "stopped") setStatus("Camera stopped.");
+      },
+    });
+  } catch (e) {
+    setStatus((e?.message ?? "Failed to start camera.") + " Use manual fallback below.");
+  }
 }
 
 async function handleQr(data) {
@@ -144,6 +195,12 @@ async function handleQr(data) {
   setTimeout(() => scanningLocked = false, 2000);
 }
 
+// Add event listeners for scanner UI
+openScannerBtn.addEventListener("click", showScanner);
+startScannerBtn.addEventListener("click", initCamera);
+closeScannerBtn.addEventListener("click", hideScanner);
+
+// Manual input event listeners (for fallback functionality)
 manualBtn.addEventListener("click", async () => {
   await handleQr(manualQr.value);
 });
@@ -169,24 +226,11 @@ async function init() {
   }
 
   currentProfile = profile;
-  setStatus("Starting camera…");
-
-  try {
-    scanner = await initCameraScanner({
-      videoEl,
-      onCode: async ({ data }) => {
-        await handleQr(data);
-      },
-      onState: (s) => {
-        if (s.status === "requesting_camera") setStatus("Requesting camera permission…");
-        if (s.status === "scanning") setStatus("Ready. Point camera at a QR code.");
-        if (s.status === "stopped") setStatus("Camera stopped.");
-      },
-    });
-  } catch (e) {
-    setStatus((e?.message ?? "Failed to start camera.") + " Use manual fallback below.");
-  }
-
+  
+  // Initialize UI elements
+  if (statusBox) statusBox.textContent = "Ready to verify";
+  if (studentInfo) studentInfo.textContent = "Point camera at student ID";
+  
   window.addEventListener("beforeunload", () => scanner?.stop?.());
 }
 

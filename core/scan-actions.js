@@ -205,7 +205,19 @@ export function computeDepartureStatusFromSettings(settings, now = new Date()) {
   const threshold = Number(settings?.earlyExitThresholdMinutes);
   if (dismissal === null || !Number.isFinite(threshold)) return null;
   const current = minutesFromDate(now);
-  return current < dismissal - threshold ? "early" : "normal";
+  
+  // Handle early exit
+  if (current < dismissal - threshold) {
+    return "early";
+  }
+  
+  // Handle late exit (30+ minutes after dismissal)
+  if (current > dismissal + 30) {
+    return "late_exit";
+  }
+  
+  // Normal exit within dismissal time ±30 minutes
+  return "normal";
 }
 
 async function checkMorningAfternoonAbsence(studentId, currentSession) {
@@ -247,6 +259,30 @@ async function checkMorningAfternoonAbsence(studentId, currentSession) {
   return null;
 }
 
+// Check for incomplete days (tap in but no tap out)
+async function checkIncompleteDay(studentId) {
+  const today = new Date().toISOString().slice(0, 10);
+  
+  const { data: taps, error } = await supabase
+    .from("tap_logs")
+    .select("tap_type, timestamp")
+    .eq("student_id", studentId)
+    .gte("timestamp", today)
+    .order("timestamp", { ascending: true });
+  
+  if (error) throw error;
+  
+  // Check if student tapped in but never tapped out
+  const hasTapIn = taps.some(tap => tap.tap_type === "in");
+  const hasTapOut = taps.some(tap => tap.tap_type === "out");
+  
+  if (hasTapIn && !hasTapOut) {
+    return "incomplete"; // Student is still in school
+  }
+  
+  return null; // Day is complete
+}
+
 async function loadLatestTapToday(studentId) {
   const { data, error } = await supabase
     .from("tap_logs")
@@ -259,13 +295,15 @@ async function loadLatestTapToday(studentId) {
   return data?.[0] ?? null;
 }
 
-// Map internal status values to valid schema values
+// Map status values to valid schema values (only present, late, absent, excused)
 function mapStatusToSchema(status) {
   const s = String(status ?? "").toLowerCase();
-  if (s === "morning_absent" || s === "afternoon_absent") return "absent";
-  if (s === "partial") return "present";
-  if (s === "excused_absent") return "excused";
-  return s; // Return original if it's a valid schema value
+  // Only handle the four required statuses - remove unnecessary internal mappings
+  if (["present", "late", "absent", "excused"].includes(s)) {
+    return s;
+  }
+  // Default to present for any unrecognized status
+  return "present";
 }
 
 async function upsertHomeroomTapIn({ student, status }) {
@@ -465,9 +503,10 @@ export async function recordTap({ gatekeeperId, student, tapType, duplicateWindo
   }
 
   if (type === "in") {
+    // [Date Checked: 2026-02-11] | [Remarks: Fixed priority bug - grade-level rules now take precedence over global settings]
     const settings = await loadAttendanceSettings();
-    const bySettings = computeArrivalStatusFromSettings(settings);
-    const arrival = bySettings ?? computeArrivalStatus(await loadAttendanceRule(student.grade_level));
+    const byGradeRule = computeArrivalStatus(await loadAttendanceRule(student.grade_level));
+    const arrival = byGradeRule ?? computeArrivalStatusFromSettings(settings);
     
     // Check for morning/afternoon absence scenarios
     const currentSession = getCurrentSession();
@@ -529,6 +568,23 @@ export async function recordTap({ gatekeeperId, student, tapType, duplicateWindo
       },
     });
     
+    // NOTIFY PARENT - Send immediate notification to parent
+    if (student.parent_id) {
+      await notify({
+        recipientId: student.parent_id,
+        actorId: gatekeeperId,
+        verb: verb === NOTIFICATION_VERBS.TAP_IN_LATE ? "tap_in_late" : "tap_in",
+        object: { 
+          student_id: student.id, 
+          student_name: student.full_name,
+          timestamp: new Date().toISOString(), 
+          status: displayStatus,
+          remarks
+        },
+      });
+      console.log("[RecordTap] Parent notified of tap-in");
+    }
+    
     console.log("[RecordTap] Tap-in recorded successfully");
     return { result: "ok", arrival: finalStatus, absenceType };
   }
@@ -583,6 +639,23 @@ export async function recordTap({ gatekeeperId, student, tapType, duplicateWindo
       notification_type: "attendance_tap_out"
     },
   });
+  
+  // NOTIFY PARENT - Send immediate notification to parent
+  if (student.parent_id) {
+    await notify({
+      recipientId: student.parent_id,
+      actorId: gatekeeperId,
+      verb: verb === NOTIFICATION_VERBS.TAP_OUT_EARLY ? "tap_out_early" : "tap_out",
+      object: { 
+        student_id: student.id, 
+        student_name: student.full_name,
+        timestamp: new Date().toISOString(), 
+        status: departureStatus,
+        remarks
+      },
+    });
+    console.log("[RecordTap] Parent notified of tap-out");
+  }
   
   console.log("[RecordTap] Tap-out recorded successfully");
   return { result: "ok", departureStatus };
@@ -1220,8 +1293,10 @@ export async function recordTapEvent({ studentId, gatekeeperId, tapType, locatio
   // Determine arrival status for tap-in
   let arrivalStatus = "on_time";
   if (tapType === "in") {
+    // [Date Checked: 2026-02-11] | [Remarks: Fixed priority bug - grade-level rules now take precedence over global settings]
     const settings = await loadAttendanceSettings();
-    arrivalStatus = computeArrivalStatusFromSettings(settings) ?? "on_time";
+    const byGradeRule = computeArrivalStatus(await loadAttendanceRule(student.grade_level));
+    arrivalStatus = byGradeRule ?? computeArrivalStatusFromSettings(settings) ?? "on_time";
     
     await upsertHomeroomTapIn({
       student: { id: studentId, class_id: null },
@@ -1498,4 +1573,38 @@ export function setupOfflineSync(onSyncComplete) {
   window.addEventListener("offline", () => {
     console.log("[OfflineQueue] Device went offline");
   });
+}
+
+/**
+ * Check if student has an existing pending clinic pass
+ * @param {string} studentId - Student ID to check
+ * @returns {Promise<boolean>} True if pending pass exists
+ */
+export async function hasPendingClinicPass(studentId) {
+  const { data, error } = await supabase
+    .from("clinic_passes")
+    .select("id")
+    .eq("student_id", studentId)
+    .eq("status", "pending")
+    .limit(1);
+  
+  if (error) throw error;
+  return data && data.length > 0;
+}
+
+/**
+ * Check if student has an active clinic visit
+ * @param {string} studentId - Student ID to check
+ * @returns {Promise<boolean>} True if active visit exists
+ */
+export async function hasActiveClinicVisit(studentId) {
+  const { data, error } = await supabase
+    .from("clinic_visits")
+    .select("id")
+    .eq("student_id", studentId)
+    .in("status", ["in_clinic", "being_treated"])
+    .limit(1);
+  
+  if (error) throw error;
+  return data && data.length > 0;
 }
