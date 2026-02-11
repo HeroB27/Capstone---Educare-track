@@ -1,19 +1,27 @@
-import { supabase } from "../core/core.js";
+import { supabase, storePassword } from "../core/core.js";
 import { initAppShell } from "../core/shell.js";
 import { initAdminPage } from "./admin-common.js";
 
 initAppShell({ role: "admin", active: "people" });
 
-const usersStatus = document.getElementById("usersStatus");
-const usersApp = document.getElementById("usersApp");
+// Defensive code for missing DOM elements
+const usersStatus = document.getElementById("usersStatus") ?? document.createElement("div");
+const usersApp = document.getElementById("usersApp") ?? document.getElementById("usersTableBody");
+if (!document.getElementById("usersStatus") && usersApp?.parentElement) {
+  usersStatus.id = "usersStatus";
+  usersStatus.className = "text-sm text-slate-600 mb-4";
+  usersApp.parentElement.insertBefore(usersStatus, usersApp);
+}
 
+// Utility functions
 function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+  if (value == null) return '';
+  return String(value)
+    .replace(/&/g, '&')
+    .replace(/</g, '<')
+    .replace(/>/g, '>')
+    .replace(/"/g, '"')
+    .replace(/'/g, '&#039;');
 }
 
 function el(tag, className, html) {
@@ -23,20 +31,19 @@ function el(tag, className, html) {
   return node;
 }
 
-function textInput({ value = "", placeholder = "", type = "text" } = {}) {
+function textInput(opts) {
+  opts = opts || {};
   const i = document.createElement("input");
-  i.type = type;
-  i.value = value;
-  i.placeholder = placeholder;
-  i.className =
-    "w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200";
+  i.type = opts.type || "text";
+  i.value = opts.value || "";
+  i.placeholder = opts.placeholder || "";
+  i.className = "w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200";
   return i;
 }
 
 function selectInput(options, value) {
   const s = document.createElement("select");
-  s.className =
-    "w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200";
+  s.className = "w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200";
   for (const o of options) {
     const opt = document.createElement("option");
     opt.value = o.value;
@@ -47,38 +54,34 @@ function selectInput(options, value) {
   return s;
 }
 
-function button(label, variant = "primary") {
+function button(label, variant) {
   const b = document.createElement("button");
   b.type = "button";
   if (variant === "primary") {
     b.className = "rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700";
   } else if (variant === "ghost") {
     b.className = "rounded-xl px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50";
+  } else if (variant === "danger") {
+    b.className = "rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700";
   } else {
-    b.className =
-      "rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50";
+    b.className = "rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50";
   }
   b.textContent = label;
   return b;
 }
 
 function pill(text, color) {
-  const span = el(
-    "span",
-    `inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${color}`,
-    escapeHtml(text)
-  );
-  return span;
+  return el("span", "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold " + color, escapeHtml(text));
 }
 
 function rolePill(role) {
-  const r = String(role ?? "").toLowerCase();
+  const r = String(role || "").toLowerCase();
   if (r === "admin") return pill("Admin", "bg-violet-100 text-violet-700");
   if (r === "teacher") return pill("Teacher", "bg-blue-100 text-blue-700");
   if (r === "parent") return pill("Parent", "bg-green-100 text-green-700");
   if (r === "guard") return pill("Guard", "bg-yellow-100 text-yellow-800");
   if (r === "clinic") return pill("Clinic", "bg-red-100 text-red-700");
-  return pill(r || "—", "bg-slate-100 text-slate-700");
+  return pill(r || "-", "bg-slate-100 text-slate-700");
 }
 
 function openModal(contentEl) {
@@ -86,217 +89,20 @@ function openModal(contentEl) {
   const card = el("div", "w-full max-w-2xl rounded-2xl bg-white p-5 shadow-lg");
   card.appendChild(contentEl);
   overlay.appendChild(card);
-  overlay.addEventListener("click", (e) => {
+  overlay.addEventListener("click", function(e) {
     if (e.target === overlay) overlay.remove();
   });
   document.body.appendChild(overlay);
   return overlay;
 }
 
-async function loadProfiles() {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id,full_name,username,phone,address,email,role,is_active,created_at")
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return data ?? [];
-}
-
-async function loadResetRequests() {
-  const { data, error } = await supabase
-    .from("password_reset_requests")
-    .select("id,requested_user_id,note,status,created_at")
-    .order("created_at", { ascending: false })
-    .limit(50);
-  if (error) throw error;
-  return data ?? [];
-}
-
-async function loadTeacherAssignmentIds() {
-  const [classesRes, schedRes] = await Promise.all([
-    supabase.from("classes").select("homeroom_teacher_id"),
-    supabase.from("class_schedules").select("teacher_id"),
-  ]);
-
-  const ids = new Set();
-  if (!classesRes.error) {
-    for (const row of classesRes.data ?? []) {
-      if (row.homeroom_teacher_id) ids.add(row.homeroom_teacher_id);
-    }
-  }
-  if (!schedRes.error) {
-    for (const row of schedRes.data ?? []) {
-      if (row.teacher_id) ids.add(row.teacher_id);
-    }
-  }
-  return ids;
-}
-
-async function loadParentIdsWithStudents() {
-  const { data, error } = await supabase.from("students").select("parent_id");
-  if (error) return new Set();
-  const ids = new Set();
-  for (const row of data ?? []) {
-    if (row.parent_id) ids.add(row.parent_id);
-  }
-  return ids;
-}
-
-function toLocalISODate(value) {
-  if (!value) return "";
-  const d = new Date(value);
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function renderResetRequests(requests, onRefresh) {
-  const box = el("div", "mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200");
-  box.appendChild(el("div", "text-sm font-semibold text-slate-900", "Password reset requests"));
-  box.appendChild(
-    el(
-      "div",
-      "mt-1 text-sm text-slate-600",
-      "Users can submit a request from the login page. Mark it done after handling."
-    )
-  );
-
-  if (!requests.length) {
-    box.appendChild(el("div", "mt-4 text-sm text-slate-600", "No requests yet."));
-    return box;
-  }
-
-  const ul = el("ul", "mt-4 space-y-2");
-  for (const r of requests) {
-    const li = el("li", "rounded-xl bg-slate-50 px-3 py-2");
-    const meta = `${toLocalISODate(r.created_at)} • ${r.status ?? "pending"}`;
-    li.innerHTML = `<div class="flex items-start justify-between gap-3"><div><div class="text-sm font-semibold text-slate-900">${escapeHtml(r.requested_user_id)}</div><div class="text-xs text-slate-600">${escapeHtml(meta)}</div></div></div>`;
-    if (r.note) li.appendChild(el("div", "mt-2 text-sm text-slate-700", escapeHtml(r.note)));
-    if (String(r.status ?? "pending") !== "done") {
-      const row = el("div", "mt-2 flex justify-end");
-      const doneBtn = button("Mark done", "secondary");
-      doneBtn.className =
-        "rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-white";
-      doneBtn.addEventListener("click", async () => {
-        doneBtn.disabled = true;
-        const { error } = await supabase.from("password_reset_requests").update({ status: "done" }).eq("id", r.id);
-        if (error) {
-          usersStatus.textContent = error.message;
-          doneBtn.disabled = false;
-          return;
-        }
-        await onRefresh();
-      });
-      row.appendChild(doneBtn);
-      li.appendChild(row);
-    }
-    ul.appendChild(li);
-  }
-  box.appendChild(ul);
-  return box;
-}
-
-function openEditProfileModal(profile, onSaved) {
-  const content = el("div", "");
-  content.appendChild(el("div", "text-lg font-semibold text-slate-900", "Edit user"));
-  content.appendChild(el("div", "mt-1 text-sm text-slate-600", `Auth-linked profile • id: ${escapeHtml(profile.id)}`));
-
-  const form = el("form", "mt-4 grid gap-4 md:grid-cols-2");
-  const fullName = textInput({ value: profile.full_name ?? "", placeholder: "Full name" });
-  const username = textInput({ value: profile.username ?? "", placeholder: "User ID" });
-  const phone = textInput({ value: profile.phone ?? "", placeholder: "Phone" });
-  const address = textInput({ value: profile.address ?? "", placeholder: "Address" });
-  const email = textInput({ value: profile.email ?? "", placeholder: "Email" });
-  const role = selectInput(
-    [
-      { value: "admin", label: "Admin" },
-      { value: "teacher", label: "Teacher" },
-      { value: "parent", label: "Parent" },
-      { value: "guard", label: "Guard" },
-      { value: "clinic", label: "Clinic" },
-    ],
-    profile.role ?? "teacher"
-  );
-  const active = selectInput(
-    [
-      { value: "true", label: "Active" },
-      { value: "false", label: "Inactive" },
-    ],
-    String(profile.is_active ?? true)
-  );
-
-  const inputRow = (label, inputEl) => {
-    const wrap = el("div", "space-y-1");
-    wrap.appendChild(el("label", "block text-sm font-medium text-slate-700", escapeHtml(label)));
-    wrap.appendChild(inputEl);
-    return wrap;
-  };
-
-  form.appendChild(inputRow("Full name", fullName));
-  form.appendChild(inputRow("Role", role));
-  form.appendChild(inputRow("User ID", username));
-  form.appendChild(inputRow("Active", active));
-  form.appendChild(inputRow("Phone", phone));
-  form.appendChild(inputRow("Email", email));
-  form.appendChild(el("div", "md:col-span-2"));
-  form.appendChild(inputRow("Address", address));
-
-  const errorBox = el("div", "mt-3 hidden rounded-xl bg-red-50 p-3 text-sm text-red-700");
-  const actions = el("div", "mt-5 flex justify-end gap-2");
-  const cancelBtn = button("Cancel", "ghost");
-  const saveBtn = button("Save", "primary");
-  saveBtn.type = "submit";
-  cancelBtn.addEventListener("click", () => overlay.remove());
-  actions.appendChild(cancelBtn);
-  actions.appendChild(saveBtn);
-
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    errorBox.classList.add("hidden");
-    saveBtn.disabled = true;
-
-    const payload = {
-      full_name: fullName.value.trim(),
-      username: username.value.trim(),
-      phone: phone.value.trim() || null,
-      address: address.value.trim() || null,
-      email: email.value.trim() || null,
-      role: role.value,
-      is_active: active.value === "true",
-    };
-
-    if (!payload.full_name || !payload.username) {
-      errorBox.textContent = "Full name and user id are required.";
-      errorBox.classList.remove("hidden");
-      saveBtn.disabled = false;
-      return;
-    }
-
-    const { error } = await supabase.from("profiles").update(payload).eq("id", profile.id);
-    if (error) {
-      errorBox.textContent = error.message;
-      errorBox.classList.remove("hidden");
-      saveBtn.disabled = false;
-      return;
-    }
-
-    overlay.remove();
-    await onSaved();
-  });
-
-  content.appendChild(form);
-  content.appendChild(errorBox);
-  content.appendChild(actions);
-  const overlay = openModal(content);
-}
-
+// User ID generators
 function randomFourDigits() {
   return String(Math.floor(Math.random() * 9000) + 1000);
 }
 
 function lastFourDigits(value) {
-  const digits = String(value ?? "").replaceAll(/\D/g, "");
+  const digits = String(value || "").replace(/\D/g, "");
   return digits.slice(-4).padStart(4, "0");
 }
 
@@ -305,805 +111,529 @@ function currentYear() {
 }
 
 function generateStaffUserId(prefix, phone) {
-  return `${prefix}-${currentYear()}-${lastFourDigits(phone)}-${randomFourDigits()}`;
+  return prefix + "-" + currentYear() + "-" + lastFourDigits(phone) + "-" + randomFourDigits();
 }
 
-function generateStudentUserId(lrn) {
-  return `EDU-${currentYear()}-${lastFourDigits(lrn)}-${randomFourDigits()}`;
+function generateParentUserId(phone) {
+  return "PAR-" + currentYear() + "-" + lastFourDigits(phone) + "-" + randomFourDigits();
 }
 
-function downloadJson(filename, obj) {
-  const blob = new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+// Load functions
+async function loadProfiles() {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id,full_name,username,phone,address,email,role,is_active,created_at")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
 }
 
-function openWizardModal({ title, steps, initialState }) {
-  let stepIndex = 0;
-  const state = structuredClone(initialState ?? {});
+// Generate UUID
+function generateUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    return c === 'x' ? r : (r & 0x3 | 0x8).toString(16);
+  });
+}
 
+// Modal: Quick Add User (Staff)
+async function openAddStaffModal(onSaved) {
   const content = el("div", "");
-  const header = el("div", "flex items-start justify-between gap-3");
-  header.appendChild(el("div", "text-lg font-semibold text-slate-900", escapeHtml(title)));
-  const closeBtn = button("Close", "ghost");
-  closeBtn.className = "rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50";
-  header.appendChild(closeBtn);
-  content.appendChild(header);
+  content.appendChild(el("div", "text-lg font-semibold text-slate-900", "Add Staff Member"));
+  content.appendChild(el("div", "mt-1 text-sm text-slate-600", "Create teacher, guard, clinic, or admin account. Email is optional."));
 
-  const stepper = el("div", "mt-4 flex flex-wrap gap-2");
-  const body = el("div", "mt-4");
-  const errorBox = el("div", "mt-4 hidden rounded-xl bg-red-50 p-3 text-sm text-red-700");
-  const actions = el("div", "mt-5 flex items-center justify-between gap-2");
-  const backBtn = button("Back", "secondary");
-  backBtn.className = "rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-400";
-  const nextBtn = button("Next", "primary");
-  actions.appendChild(backBtn);
-  actions.appendChild(nextBtn);
+  const form = el("form", "mt-4 grid gap-4 md:grid-cols-2");
+  
+  const role = selectInput([
+    { value: "teacher", label: "Teacher" },
+    { value: "admin", label: "Admin" },
+    { value: "guard", label: "Guard" },
+    { value: "clinic", label: "Clinic Staff" },
+  ], "teacher");
 
-  content.appendChild(stepper);
-  content.appendChild(body);
+  const fullName = textInput({ placeholder: "Full Name *" });
+  const phone = textInput({ placeholder: "Phone (10-11 digits) *", type: "tel" });
+  const email = textInput({ placeholder: "Email (optional)", type: "email" });
+  const address = textInput({ placeholder: "Address (optional)" });
+  const username = textInput({ placeholder: "Username (auto-generated)" });
+  const password = textInput({ placeholder: "Password *", type: "password" });
+  
+  // Auto-generate username on phone change
+  phone.addEventListener("input", function() {
+    const digits = phone.value.replace(/\D/g, "");
+    if (digits.length >= 4) {
+      const prefix = role.value === "teacher" ? "TCH" : role.value === "admin" ? "ADM" : role.value === "guard" ? "GRD" : "CLC";
+      username.value = generateStaffUserId(prefix, digits);
+    }
+  });
+
+  role.addEventListener("change", function() {
+    const digits = phone.value.replace(/\D/g, "");
+    if (digits.length >= 4) {
+      const prefix = role.value === "teacher" ? "TCH" : role.value === "admin" ? "ADM" : role.value === "guard" ? "GRD" : "CLC";
+      username.value = generateStaffUserId(prefix, digits);
+    }
+  });
+
+  function inputRow(label, inputEl) {
+    const wrap = el("div", "space-y-1");
+    wrap.appendChild(el("label", "block text-sm font-medium text-slate-700", label));
+    wrap.appendChild(inputEl);
+    return wrap;
+  }
+
+  form.appendChild(inputRow("Role", role));
+  form.appendChild(inputRow("Full Name *", fullName));
+  form.appendChild(inputRow("Username", username));
+  form.appendChild(inputRow("Password *", password));
+  form.appendChild(inputRow("Phone *", phone));
+  form.appendChild(inputRow("Email (optional)", email));
+  form.appendChild(el("div", "md:col-span-2"));
+  form.appendChild(inputRow("Address (optional)", address));
+
+  const errorBox = el("div", "mt-3 hidden rounded-xl bg-red-50 p-3 text-sm text-red-700");
+  const successBox = el("div", "mt-3 hidden rounded-xl bg-green-50 p-3 text-sm text-green-700");
+  const actions = el("div", "mt-5 flex justify-end gap-2");
+  const cancelBtn = button("Cancel", "ghost");
+  const saveBtn = button("Create Account", "primary");
+  saveBtn.type = "submit";
+  actions.appendChild(cancelBtn);
+  actions.appendChild(saveBtn);
+
+  const overlay = openModal(content);
+  cancelBtn.addEventListener("click", function() { overlay.remove(); });
+  content.appendChild(form);
+  content.appendChild(errorBox);
+  content.appendChild(successBox);
+  content.appendChild(actions);
+
+  form.addEventListener("submit", async function(e) {
+    e.preventDefault();
+    errorBox.classList.add("hidden");
+    successBox.classList.add("hidden");
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Creating...";
+
+    const userId = username.value.trim().toUpperCase();
+    const pass = password.value;
+    const full = fullName.value.trim();
+    const phoneVal = phone.value.trim();
+
+    if (!full || !userId || !pass) {
+      errorBox.textContent = "Full name, username, and password are required.";
+      errorBox.classList.remove("hidden");
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Create Account";
+      return;
+    }
+
+    try {
+      const newUserId = generateUUID();
+
+      // Create profile directly in Supabase
+      const { error: profileError } = await supabase.from("profiles").insert({
+        id: newUserId,
+        full_name: full,
+        username: userId,
+        phone: phoneVal || null,
+        email: email.value.trim() || null,
+        address: address.value.trim() || null,
+        role: role.value,
+        is_active: true
+      });
+
+      if (profileError) throw profileError;
+
+      // Create role-specific record
+      if (role.value === "teacher") {
+        await supabase.from("teachers").insert({ profile_id: newUserId, is_gatekeeper: false }).catch(function() {});
+      } else if (role.value === "guard") {
+        await supabase.from("guards").insert({ profile_id: newUserId }).catch(function() {});
+      } else if (role.value === "clinic") {
+        await supabase.from("clinic_staff").insert({ profile_id: newUserId }).catch(function() {});
+      }
+
+      // Store password in Supabase (not localStorage)
+      await storePassword(newUserId, pass);
+
+      successBox.innerHTML = "<b>Account Created Successfully!</b><br>User ID: " + userId + "<br>Password: " + pass + "<br><br>Login with User ID and this password.";
+      successBox.classList.remove("hidden");
+      saveBtn.textContent = "Created!";
+      saveBtn.disabled = true;
+
+      setTimeout(function() {
+        overlay.remove();
+        onSaved();
+      }, 2000);
+
+    } catch (error) {
+      errorBox.textContent = error.message || "Failed to create account.";
+      errorBox.classList.remove("hidden");
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Create Account";
+    }
+  });
+}
+
+// Modal: Add Parent + Student(s)
+async function openAddParentStudentModal(onSaved) {
+  const content = el("div", "");
+  content.appendChild(el("div", "text-lg font-semibold text-slate-900", "Add Parent & Student(s)"));
+  content.appendChild(el("div", "mt-1 text-sm text-slate-600", "Parent account with one or more students. Phone required, email optional."));
+
+  const form = el("form", "mt-4 grid gap-4");
+  
+  // Parent Section
+  const parentSection = el("div", "p-4 bg-slate-50 rounded-xl");
+  parentSection.appendChild(el("div", "font-semibold text-slate-900 mb-3", "Parent Information"));
+  
+  const parentType = selectInput([
+    { value: "Parent", label: "Parent" },
+    { value: "Guardian", label: "Guardian" },
+  ], "Parent");
+  
+  const parentName = textInput({ placeholder: "Parent/Guardian Full Name *" });
+  const parentPhone = textInput({ placeholder: "Phone (10-11 digits) *", type: "tel" });
+  const parentAddress = textInput({ placeholder: "Address *" });
+  
+  // Auto-generate parent username
+  parentPhone.addEventListener("input", function() {
+    const digits = parentPhone.value.replace(/\D/g, "");
+    if (digits.length >= 4) {
+      parentUsername.value = generateParentUserId(digits);
+    }
+  });
+
+  const parentUsername = textInput({ placeholder: "Username (auto-generated)" });
+  const parentPassword = textInput({ placeholder: "Password *", type: "password" });
+
+  function inputRow(label, inputEl) {
+    const wrap = el("div", "space-y-1");
+    wrap.appendChild(el("label", "block text-sm font-medium text-slate-700", label));
+    wrap.appendChild(inputEl);
+    return wrap;
+  }
+
+  parentSection.appendChild(inputRow("Relationship", parentType));
+  parentSection.appendChild(inputRow("Full Name *", parentName));
+  parentSection.appendChild(inputRow("Phone *", parentPhone));
+  parentSection.appendChild(inputRow("Address *", parentAddress));
+  parentSection.appendChild(inputRow("Username", parentUsername));
+  parentSection.appendChild(inputRow("Password *", parentPassword));
+
+  // Students Section
+  const studentsSection = el("div", "p-4 bg-blue-50 rounded-xl mt-4");
+  studentsSection.appendChild(el("div", "flex justify-between items-center mb-3", 
+    el("div", "font-semibold text-slate-900", "Student Information(s)"),
+    button("+ Add Another Student", "secondary")
+  ));
+
+  const studentsContainer = el("div", "space-y-4");
+  
+  function createStudentFields(index) {
+    const studentDiv = el("div", "p-3 bg-white rounded-lg border border-slate-200");
+    studentDiv.appendChild(el("div", "text-xs font-medium text-slate-500 mb-2", "Student " + (index + 1)));
+    
+    const sName = textInput({ placeholder: "Student Full Name *" });
+    const sLrn = textInput({ placeholder: "LRN (12 digits, optional)", type: "tel" });
+    const sGrade = textInput({ placeholder: "Grade Level (Kinder, 1-12, or SHS Grade 11/12) *" });
+    const sStrand = textInput({ placeholder: "Strand (for SHS only: ABM, STEM, HUMSS, TVL-ICT)" });
+    const sAddress = textInput({ placeholder: "Address (same as parent if empty)" });
+    
+    // Photo upload for student
+    const photoWrap = el("div", "space-y-1 mt-2");
+    photoWrap.appendChild(el("label", "block text-xs font-medium text-slate-700", "Photo (optional)"));
+    const photoInput = document.createElement("input");
+    photoInput.type = "file";
+    photoInput.accept = "image/*";
+    photoInput.className = "text-xs text-slate-600";
+    photoWrap.appendChild(photoInput);
+    
+    const photoPreview = el("div", "mt-2 hidden");
+    photoPreview.innerHTML = '<img src="" alt="Photo preview" class="w-16 h-16 rounded-lg object-cover border border-slate-200">';
+    
+    photoInput.addEventListener("change", async function(e) {
+      const file = e.target.files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+          photoPreview.querySelector("img").src = evt.target.result;
+          photoPreview.classList.remove("hidden");
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    function inputRowStudent(label, inputEl) {
+      const wrap = el("div", "space-y-1");
+      wrap.appendChild(el("label", "block text-xs font-medium text-slate-700", label));
+      wrap.appendChild(inputEl);
+      return wrap;
+    }
+
+    studentDiv.appendChild(inputRowStudent("Full Name *", sName));
+    studentDiv.appendChild(inputRowStudent("LRN (optional)", sLrn));
+    studentDiv.appendChild(inputRowStudent("Grade Level *", sGrade));
+    studentDiv.appendChild(inputRowStudent("Strand (SHS only)", sStrand));
+    studentDiv.appendChild(inputRowStudent("Address", sAddress));
+    studentDiv.appendChild(photoWrap);
+    studentDiv.appendChild(photoPreview);
+
+    return { div: studentDiv, name: sName, lrn: sLrn, grade: sGrade, strand: sStrand, address: sAddress, photoInput };
+  }
+
+  const firstStudent = createStudentFields(0);
+  studentsContainer.appendChild(firstStudent.div);
+  
+  let studentCount = 1;
+  studentsSection.querySelector("button").addEventListener("click", function() {
+    if (studentCount < 5) {
+      const newStudent = createStudentFields(studentCount);
+      studentsContainer.appendChild(newStudent.div);
+      studentCount++;
+    }
+  });
+
+  studentsSection.appendChild(studentsContainer);
+
+  form.appendChild(parentSection);
+  form.appendChild(studentsSection);
+
+  const errorBox = el("div", "mt-3 hidden rounded-xl bg-red-50 p-3 text-sm text-red-700");
+  const successBox = el("div", "mt-3 hidden rounded-xl bg-green-50 p-3 text-sm text-green-700");
+  const actions = el("div", "mt-5 flex justify-end gap-2");
+  const cancelBtn = button("Cancel", "ghost");
+  const saveBtn = button("Create Accounts & Generate IDs", "primary");
+  saveBtn.type = "submit";
+  actions.appendChild(cancelBtn);
+  actions.appendChild(saveBtn);
+
+  const overlay = openModal(content);
+  cancelBtn.addEventListener("click", function() { overlay.remove(); });
+  content.appendChild(form);
+  content.appendChild(errorBox);
+  content.appendChild(successBox);
+  content.appendChild(actions);
+
+  form.addEventListener("submit", async function(e) {
+    e.preventDefault();
+    errorBox.classList.add("hidden");
+    successBox.classList.add("hidden");
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Creating...";
+
+    const parentUser = parentUsername.value.trim() || parentUsername.value;
+    const parentPass = parentPassword.value;
+    const parentFull = parentName.value.trim();
+    const parentPhoneVal = parentPhone.value.trim();
+    const parentAddr = parentAddress.value.trim();
+
+    if (!parentFull || !parentUser || !parentPass || !parentAddr) {
+      errorBox.textContent = "Parent name, username, password, and address are required.";
+      errorBox.classList.remove("hidden");
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Create Accounts & Generate IDs";
+      return;
+    }
+
+    try {
+      const parentId = generateUUID();
+
+      const { error: parentError } = await supabase.from("profiles").insert({
+        id: parentId,
+        full_name: parentFull,
+        username: parentUser.toUpperCase(),
+        phone: parentPhoneVal,
+        email: null,
+        address: parentAddr,
+        role: "parent",
+        is_active: true
+      });
+
+      if (parentError) throw parentError;
+      await supabase.from("parents").insert({ profile_id: parentId, parent_type: parentType.value }).catch(function() {});
+
+      // Store password in Supabase (not localStorage)
+      await storePassword(parentId, parentPass);
+
+      // Create students
+      let studentIds = [];
+      const studentDivs = studentsContainer.querySelectorAll(":scope > div");
+      
+      for (let i = 0; i < studentDivs.length; i++) {
+        const div = studentDivs[i];
+        const inputs = div.querySelectorAll("input");
+        const sName = inputs[0]?.value?.trim();
+        const sGrade = inputs[2]?.value?.trim();
+
+        if (!sName || !sGrade) continue;
+
+        const studentId = generateUUID();
+        const lrn = inputs[1]?.value?.trim() || null;
+        const strand = inputs[3]?.value?.trim() || null;
+        const addr = inputs[4]?.value?.trim() || parentAddr;
+        const photoFile = inputs[5]?.files?.[0] || null;
+
+        // Upload photo if provided
+        let photoPath = null;
+        if (photoFile) {
+          const fileName = studentId + "-" + Date.now() + "-" + photoFile.name.replace(/[^a-zA-Z0-9.]/g, "");
+          const { error: uploadError } = await supabase.storage
+            .from("student-photos")
+            .upload(fileName, photoFile);
+          if (!uploadError) {
+            photoPath = fileName;
+          }
+        }
+
+        const { error: studentError } = await supabase.from("students").insert({
+          id: studentId,
+          full_name: sName,
+          lrn: lrn,
+          address: addr,
+          grade_level: sGrade,
+          strand: strand,
+          parent_id: parentId,
+          photo_path: photoPath,
+          is_active: true
+        });
+
+        if (studentError) throw studentError;
+        studentIds.push({ id: studentId, name: sName, grade: sGrade });
+      }
+
+      successBox.innerHTML = "<b>Accounts Created Successfully!</b><br><br><b>Parent Account:</b><br>User ID: " + parentUser.toUpperCase() + "<br>Password: " + parentPass + "<br><br><b>Students: " + studentIds.length + "</b><br>" + studentIds.map(function(s) { return s.name + " (" + s.grade + ")"; }).join("<br>") + "<br><br><b>Parent account can login immediately.</b>";
+      successBox.classList.remove("hidden");
+      saveBtn.textContent = "Done!";
+      saveBtn.disabled = true;
+
+      setTimeout(function() {
+        overlay.remove();
+        onSaved();
+      }, 3000);
+
+    } catch (error) {
+      errorBox.textContent = error.message || "Failed to create accounts.";
+      errorBox.classList.remove("hidden");
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Create Accounts & Generate IDs";
+    }
+  });
+}
+
+// Modal: Edit Profile
+function openEditProfileModal(profile, onSaved) {
+  const content = el("div", "");
+  content.appendChild(el("div", "text-lg font-semibold text-slate-900", "Edit User"));
+  content.appendChild(el("div", "mt-1 text-sm text-slate-600", "ID: " + escapeHtml(profile.username)));
+
+  const form = el("form", "mt-4 grid gap-4 md:grid-cols-2");
+  const fullName = textInput({ value: profile.full_name || "", placeholder: "Full name" });
+  const phone = textInput({ value: profile.phone || "", placeholder: "Phone" });
+  const address = textInput({ value: profile.address || "", placeholder: "Address" });
+  const email = textInput({ value: profile.email || "", placeholder: "Email (optional)" });
+  
+  const role = selectInput([
+    { value: "admin", label: "Admin" },
+    { value: "teacher", label: "Teacher" },
+    { value: "parent", label: "Parent" },
+    { value: "guard", label: "Guard" },
+    { value: "clinic", label: "Clinic" },
+  ], profile.role || "teacher");
+
+  const active = selectInput([
+    { value: "true", label: "Active" },
+    { value: "false", label: "Inactive" },
+  ], String(profile.is_active || true));
+
+  function inputRow(label, inputEl) {
+    const wrap = el("div", "space-y-1");
+    wrap.appendChild(el("label", "block text-sm font-medium text-slate-700", label));
+    wrap.appendChild(inputEl);
+    return wrap;
+  }
+
+  form.appendChild(inputRow("Full Name", fullName));
+  form.appendChild(inputRow("Role", role));
+  form.appendChild(inputRow("Active", active));
+  form.appendChild(inputRow("Phone", phone));
+  form.appendChild(inputRow("Email (optional)", email));
+  form.appendChild(el("div", "md:col-span-2"));
+  form.appendChild(inputRow("Address", address));
+
+  const errorBox = el("div", "mt-3 hidden rounded-xl bg-red-50 p-3 text-sm text-red-700");
+  const actions = el("div", "mt-5 flex justify-end gap-2");
+  const cancelBtn = button("Cancel", "ghost");
+  const saveBtn = button("Save Changes", "primary");
+  saveBtn.type = "submit";
+  actions.appendChild(cancelBtn);
+  actions.appendChild(saveBtn);
+
+  const overlay = openModal(content);
+  cancelBtn.addEventListener("click", function() { overlay.remove(); });
+  content.appendChild(form);
   content.appendChild(errorBox);
   content.appendChild(actions);
 
-  const overlay = openModal(content);
-  closeBtn.addEventListener("click", () => overlay.remove());
+  form.addEventListener("submit", async function(e) {
+    e.preventDefault();
+    errorBox.classList.add("hidden");
+    saveBtn.disabled = true;
 
-  function renderStepper() {
-    stepper.replaceChildren();
-    steps.forEach((s, idx) => {
-      const active = idx === stepIndex;
-      const done = idx < stepIndex;
-      const chip = el(
-        "div",
-        active
-          ? "rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700"
-          : done
-            ? "rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-700"
-            : "rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500",
-        done ? `✓ ${escapeHtml(s.label)}` : `${idx + 1}. ${escapeHtml(s.label)}`
-      );
-      stepper.appendChild(chip);
-    });
-  }
+    try {
+      const { error } = await supabase.from("profiles").update({
+        full_name: fullName.value.trim(),
+        phone: phone.value.trim() || null,
+        address: address.value.trim() || null,
+        email: email.value.trim() || null,
+        role: role.value,
+        is_active: active.value === "true"
+      }).eq("id", profile.id);
 
-  function setError(message) {
-    if (!message) {
-      errorBox.textContent = "";
-      errorBox.classList.add("hidden");
-      return;
-    }
-    errorBox.textContent = message;
-    errorBox.classList.remove("hidden");
-  }
-
-  async function renderStep() {
-    setError("");
-    renderStepper();
-
-    const step = steps[stepIndex];
-    body.replaceChildren();
-    const view = await step.render({ state, setError, overlay, goNext, goBack, setStep });
-    if (view) body.appendChild(view);
-
-    backBtn.disabled = stepIndex === 0;
-    backBtn.className =
-      stepIndex === 0
-        ? "rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-400"
-        : "rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50";
-
-    nextBtn.textContent = stepIndex === steps.length - 1 ? "Done" : "Next";
-  }
-
-  async function goNext() {
-    setError("");
-    const step = steps[stepIndex];
-    if (step.validate) {
-      const msg = await step.validate({ state });
-      if (msg) {
-        setError(msg);
-        return;
-      }
-    }
-    if (stepIndex >= steps.length - 1) {
+      if (error) throw error;
       overlay.remove();
-      return;
+      onSaved();
+    } catch (error) {
+      errorBox.textContent = error.message;
+      errorBox.classList.remove("hidden");
+      saveBtn.disabled = false;
     }
-    stepIndex += 1;
-    await renderStep();
-  }
-
-  async function goBack() {
-    setError("");
-    if (stepIndex === 0) return;
-    stepIndex -= 1;
-    await renderStep();
-  }
-
-  async function setStep(i) {
-    if (i < 0 || i >= steps.length) return;
-    stepIndex = i;
-    await renderStep();
-  }
-
-  backBtn.addEventListener("click", goBack);
-  nextBtn.addEventListener("click", goNext);
-  renderStep();
-  return overlay;
-}
-
-function openProvisionParentWizard() {
-  openWizardModal({
-    title: "Parent + Students (multi-step)",
-    initialState: {
-      parent: { full_name: "", phone: "", address: "", parent_type: "Parent" },
-      students: [{ full_name: "", lrn: "", address: "", grade_level: "", strand: "" }],
-      account: { user_id: "", password: "" },
-    },
-    steps: [
-      {
-        label: "Parent info",
-        render: ({ state }) => {
-          const grid = el("div", "grid gap-4 md:grid-cols-2");
-          const name = textInput({ value: state.parent.full_name, placeholder: "Full name" });
-          const phone = textInput({ value: state.parent.phone, placeholder: "Phone" });
-          const address = textInput({ value: state.parent.address, placeholder: "Address" });
-          const type = selectInput(
-            [
-              { value: "Parent", label: "Parent" },
-              { value: "Guardian", label: "Guardian" },
-            ],
-            state.parent.parent_type
-          );
-
-          name.addEventListener("input", () => (state.parent.full_name = name.value));
-          phone.addEventListener("input", () => (state.parent.phone = phone.value));
-          address.addEventListener("input", () => (state.parent.address = address.value));
-          type.addEventListener("change", () => (state.parent.parent_type = type.value));
-
-          const row = (label, inputEl) => {
-            const w = el("div", "space-y-1");
-            w.appendChild(el("label", "block text-sm font-medium text-slate-700", escapeHtml(label)));
-            w.appendChild(inputEl);
-            return w;
-          };
-          grid.appendChild(row("Name", name));
-          grid.appendChild(row("Phone", phone));
-          grid.appendChild(row("Address", address));
-          grid.appendChild(row("Role (Parent/Guardian)", type));
-          return grid;
-        },
-        validate: ({ state }) => {
-          if (!state.parent.full_name.trim()) return "Parent name is required.";
-          if (!state.parent.phone.trim()) return "Parent phone is required.";
-          return "";
-        },
-      },
-      {
-        label: "Student info",
-        render: ({ state }) => {
-          const s = state.students[0];
-          const grid = el("div", "grid gap-4 md:grid-cols-2");
-          const name = textInput({ value: s.full_name, placeholder: "Student full name" });
-          const lrn = textInput({ value: s.lrn, placeholder: "LRN (recommended)" });
-          const grade = textInput({ value: s.grade_level, placeholder: "Grade level" });
-          const strand = textInput({ value: s.strand, placeholder: "Strand (SHS only)" });
-          const address = textInput({ value: s.address || state.parent.address, placeholder: "Address" });
-
-          name.addEventListener("input", () => (s.full_name = name.value));
-          lrn.addEventListener("input", () => (s.lrn = lrn.value));
-          grade.addEventListener("input", () => (s.grade_level = grade.value));
-          strand.addEventListener("input", () => (s.strand = strand.value));
-          address.addEventListener("input", () => (s.address = address.value));
-
-          const row = (label, inputEl) => {
-            const w = el("div", "space-y-1");
-            w.appendChild(el("label", "block text-sm font-medium text-slate-700", escapeHtml(label)));
-            w.appendChild(inputEl);
-            return w;
-          };
-          grid.appendChild(row("Student name", name));
-          grid.appendChild(row("LRN", lrn));
-          grid.appendChild(row("Grade level", grade));
-          grid.appendChild(row("Strand", strand));
-          grid.appendChild(el("div", "md:col-span-2"));
-          grid.appendChild(row("Address", address));
-          grid.appendChild(
-            el(
-              "div",
-              "md:col-span-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-700 ring-1 ring-slate-200",
-              `Emergency contact: ${escapeHtml(state.parent.phone)}`
-            )
-          );
-          return grid;
-        },
-        validate: ({ state }) => {
-          const s = state.students[0];
-          if (!s.full_name.trim()) return "Student name is required.";
-          if (!s.grade_level.trim()) return "Grade level is required.";
-          return "";
-        },
-      },
-      {
-        label: "Add more",
-        render: ({ state }) => {
-          const wrap = el("div", "");
-          wrap.appendChild(el("div", "text-sm text-slate-600", "Add more children (optional)."));
-          const addBtn = button("Add another student", "secondary");
-          const list = el("div", "mt-4 space-y-2");
-
-          const renderList = () => {
-            list.replaceChildren();
-            state.students.forEach((s, idx) => {
-              const card = el("div", "rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200");
-              card.innerHTML = `<div class="flex items-start justify-between gap-2"><div><div class="text-sm font-semibold text-slate-900">${escapeHtml(
-                s.full_name || `Student ${idx + 1}`
-              )}</div><div class="mt-1 text-xs text-slate-600">${escapeHtml(
-                `${s.grade_level || "—"}${s.strand ? ` • ${s.strand}` : ""}${s.lrn ? ` • LRN ${s.lrn}` : ""}`
-              )}</div></div></div>`;
-              if (idx > 0) {
-                const removeBtn = button("Remove", "secondary");
-                removeBtn.className =
-                  "rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-white";
-                removeBtn.addEventListener("click", () => {
-                  state.students.splice(idx, 1);
-                  renderList();
-                });
-                card.querySelector("div.flex")?.appendChild(removeBtn);
-              }
-              list.appendChild(card);
-            });
-          };
-          renderList();
-
-          addBtn.addEventListener("click", () => {
-            state.students.push({ full_name: "", lrn: "", address: state.parent.address, grade_level: "", strand: "" });
-            renderList();
-          });
-
-          wrap.appendChild(addBtn);
-          wrap.appendChild(list);
-          return wrap;
-        },
-      },
-      {
-        label: "IDs",
-        render: ({ state }) => {
-          const wrap = el("div", "");
-          wrap.appendChild(el("div", "text-sm text-slate-600", "Generate one student ID per student."));
-          const list = el("div", "mt-4 space-y-2");
-          state.students.forEach((s) => {
-            if (!s.generated_id) s.generated_id = generateStudentUserId(s.lrn);
-            const card = el("div", "rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200");
-            card.appendChild(el("div", "text-sm font-semibold text-slate-900", escapeHtml(s.full_name || "Student")));
-            const row = el("div", "mt-3 flex gap-2");
-            const code = textInput({ value: s.generated_id });
-            const regen = button("Regenerate", "secondary");
-            regen.className =
-              "rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-white";
-            code.addEventListener("input", () => (s.generated_id = code.value));
-            regen.addEventListener("click", () => {
-              s.generated_id = generateStudentUserId(s.lrn);
-              code.value = s.generated_id;
-            });
-            row.appendChild(code);
-            row.appendChild(regen);
-            card.appendChild(row);
-            list.appendChild(card);
-          });
-          wrap.appendChild(list);
-          return wrap;
-        },
-      },
-      {
-        label: "Photos",
-        render: ({ state }) => {
-          const wrap = el("div", "space-y-4");
-          wrap.appendChild(el("div", "text-sm text-slate-600", "Upload student photos for ID cards (optional)."));
-          
-          const list = el("div", "mt-4 space-y-4");
-          state.students.forEach((s, idx) => {
-            const card = el("div", "rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200");
-            card.appendChild(el("div", "text-sm font-semibold text-slate-900", escapeHtml(s.full_name || `Student ${idx + 1}`)));
-            
-            const photoContainer = el("div", "mt-3");
-            const photoInput = document.createElement("input");
-            photoInput.type = "file";
-            photoInput.accept = "image/jpeg,image/png,image/gif";
-            photoInput.className = "block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-slate-50 file:text-slate-700 hover:file:bg-slate-100";
-            
-            // Store photo file in state
-            photoInput.addEventListener("change", (e) => {
-              const file = e.target.files[0];
-              if (file) {
-                s.photoFile = file;
-                if (photoPreview) {
-                  photoPreview.src = URL.createObjectURL(file);
-                  photoPreview.classList.remove("hidden");
-                }
-              }
-            });
-            
-            const photoPreview = document.createElement("img");
-            photoPreview.className = "mt-2 hidden h-32 w-32 rounded-xl object-cover ring-1 ring-slate-200";
-            photoPreview.alt = "Photo preview";
-            
-            if (s.photoFile) {
-              photoPreview.src = URL.createObjectURL(s.photoFile);
-              photoPreview.classList.remove("hidden");
-            }
-            
-            photoContainer.appendChild(photoInput);
-            photoContainer.appendChild(photoPreview);
-            card.appendChild(photoContainer);
-            list.appendChild(card);
-          });
-          
-          wrap.appendChild(list);
-          return wrap;
-        },
-      },
-      {
-        label: "Confirm",
-        render: ({ state }) => {
-          const wrap = el("div", "space-y-4");
-          if (!state.account.user_id) state.account.user_id = generateStaffUserId("PAR", state.parent.phone);
-
-          const userId = textInput({ value: state.account.user_id, placeholder: "Parent user ID" });
-          const password = textInput({ value: state.account.password, placeholder: "Set password", type: "password" });
-          userId.addEventListener("input", () => (state.account.user_id = userId.value));
-          password.addEventListener("input", () => (state.account.password = password.value));
-
-          const row = (label, inputEl) => {
-            const w = el("div", "space-y-1");
-            w.appendChild(el("label", "block text-sm font-medium text-slate-700", escapeHtml(label)));
-            w.appendChild(inputEl);
-            return w;
-          };
-          const grid = el("div", "grid gap-4 md:grid-cols-2");
-          grid.appendChild(row("Parent User ID", userId));
-          grid.appendChild(row("Password", password));
-          wrap.appendChild(grid);
-
-          const summary = el("div", "rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200");
-          summary.innerHTML = `<div class="text-sm font-semibold text-slate-900">Preview</div><div class="mt-2 text-sm text-slate-700">${escapeHtml(
-            state.parent.full_name
-          )} • ${escapeHtml(state.parent.parent_type)} • ${escapeHtml(state.parent.phone)}</div><div class="mt-1 text-sm text-slate-700">${escapeHtml(
-            state.parent.address || ""
-          )}</div>`;
-          const ul = el("ul", "mt-3 list-disc space-y-1 pl-5 text-sm text-slate-700");
-          state.students.forEach((s) => {
-            const li = document.createElement("li");
-            li.textContent = `${s.full_name} • ${s.grade_level}${s.strand ? ` • ${s.strand}` : ""} • ${s.generated_id || ""}`;
-            ul.appendChild(li);
-          });
-          summary.appendChild(ul);
-          wrap.appendChild(summary);
-          return wrap;
-        },
-        validate: ({ state }) => {
-          if (!String(state.account.user_id || "").trim()) return "Parent user ID is required.";
-          if (!String(state.account.password || "").trim()) return "Password is required.";
-          return "";
-        },
-      },
-      {
-        label: "Create",
-        render: ({ state }) => {
-          const wrap = el("div", "");
-          wrap.appendChild(
-            el(
-              "div",
-              "rounded-2xl bg-slate-50 p-4 text-sm text-slate-700 ring-1 ring-slate-200",
-              "Ready to create parent account and student records in the database."
-            )
-          );
-          
-          const createBtn = button("Create Account", "primary");
-          createBtn.className += " mt-4";
-          
-          const statusDiv = el("div", "mt-4 text-sm");
-          
-          createBtn.addEventListener("click", async () => {
-            createBtn.disabled = true;
-            createBtn.textContent = "Creating...";
-            statusDiv.textContent = "Starting account creation...";
-            
-            try {
-              // 1. Create Auth user
-              statusDiv.textContent = "Creating Auth user...";
-              const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-                email: `${state.account.user_id}@educare.local`,
-                password: state.account.password,
-                user_metadata: { 
-                  full_name: state.parent.full_name.trim(),
-                  phone: state.parent.phone.trim()
-                },
-                email_confirm: true
-              });
-              
-              if (authError) throw authError;
-              
-              // 2. Create profile
-              statusDiv.textContent = "Creating profile...";
-              const { error: profileError } = await supabase.from("profiles").insert({
-                id: authData.user.id,
-                full_name: state.parent.full_name.trim(),
-                phone: state.parent.phone.trim(),
-                address: state.parent.address.trim() || null,
-                email: null,
-                role: "parent",
-                is_active: true
-              });
-              
-              if (profileError) throw profileError;
-              
-              // 3. Create parent record
-              statusDiv.textContent = "Creating parent record...";
-              const { error: parentError } = await supabase.from("parents").insert({
-                profile_id: authData.user.id,
-                parent_type: state.parent.parent_type
-              });
-              
-              if (parentError) throw parentError;
-              
-              // 4. Create students and link to parent
-              for (const student of state.students) {
-                statusDiv.textContent = `Creating student: ${student.full_name}...`;
-                
-                let photoPath = null;
-                let photoMime = null;
-                
-                // Upload photo if provided
-                if (student.photoFile) {
-                  statusDiv.textContent = `Uploading photo for ${student.full_name}...`;
-                  const fileName = `${student.generated_id || student.full_name.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.${student.photoFile.name.split('.').pop()}`;
-                  const { error: uploadError } = await supabase.storage
-                    .from('student-photos')
-                    .upload(fileName, student.photoFile);
-                  
-                  if (uploadError) {
-                    console.warn("Photo upload failed:", uploadError);
-                    // Continue without photo if upload fails
-                  } else {
-                    photoPath = fileName;
-                    photoMime = student.photoFile.type;
-                  }
-                }
-                
-                // Create student record
-                const { data: studentData, error: studentError } = await supabase.from("students")
-                  .insert({
-                    full_name: student.full_name.trim(),
-                    lrn: student.lrn.trim() || null,
-                    address: (student.address || state.parent.address || "").trim() || null,
-                    grade_level: student.grade_level.trim(),
-                    strand: student.strand.trim() || null,
-                    photo_path: photoPath,
-                    photo_mime: photoMime
-                  })
-                  .select("id")
-                  .single();
-                
-                if (studentError) throw studentError;
-                
-                // Link student to parent
-                const { error: linkError } = await supabase.from("parent_students").insert({
-                  parent_id: authData.user.id,
-                  student_id: studentData.id
-                });
-                
-                if (linkError) throw linkError;
-                
-                // Create student ID using RPC
-                statusDiv.textContent = `Generating student ID for ${student.full_name}...`;
-                const { data: idData, error: idError } = await supabase.rpc("issue_student_id", studentData.id);
-                
-                if (idError) throw idError;
-              }
-              
-              statusDiv.textContent = "Account creation successful! ✅";
-              createBtn.textContent = "Done";
-              
-              // Refresh the user list
-              setTimeout(() => {
-                render();
-                document.querySelector("#wizardOverlay")?.remove();
-              }, 1500);
-              
-            } catch (error) {
-              console.error("Account creation failed:", error);
-              statusDiv.textContent = `Error: ${error.message}`;
-              statusDiv.className = "mt-4 text-sm text-red-600";
-              createBtn.disabled = false;
-              createBtn.textContent = "Try Again";
-            }
-          });
-          
-          wrap.appendChild(createBtn);
-          wrap.appendChild(statusDiv);
-          return wrap;
-        },
-      },
-    ],
   });
 }
 
-function openProvisionStaffWizard() {
-  openWizardModal({
-    title: "Add Staff (multi-step)",
-    initialState: {
-      staff: { full_name: "", phone: "", address: "", email: "", role: "teacher" },
-      account: { user_id: "", password: "" },
-    },
-    steps: [
-      {
-        label: "Role & info",
-        render: ({ state }) => {
-          const grid = el("div", "grid gap-4 md:grid-cols-2");
-          const role = selectInput(
-            [
-              { value: "teacher", label: "Teacher" },
-              { value: "guard", label: "Guard" },
-              { value: "clinic", label: "Clinic" },
-              { value: "admin", label: "Admin" },
-            ],
-            state.staff.role
-          );
-          const name = textInput({ value: state.staff.full_name, placeholder: "Full name" });
-          const phone = textInput({ value: state.staff.phone, placeholder: "Phone" });
-          const email = textInput({ value: state.staff.email, placeholder: "Email (optional)" });
-          const address = textInput({ value: state.staff.address, placeholder: "Address (optional)" });
+// Render main user table
+function renderUsersTable(profiles, onEdit, onToggleActive) {
+  const wrap = el("div", "overflow-x-auto");
+  const table = el("table", "w-full min-w-[800px] text-left text-sm");
+  
+  table.innerHTML = '<thead class="text-xs uppercase text-slate-500 bg-slate-50"><tr><th class="py-3 px-4">User</th><th class="py-3 px-4">User ID</th><th class="py-3 px-4">Role</th><th class="py-3 px-4">Status</th><th class="py-3 px-4">Contact</th><th class="py-3 px-4 text-right">Actions</th></tr></thead>';
 
-          role.addEventListener("change", () => (state.staff.role = role.value));
-          name.addEventListener("input", () => (state.staff.full_name = name.value));
-          phone.addEventListener("input", () => (state.staff.phone = phone.value));
-          email.addEventListener("input", () => (state.staff.email = email.value));
-          address.addEventListener("input", () => (state.staff.address = address.value));
-
-          const row = (label, inputEl) => {
-            const w = el("div", "space-y-1");
-            w.appendChild(el("label", "block text-sm font-medium text-slate-700", escapeHtml(label)));
-            w.appendChild(inputEl);
-            return w;
-          };
-
-          grid.appendChild(row("Role", role));
-          grid.appendChild(row("Full name", name));
-          grid.appendChild(row("Phone", phone));
-          grid.appendChild(row("Email", email));
-          grid.appendChild(el("div", "md:col-span-2"));
-          grid.appendChild(row("Address", address));
-          return grid;
-        },
-        validate: ({ state }) => {
-          if (!state.staff.full_name.trim()) return "Full name is required.";
-          if (!state.staff.phone.trim()) return "Phone is required.";
-          return "";
-        },
-      },
-      {
-        label: "Account",
-        render: ({ state }) => {
-          const rolePrefix = (() => {
-            const r = String(state.staff.role);
-            if (r === "teacher") return "TCH";
-            if (r === "guard") return "GRD";
-            if (r === "clinic") return "CLC";
-            if (r === "admin") return "ADM";
-            return "USR";
-          })();
-
-          if (!state.account.user_id) state.account.user_id = generateStaffUserId(rolePrefix, state.staff.phone);
-
-          const userId = textInput({ value: state.account.user_id, placeholder: "User ID" });
-          const password = textInput({ value: state.account.password, placeholder: "Set password", type: "password" });
-          userId.addEventListener("input", () => (state.account.user_id = userId.value));
-          password.addEventListener("input", () => (state.account.password = password.value));
-
-          const grid = el("div", "grid gap-4 md:grid-cols-2");
-          const row = (label, inputEl) => {
-            const w = el("div", "space-y-1");
-            w.appendChild(el("label", "block text-sm font-medium text-slate-700", escapeHtml(label)));
-            w.appendChild(inputEl);
-            return w;
-          };
-          grid.appendChild(row("User ID", userId));
-          grid.appendChild(row("Password", password));
-
-          const hint = el(
-            "div",
-            "md:col-span-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-700 ring-1 ring-slate-200",
-            "Passwords are not saved in Supabase tables. Download the provisioning JSON and run the local script."
-          );
-
-          const wrap = el("div", "space-y-4");
-          wrap.appendChild(grid);
-          wrap.appendChild(hint);
-          return wrap;
-        },
-        validate: ({ state }) => {
-          if (!String(state.account.user_id || "").trim()) return "User ID is required.";
-          if (!String(state.account.password || "").trim()) return "Password is required.";
-          return "";
-        },
-      },
-      {
-        label: "Preview",
-        render: ({ state }) => {
-          const box = el("div", "rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200");
-          box.innerHTML = `<div class="text-sm font-semibold text-slate-900">Confirm staff account</div>
-<div class="mt-2 text-sm text-slate-700">${escapeHtml(state.staff.full_name)} • ${escapeHtml(state.staff.role)}</div>
-<div class="mt-1 text-sm text-slate-700">${escapeHtml(state.staff.phone)}</div>
-<div class="mt-1 text-sm text-slate-700">${escapeHtml(state.staff.email || "")}</div>
-<div class="mt-1 text-sm text-slate-700">${escapeHtml(state.staff.address || "")}</div>
-<div class="mt-3 text-sm font-semibold text-slate-900">Credentials</div>
-<div class="mt-1 font-mono text-xs text-slate-700">${escapeHtml(state.account.user_id)}</div>`;
-          return box;
-        },
-      },
-      {
-        label: "Create",
-        render: ({ state }) => {
-          const wrap = el("div", "");
-          wrap.appendChild(
-            el(
-              "div",
-              "rounded-2xl bg-slate-50 p-4 text-sm text-slate-700 ring-1 ring-slate-200",
-              "Ready to create staff account in the database."
-            )
-          );
-          
-          const createBtn = button("Create Account", "primary");
-          createBtn.className += " mt-4";
-          
-          const statusDiv = el("div", "mt-4 text-sm");
-          
-          createBtn.addEventListener("click", async () => {
-            createBtn.disabled = true;
-            createBtn.textContent = "Creating...";
-            statusDiv.textContent = "Starting account creation...";
-            
-            try {
-              // 1. Create Auth user
-              statusDiv.textContent = "Creating Auth user...";
-              const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-                email: state.staff.email.trim() || `${state.account.user_id}@educare.local`,
-                password: state.account.password,
-                user_metadata: { 
-                  full_name: state.staff.full_name.trim(),
-                  phone: state.staff.phone.trim()
-                },
-                email_confirm: true
-              });
-              
-              if (authError) throw authError;
-              
-              // 2. Create profile
-              statusDiv.textContent = "Creating profile...";
-              const { error: profileError } = await supabase.from("profiles").insert({
-                id: authData.user.id,
-                full_name: state.staff.full_name.trim(),
-                phone: state.staff.phone.trim(),
-                address: state.staff.address.trim() || null,
-                email: state.staff.email.trim() || null,
-                role: state.staff.role,
-                is_active: true
-              });
-              
-              if (profileError) throw profileError;
-              
-              // 3. Create role-specific record
-              statusDiv.textContent = "Creating role-specific record...";
-              if (state.staff.role === "teacher") {
-                const { error: teacherError } = await supabase.from("teachers").insert({
-                  profile_id: authData.user.id,
-                  is_gatekeeper: false
-                });
-                if (teacherError) throw teacherError;
-              } else if (state.staff.role === "guard") {
-                const { error: guardError } = await supabase.from("guards").insert({
-                  profile_id: authData.user.id
-                });
-                if (guardError) throw guardError;
-              } else if (state.staff.role === "clinic") {
-                const { error: clinicError } = await supabase.from("clinic_staff").insert({
-                  profile_id: authData.user.id
-                });
-                if (clinicError) throw clinicError;
-              }
-              
-              statusDiv.textContent = "Account creation successful! ✅";
-              createBtn.textContent = "Done";
-              
-              // Refresh the user list
-              setTimeout(() => {
-                render();
-                document.querySelector("#wizardOverlay")?.remove();
-              }, 1500);
-              
-            } catch (error) {
-              console.error("Account creation failed:", error);
-              statusDiv.textContent = `Error: ${error.message}`;
-              statusDiv.className = "mt-4 text-sm text-red-600";
-              createBtn.disabled = false;
-              createBtn.textContent = "Try Again";
-            }
-          });
-          
-          wrap.appendChild(createBtn);
-          wrap.appendChild(statusDiv);
-          return wrap;
-        },
-      },
-    ],
-  });
-}
-
-function renderTable({ profiles, issuesById, onEdit, onToggleActive, sortKey, sortDir }) {
-  const wrap = el("div", "mt-4 overflow-x-auto");
-  const table = el("table", "w-full min-w-[720px] text-left text-sm");
-  table.innerHTML =
-    '<thead class="text-xs uppercase text-slate-500"><tr><th class="py-2 pr-4">Name</th><th class="py-2 pr-4">User ID</th><th class="py-2 pr-4">Role</th><th class="py-2 pr-4">Active</th><th class="py-2 pr-4">Issues</th><th class="py-2 pr-4 text-right">Edit</th></tr></thead>';
   const tbody = el("tbody", "divide-y divide-slate-200");
 
-  const sorted = [...profiles].sort((a, b) => {
-    const dir = sortDir === "desc" ? -1 : 1;
-    const va = String(a?.[sortKey] ?? "").toLowerCase();
-    const vb = String(b?.[sortKey] ?? "").toLowerCase();
-    if (va < vb) return -1 * dir;
-    if (va > vb) return 1 * dir;
-    return 0;
-  });
-
-  for (const p of sorted) {
-    const tr = document.createElement("tr");
-    const active = Boolean(p.is_active);
-    tr.innerHTML = `
-      <td class="py-3 pr-4">
-        <div class="font-medium text-slate-900">${escapeHtml(p.full_name)}</div>
-        <div class="mt-0.5 text-xs text-slate-600">${escapeHtml(p.phone ?? "")}</div>
-      </td>
-      <td class="py-3 pr-4 font-mono text-xs text-slate-700">${escapeHtml(p.username)}</td>
-      <td class="py-3 pr-4"></td>
-      <td class="py-3 pr-4"></td>
-      <td class="py-3 pr-4"></td>
-      <td class="py-3 pr-4 text-right"></td>
-    `;
+  for (const p of profiles) {
+    const tr = el("tr", "hover:bg-slate-50");
+    const addr = p.address || '';
+    tr.innerHTML = '<td class="py-3 px-4"><div class="font-medium text-slate-900">' + escapeHtml(p.full_name) + '</div><div class="text-xs text-slate-500">' + (addr ? escapeHtml(addr.substring(0, 30)) + '...' : '-') + '</div></td><td class="py-3 px-4 font-mono text-xs">' + escapeHtml(p.username) + '</td><td class="py-3 px-4"></td><td class="py-3 px-4"></td><td class="py-3 px-4 text-xs text-slate-600"><div>' + (p.phone || '-') + '</div><div>' + (p.email || '-') + '</div></td><td class="py-3 px-4 text-right"></td>';
+    
     tr.children[2].appendChild(rolePill(p.role));
+    
+    const statusSpan = el("span", "px-2 py-1 rounded-full text-xs font-medium " + (p.is_active ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'));
+    statusSpan.textContent = p.is_active ? 'Active' : 'Inactive';
+    tr.children[3].appendChild(statusSpan);
 
-    const toggle = document.createElement("button");
-    toggle.type = "button";
-    toggle.className = active
-      ? "rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700 hover:bg-green-200"
-      : "rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200";
-    toggle.textContent = active ? "Active" : "Inactive";
-    toggle.addEventListener("click", () => onToggleActive(p));
-    tr.children[3].appendChild(toggle);
+    const actionsDiv = el("div", "flex gap-1 justify-end");
+    
+    const editBtn = button("Edit", "secondary");
+    editBtn.className = "px-3 py-1 rounded-lg border border-slate-300 text-xs hover:bg-slate-50";
+    editBtn.addEventListener("click", function() { onEdit(p); });
+    actionsDiv.appendChild(editBtn);
 
-    const issues = issuesById?.get?.(p.id) ?? [];
-    if (issues.length) {
-      const row = el("div", "flex flex-wrap gap-1");
-      for (const issue of issues) {
-        row.appendChild(pill(issue, "bg-amber-100 text-amber-800"));
-      }
-      tr.children[4].appendChild(row);
-    } else {
-      tr.children[4].appendChild(el("span", "text-xs text-slate-500", "—"));
-    }
+    const toggleBtn = button(p.is_active ? 'Deactivate' : 'Activate', "secondary");
+    toggleBtn.className = "px-3 py-1 rounded-lg border border-slate-300 text-xs hover:bg-slate-50";
+    toggleBtn.addEventListener("click", function() { onToggleActive(p); });
+    actionsDiv.appendChild(toggleBtn);
 
-    const editBtn = document.createElement("button");
-    editBtn.type = "button";
-    editBtn.className = "rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50";
-    editBtn.textContent = "Edit";
-    editBtn.addEventListener("click", () => onEdit(p));
-    tr.children[5].appendChild(editBtn);
-
+    tr.children[5].appendChild(actionsDiv);
     tbody.appendChild(tr);
   }
 
@@ -1112,166 +642,93 @@ function renderTable({ profiles, issuesById, onEdit, onToggleActive, sortKey, so
   return wrap;
 }
 
+async function toggleActive(profile) {
+  const newStatus = !profile.is_active;
+  const { error } = await supabase.from("profiles").update({ is_active: newStatus }).eq("id", profile.id);
+  if (error) {
+    usersStatus.textContent = error.message;
+    return;
+  }
+  await render();
+}
+
+// Main render function
+let profilesCache = [];
+
 async function render() {
-  usersStatus.textContent = "Loading…";
+  usersStatus.textContent = "Loading users...";
+  
+  profilesCache = await loadProfiles();
+  
   usersApp.replaceChildren();
 
-  const [profiles, resetRequests, teacherAssignmentIds, parentIdsWithStudents] = await Promise.all([
-    loadProfiles(),
-    loadResetRequests(),
-    loadTeacherAssignmentIds(),
-    loadParentIdsWithStudents(),
-  ]);
-  const rolesForPage = new Set(["teacher", "parent", "guard", "clinic", "admin"]);
-  const visible = profiles.filter((p) => rolesForPage.has(String(p.role ?? "").toLowerCase()));
-  const pendingResetIds = new Set(
-    (resetRequests ?? []).filter((r) => String(r.status ?? "pending") !== "done").map((r) => r.requested_user_id)
-  );
-  const issuesById = new Map();
-  for (const p of visible) {
-    const issues = [];
-    const role = String(p.role ?? "").toLowerCase();
-    if (role === "teacher" && !teacherAssignmentIds.has(p.id)) issues.push("No class");
-    if (role === "parent" && !parentIdsWithStudents.has(p.id)) issues.push("No child linked");
-    if (pendingResetIds.has(p.id)) issues.push("Password reset");
-    issuesById.set(p.id, issues);
-  }
-
-  const header = el("div", "flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between");
-  const left = el("div", "flex flex-1 flex-col gap-2 md:flex-row");
-  const search = textInput({ placeholder: "Search name or user ID…" });
-  const roleFilter = selectInput(
-    [
-      { value: "all", label: "All roles" },
-      { value: "teacher", label: "Teacher" },
-      { value: "parent", label: "Parent" },
-      { value: "guard", label: "Guard" },
-      { value: "clinic", label: "Clinic" },
-      { value: "admin", label: "Admin" },
-    ],
-    "all"
-  );
-  const statusFilter = selectInput(
-    [
-      { value: "all", label: "All statuses" },
-      { value: "active", label: "Active only" },
-      { value: "inactive", label: "Inactive only" },
-    ],
-    "all"
-  );
-  const issueFilter = selectInput(
-    [
-      { value: "all", label: "All users" },
-      { value: "has_issues", label: "With issues" },
-      { value: "password_reset", label: "Password reset" },
-      { value: "no_class", label: "No class" },
-      { value: "no_child", label: "No child linked" },
-    ],
-    "all"
-  );
-  const sortKey = selectInput(
-    [
-      { value: "full_name", label: "Sort: Name" },
-      { value: "username", label: "Sort: User ID" },
-      { value: "role", label: "Sort: Role" },
-    ],
-    "full_name"
-  );
-  const sortDir = selectInput(
-    [
-      { value: "asc", label: "Ascending" },
-      { value: "desc", label: "Descending" },
-    ],
-    "asc"
-  );
-
+  // Header with buttons
+  const header = el("div", "mb-4 flex flex-wrap gap-3 justify-between items-center");
+  
+  const left = el("div", "flex flex-wrap gap-2 items-center");
+  const search = textInput({ placeholder: "Search users..." });
+  search.className = "w-64 rounded-xl border border-slate-300 px-3 py-2 text-sm";
   left.appendChild(search);
-  left.appendChild(roleFilter);
-  left.appendChild(statusFilter);
-  left.appendChild(issueFilter);
-  left.appendChild(sortKey);
-  left.appendChild(sortDir);
+
+  const filterRole = selectInput([
+    { value: "", label: "All Roles" },
+    { value: "admin", label: "Admin" },
+    { value: "teacher", label: "Teacher" },
+    { value: "parent", label: "Parent" },
+    { value: "guard", label: "Guard" },
+    { value: "clinic", label: "Clinic" },
+  ], "");
+  filterRole.className = "rounded-xl border border-slate-300 px-3 py-2 text-sm";
+  left.appendChild(filterRole);
 
   const right = el("div", "flex gap-2");
-  const addProfileBtn = button("Add Profile", "secondary");
-  const linkStudentBtn = button("Add Parent+Students", "primary");
-  right.appendChild(addProfileBtn);
-  right.appendChild(linkStudentBtn);
+  const addStaffBtn = button("+ Add Staff", "primary");
+  const addParentBtn = button("+ Add Parent+Student", "primary");
+  
+  right.appendChild(addStaffBtn);
+  right.appendChild(addParentBtn);
 
   header.appendChild(left);
   header.appendChild(right);
+  usersApp.appendChild(header);
 
-  const note = el(
-    "div",
-    "mt-3 rounded-2xl bg-slate-50 p-4 text-sm text-slate-700 ring-1 ring-slate-200",
-    "<div class=\"font-semibold text-slate-900\">Account creation note</div><div class=\"mt-1\">This UI manages profiles and student records. Creating Supabase Auth accounts requires a local admin script (service key) to keep the browser safe.</div>"
-  );
+  // Info banner
+  const infoBanner = el("div", "mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800");
+  infoBanner.innerHTML = "<b>Supabase XAMPP Style:</b> Users login with User ID and password. Passwords are stored in Supabase. Created accounts work from any device.";
+  usersApp.appendChild(infoBanner);
 
-  const tableBox = el("div", "");
+  // Table
+  const table = renderUsersTable(profilesCache, openEditProfileModal, toggleActive);
+  usersApp.appendChild(table);
 
-  async function refresh() {
-    await render();
-  }
+  usersStatus.textContent = "Showing " + profilesCache.length + " users.";
 
-  addProfileBtn.addEventListener("click", () => openProvisionStaffWizard());
-  linkStudentBtn.addEventListener("click", () => {
-    window.location.href = "./admin-parent-students.html";
-  });
+  // Event listeners
+  search.addEventListener("input", applyFilters);
+  filterRole.addEventListener("change", applyFilters);
 
-  async function toggleActive(p) {
-    const next = !Boolean(p.is_active);
-    const { error } = await supabase.from("profiles").update({ is_active: next }).eq("id", p.id);
-    if (error) {
-      usersStatus.textContent = error.message;
-      return;
-    }
-    await refresh();
-  }
+  addStaffBtn.addEventListener("click", function() { openAddStaffModal(render); });
+  addParentBtn.addEventListener("click", function() { openAddParentStudentModal(render); });
 
   function applyFilters() {
     const q = search.value.trim().toLowerCase();
-    const role = roleFilter.value;
-    const status = statusFilter.value;
-    const issue = issueFilter.value;
-    const rows = visible.filter((p) => {
-      if (role !== "all" && String(p.role) !== role) return false;
-      if (status === "active" && !Boolean(p.is_active)) return false;
-      if (status === "inactive" && Boolean(p.is_active)) return false;
-
-      const issues = issuesById.get(p.id) ?? [];
-      if (issue === "has_issues" && issues.length === 0) return false;
-      if (issue === "password_reset" && !issues.includes("Password reset")) return false;
-      if (issue === "no_class" && !issues.includes("No class")) return false;
-      if (issue === "no_child" && !issues.includes("No child linked")) return false;
-
-      if (!q) return true;
-      return String(p.full_name ?? "").toLowerCase().includes(q) || String(p.username ?? "").toLowerCase().includes(q);
+    const role = filterRole.value;
+    
+    const filtered = profilesCache.filter(function(p) {
+      if (role && p.role !== role) return false;
+      if (q) {
+        const searchStr = (p.full_name + " " + p.username + " " + (p.phone || "")).toLowerCase();
+        if (!searchStr.includes(q)) return false;
+      }
+      return true;
     });
 
-    tableBox.replaceChildren(
-      renderTable({
-        profiles: rows,
-        issuesById,
-        onEdit: (p) => openEditProfileModal(p, refresh),
-        onToggleActive: toggleActive,
-        sortKey: sortKey.value,
-        sortDir: sortDir.value,
-      })
-    );
-    usersStatus.textContent = `Showing ${rows.length} users.`;
+    const tableEl = usersApp.querySelector("table");
+    if (tableEl) {
+      tableEl.replaceWith(renderUsersTable(filtered, openEditProfileModal, toggleActive));
+    }
+    usersStatus.textContent = "Showing " + filtered.length + " of " + profilesCache.length + " users.";
   }
-
-  for (const control of [search, roleFilter, statusFilter, issueFilter, sortKey, sortDir]) {
-    control.addEventListener("input", applyFilters);
-    control.addEventListener("change", applyFilters);
-  }
-
-  usersApp.appendChild(header);
-  usersApp.appendChild(note);
-  usersApp.appendChild(tableBox);
-  usersApp.appendChild(renderResetRequests(resetRequests, refresh));
-
-  applyFilters();
 }
 
 async function init() {
@@ -1281,7 +738,7 @@ async function init() {
   try {
     await render();
   } catch (e) {
-    usersStatus.textContent = e?.message ?? "Failed to load users.";
+    usersStatus.textContent = e?.message || "Failed to load users.";
   }
 }
 

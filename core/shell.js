@@ -139,8 +139,8 @@ function renderSidebar({ role, activeKey }) {
         E
       </div>
       <div>
-        <div style="font-family: var(--font-display); font-weight: 700; font-size: 1.1rem; letter-spacing: -0.02em;">Educare</div>
-        <div style="font-size: 0.75rem; opacity: 0.7; font-weight: 500;">Track Platform</div>
+        <div style="font-family: var(--font-display); font-weight: 700; font-size: 1.1rem; letter-spacing: -0.02em; color: white;">Educare</div>
+        <div style="font-size: 0.75rem; opacity: 0.7; font-weight: 500; color: rgba(255,255,255,0.8);">Track Platform</div>
       </div>
     </div>
     
@@ -149,13 +149,13 @@ function renderSidebar({ role, activeKey }) {
     </nav>
     
     <div style="padding: 1rem;">
-      <div id="profileBadge" class="hidden" style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: rgba(0, 0, 0, 0.2); border-radius: 0.75rem; backdrop-filter: blur(10px);">
+      <div id="profileBadge" class="hidden" style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: rgba(0, 0, 0, 0.2); border-radius: 0.75rem; backdrop-filter: blur(10px); color: white;">
         <div style="width: 2rem; height: 2rem; border-radius: 999px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.85rem;">
           ${(ROLE_LABEL[role] || "U").charAt(0)}
         </div>
         <div style="flex: 1; min-width: 0;">
-          <div id="sidebarUserName" style="font-size: 0.85rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">User</div>
-          <div style="font-size: 0.7rem; opacity: 0.7;">${ROLE_LABEL[role]}</div>
+          <div id="sidebarUserName" style="font-size: 0.85rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: white;">User</div>
+          <div style="font-size: 0.7rem; opacity: 0.7; color: rgba(255,255,255,0.7);">${ROLE_LABEL[role]}</div>
         </div>
         <button id="signOutBtn" style="background: none; border: none; color: rgba(255,255,255,0.7); cursor: pointer; padding: 0.25rem;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>

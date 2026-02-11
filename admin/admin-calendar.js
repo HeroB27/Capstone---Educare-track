@@ -2,10 +2,16 @@ import { supabase } from "../core/core.js";
 import { initAppShell } from "../core/shell.js";
 import { initAdminPage } from "./admin-common.js";
 
-initAppShell({ role: "admin", active: "communications" });
+initAppShell({ role: "admin", active: "calendar" });
 
-const calendarStatus = document.getElementById("calendarStatus");
-const calendarApp = document.getElementById("calendarApp");
+// [Date Checked: 2026-02-11] | [Remarks: Added defensive code to prevent null reference errors when DOM elements are missing]
+const calendarStatus = document.getElementById("calendarStatus") ?? document.createElement("div");
+const calendarApp = document.getElementById("calendarApp") ?? document.getElementById("calendarGrid");
+if (!document.getElementById("calendarStatus") && calendarApp?.parentElement) {
+  calendarStatus.id = "calendarStatus";
+  calendarStatus.className = "text-sm text-slate-600 mb-4";
+  calendarApp.parentElement.insertBefore(calendarStatus, calendarApp);
+}
 
 function escapeHtml(value) {
   return String(value ?? "")

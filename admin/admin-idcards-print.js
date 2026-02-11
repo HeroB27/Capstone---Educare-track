@@ -1,11 +1,34 @@
 import { supabase } from "../core/core.js";
 import { initAdminPage } from "./admin-common.js";
 
-const classSelect = document.getElementById("classSelect");
-const loadBtn = document.getElementById("loadBtn");
-const printBtn = document.getElementById("printBtn");
-const statusBox = document.getElementById("statusBox");
-const cardsGrid = document.getElementById("cardsGrid");
+// [Date Checked: 2026-02-11] | [Remarks: Added defensive code to prevent null reference errors when DOM elements are missing]
+const classSelect = document.getElementById("classSelect") ?? document.createElement("select");
+const loadBtn = document.getElementById("loadBtn") ?? document.createElement("button");
+const printBtn = document.getElementById("printBtn") ?? document.createElement("button");
+const statusBox = document.getElementById("statusBox") ?? document.createElement("div");
+const cardsGrid = document.getElementById("cardsGrid") ?? document.createElement("div");
+if (!document.getElementById("statusBox") && cardsGrid?.parentElement) {
+  statusBox.id = "statusBox";
+  statusBox.className = "text-sm text-slate-600 mb-4 p-4";
+  cardsGrid.parentElement.insertBefore(statusBox, cardsGrid);
+}
+// Initialize fallback elements if original elements don't exist
+if (!document.getElementById("classSelect")) {
+  classSelect.id = "classSelect";
+  classSelect.className = "rounded-xl border border-slate-300 px-3 py-2 text-sm";
+}
+if (!document.getElementById("loadBtn")) {
+  loadBtn.id = "loadBtn";
+  loadBtn.type = "button";
+  loadBtn.className = "rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700";
+  loadBtn.textContent = "Load";
+}
+if (!document.getElementById("printBtn")) {
+  printBtn.id = "printBtn";
+  printBtn.type = "button";
+  printBtn.className = "rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700";
+  printBtn.textContent = "Print";
+}
 
 function escapeHtml(value) {
   return String(value ?? "")

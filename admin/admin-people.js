@@ -1,4 +1,4 @@
-import { supabase } from "../core/core.js";
+import { supabase, storePassword } from "../core/core.js";
 import { initAppShell } from "../core/shell.js";
 import { initAdminPage } from "./admin-common.js";
 
@@ -10,23 +10,37 @@ let filteredPeople = [];
 let currentPage = 1;
 const ITEMS_PER_PAGE = 10;
 
-// DOM Elements
-const searchInput = document.getElementById("searchInput");
-const roleFilter = document.getElementById("roleFilter");
-const statusFilter = document.getElementById("statusFilter");
-const tableBody = document.getElementById("peopleTableBody");
-const paginationInfo = document.getElementById("paginationInfo");
-const prevPageBtn = document.getElementById("prevPage");
-const nextPageBtn = document.getElementById("nextPage");
-const pageNumber = document.getElementById("pageNumber");
-const addPersonBtn = document.getElementById("addPersonBtn");
-const exportBtn = document.getElementById("exportBtn");
-const personModal = document.getElementById("personModal");
-const personForm = document.getElementById("personForm");
-const modalTitle = document.getElementById("modalTitle");
-const closeModalBtn = document.getElementById("closeModalBtn");
-const cancelBtn = document.getElementById("cancelBtn");
-const modalBackdrop = document.getElementById("modalBackdrop");
+// DOM Elements with defensive code
+// [Date Checked: 2026-02-11] | [Remarks: Added defensive code to prevent null reference errors when DOM elements are missing]
+const searchInput = document.getElementById("searchInput") ?? document.createElement("input");
+const roleFilter = document.getElementById("roleFilter") ?? document.createElement("select");
+const statusFilter = document.getElementById("statusFilter") ?? document.createElement("select");
+const tableBody = document.getElementById("peopleTableBody") ?? document.createElement("tbody");
+const paginationInfo = document.getElementById("paginationInfo") ?? document.createElement("p");
+const prevPageBtn = document.getElementById("prevPage") ?? document.createElement("button");
+const nextPageBtn = document.getElementById("nextPage") ?? document.createElement("button");
+const pageNumber = document.getElementById("pageNumber") ?? document.createElement("span");
+const addPersonBtn = document.getElementById("addPersonBtn") ?? document.createElement("button");
+const exportBtn = document.getElementById("exportBtn") ?? document.createElement("button");
+
+// Modal elements - create fallback modal structure if missing
+const personModal = document.getElementById("personModal") ?? document.createElement("div");
+if (!document.getElementById("personModal")) {
+  personModal.id = "personModal";
+  personModal.className = "hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4";
+  personModal.innerHTML = `
+    <div class="bg-white rounded-2xl p-5 shadow-lg max-w-2xl w-full">
+      <div id="modalTitle" class="text-lg font-semibold text-slate-900">Add Person</div>
+      <form id="personForm"></form>
+    </div>
+  `;
+  document.body.appendChild(personModal);
+}
+const personForm = document.getElementById("personForm") ?? document.createElement("form");
+const modalTitle = document.getElementById("modalTitle") ?? document.createElement("div");
+const closeModalBtn = document.getElementById("closeModalBtn") ?? document.createElement("button");
+const cancelBtn = document.getElementById("cancelBtn") ?? document.createElement("button");
+const modalBackdrop = document.getElementById("modalBackdrop") ?? document.createElement("div");
 
 // Initialize
 async function init() {
@@ -302,26 +316,50 @@ async function handleFormSubmit(e) {
 
   try {
     if (personId) {
-      // Update existing person
+      // Update existing person (profiles only)
       const { error } = await supabase
         .from("profiles")
-        .update({ role: role })
+        .update({ 
+          full_name: fullName,
+          role: role 
+        })
         .eq("id", personId);
 
       if (error) throw error;
 
-      // Also update students table if applicable
-      const { error: studentError } = await supabase
-        .from("students")
-        .update({ full_name: fullName })
-        .eq("id", personId);
-
-      if (studentError && studentError.code !== 'PGRST301') throw studentError;
-
       console.log("Person updated successfully");
     } else {
-      // Create new profile - this would require auth setup
-      alert("Creating new users requires Supabase Auth setup. Please use the seeder script to add new users.");
+      // Create new profile directly (no Supabase Auth needed)
+      const newUserId = crypto.randomUUID();
+      const password = document.getElementById("personPassword")?.value || "demo123";
+      
+      const { error: profileError } = await supabase.from("profiles").insert({
+        id: newUserId,
+        full_name: fullName,
+        username: document.getElementById("personUsername")?.value || "USER-" + Date.now(),
+        phone: document.getElementById("personPhone")?.value || null,
+        email: document.getElementById("personEmail")?.value || null,
+        role: role,
+        is_active: true
+      });
+      
+      if (profileError) throw profileError;
+      
+      // Store password
+      await storePassword(newUserId, password);
+      
+      // Create role-specific record
+      if (role === "teacher") {
+        await supabase.from("teachers").insert({ profile_id: newUserId, is_gatekeeper: false }).catch(() => {});
+      } else if (role === "guard") {
+        await supabase.from("guards").insert({ profile_id: newUserId }).catch(() => {});
+      } else if (role === "clinic") {
+        await supabase.from("clinic_staff").insert({ profile_id: newUserId }).catch(() => {});
+      } else if (role === "parent") {
+        await supabase.from("parents").insert({ profile_id: newUserId, parent_type: "Parent" }).catch(() => {});
+      }
+      
+      console.log("Person created successfully");
     }
 
     closeModal();

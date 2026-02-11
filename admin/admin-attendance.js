@@ -6,8 +6,14 @@ import { initAdminPage } from "./admin-common.js";
 
 initAppShell({ role: "admin", active: "attendance" });
 
-const attendanceStatus = document.getElementById("attendanceStatus");
-const attendanceApp = document.getElementById("attendanceApp");
+// [Date Checked: 2026-02-11] | [Remarks: Added defensive code to prevent null reference errors when DOM elements are missing]
+const attendanceStatus = document.getElementById("attendanceStatus") ?? document.createElement("div");
+const attendanceApp = document.getElementById("attendanceApp") ?? document.getElementById("attendanceTableBody");
+if (!document.getElementById("attendanceStatus") && attendanceApp?.parentElement) {
+  attendanceStatus.id = "attendanceStatus";
+  attendanceStatus.className = "text-sm text-slate-600 mb-4";
+  attendanceApp.parentElement.insertBefore(attendanceStatus, attendanceApp);
+}
 
 function toLocalISODate(date) {
   const d = date instanceof Date ? date : new Date(date);

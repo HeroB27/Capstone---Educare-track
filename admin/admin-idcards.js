@@ -4,16 +4,26 @@ import { initAdminPage } from "./admin-common.js";
 
 initAppShell({ role: "admin", active: "people" });
 
-const idStatus = document.getElementById("idStatus");
-const idApp = document.getElementById("idApp");
+// Defensive code for missing DOM elements
+const idStatus = document.getElementById("idStatus") ?? document.createElement("div");
+const idApp = document.getElementById("idApp") ?? document.getElementById("idCardsGrid");
+if (!document.getElementById("idStatus")) {
+  const host = document.getElementById("idApp") ?? document.getElementById("idCardsGrid");
+  if (host?.parentElement) {
+    idStatus.id = "idStatus";
+    idStatus.className = "text-sm text-slate-600 mb-4";
+    host.parentElement.insertBefore(idStatus, host);
+  }
+}
 
 function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+  if (value == null) return '';
+  return String(value)
+    .replace(/&/g, '&')
+    .replace(/</g, '<')
+    .replace(/>/g, '>')
+    .replace(/"/g, '"')
+    .replace(/'/g, '&#039;');
 }
 
 function el(tag, className, html) {
@@ -23,20 +33,19 @@ function el(tag, className, html) {
   return node;
 }
 
-function textInput({ value = "", placeholder = "" } = {}) {
+function textInput(opts) {
+  opts = opts || {};
   const i = document.createElement("input");
-  i.type = "text";
-  i.value = value;
-  i.placeholder = placeholder;
-  i.className =
-    "w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200";
+  i.type = opts.type || "text";
+  i.value = opts.value || "";
+  i.placeholder = opts.placeholder || "";
+  i.className = "w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200";
   return i;
 }
 
 function selectInput(options, value) {
   const s = document.createElement("select");
-  s.className =
-    "w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200";
+  s.className = "w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200";
   for (const o of options) {
     const opt = document.createElement("option");
     opt.value = o.value;
@@ -47,16 +56,17 @@ function selectInput(options, value) {
   return s;
 }
 
-function button(label, variant = "primary") {
+function button(label, variant) {
   const b = document.createElement("button");
   b.type = "button";
   if (variant === "primary") {
     b.className = "rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700";
   } else if (variant === "ghost") {
     b.className = "rounded-xl px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50";
+  } else if (variant === "danger") {
+    b.className = "rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700";
   } else {
-    b.className =
-      "rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50";
+    b.className = "rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50";
   }
   b.textContent = label;
   return b;
@@ -67,190 +77,335 @@ function openModal(contentEl) {
   const card = el("div", "w-full max-w-2xl rounded-2xl bg-white p-5 shadow-lg");
   card.appendChild(contentEl);
   overlay.appendChild(card);
-  overlay.addEventListener("click", (e) => {
+  overlay.addEventListener("click", function(e) {
     if (e.target === overlay) overlay.remove();
   });
   document.body.appendChild(overlay);
   return overlay;
 }
 
-function toLocalISODate(date) {
-  const d = date instanceof Date ? date : new Date(date);
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
-
 async function loadAllStudents() {
-  const { data, error } = await supabase.from("students").select("id,full_name,lrn,class_id,grade_level").order("full_name", { ascending: true });
+  const { data, error } = await supabase.from("students")
+    .select("id,full_name,lrn,class_id,grade_level")
+    .order("full_name", { ascending: true });
   if (error) throw error;
-  return data ?? [];
+  return data || [];
 }
 
 async function loadStudentIds() {
   const { data, error } = await supabase
     .from("student_ids")
-    .select("id,student_id,qr_code,is_active,created_at,student:students(full_name,grade_level,class_id,lrn)")
+    .select("id,student_id,qr_code,is_active,created_at,student:students(id,full_name,lrn,grade_level,class_id)")
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return data ?? [];
+  return data || [];
 }
 
-function openIssueModal({ studentsWithoutId, onSaved }) {
+function openIssueModal(studentsWithoutId, onSaved) {
   const content = el("div", "");
-  content.appendChild(el("div", "text-lg font-semibold text-slate-900", "Issue new ID"));
+  content.appendChild(el("div", "text-lg font-semibold text-slate-900", "Issue new ID card"));
 
   const studentSelect = selectInput(
-    [{ value: "", label: "Select student…" }].concat(studentsWithoutId.map((s) => ({ value: s.id, label: `${s.full_name} (${s.grade_level ?? "—"})` }))),
+    [{ value: "", label: "Select student" }].concat(
+      studentsWithoutId.map(function(s) {
+        return { 
+          value: s.id, 
+          label: s.full_name + " (" + (s.grade_level || "-") + ")" + (s.lrn ? " - LRN: " + s.lrn : "") 
+        };
+      })
+    ),
     ""
   );
 
-  const form = el("form", "mt-4 grid gap-4 md:grid-cols-2");
-  form.appendChild(el("div", "space-y-1 md:col-span-2", '<label class="block text-sm font-medium text-slate-700">Student</label>'));
-  form.lastChild.appendChild(studentSelect);
+  const form = el("form", "mt-4 grid gap-4");
+  const wrap = el("div", "space-y-1");
+  wrap.appendChild(el("label", "block text-sm font-medium text-slate-700", "Student"));
+  wrap.appendChild(studentSelect);
+  form.appendChild(wrap);
 
-  form.appendChild(
-    el(
-      "div",
-      "rounded-xl bg-slate-50 p-3 text-sm text-slate-700 ring-1 ring-slate-200 md:col-span-2",
-      "QR code is generated automatically when you issue an ID."
-    )
-  );
+  form.appendChild(el("div", "mt-4 p-3 bg-slate-50 rounded-xl text-sm text-slate-700", 
+    "A unique QR code will be generated automatically for this student ID."));
 
-  const errorBox = el("div", "hidden rounded-xl bg-red-50 p-3 text-sm text-red-700 md:col-span-2");
-  const actions = el("div", "flex justify-end gap-2 md:col-span-2");
+  const errorBox = el("div", "hidden mt-4 p-3 bg-red-50 rounded-xl text-sm text-red-700");
+  const successBox = el("div", "hidden mt-4 p-3 bg-green-50 rounded-xl text-sm text-green-700");
+  
+  const actions = el("div", "mt-5 flex justify-end gap-2");
   const cancelBtn = button("Cancel", "ghost");
-  const saveBtn = button("Issue", "primary");
+  const saveBtn = button("Issue ID", "primary");
   saveBtn.type = "submit";
-  cancelBtn.addEventListener("click", () => overlay.remove());
+  
   actions.appendChild(cancelBtn);
   actions.appendChild(saveBtn);
 
-  form.addEventListener("submit", async (e) => {
+  const overlay = openModal(content);
+  cancelBtn.addEventListener("click", function() { overlay.remove(); });
+  
+  content.appendChild(form);
+  content.appendChild(errorBox);
+  content.appendChild(successBox);
+  content.appendChild(actions);
+
+  form.addEventListener("submit", async function(e) {
     e.preventDefault();
     errorBox.classList.add("hidden");
+    successBox.classList.add("hidden");
     saveBtn.disabled = true;
+    saveBtn.textContent = "Issuing...";
 
     if (!studentSelect.value) {
       errorBox.textContent = "Student is required.";
       errorBox.classList.remove("hidden");
       saveBtn.disabled = false;
+      saveBtn.textContent = "Issue ID";
       return;
     }
 
-    const { data, error } = await supabase.rpc("issue_student_id", studentSelect.value);
-    if (error) {
-      errorBox.textContent = error.message;
+    try {
+      const studentId = studentSelect.value;
+      
+      // Get student info
+      const { data: student, error: studentError } = await supabase
+        .from("students")
+        .select("id,full_name,lrn")
+        .eq("id", studentId)
+        .single();
+      
+      if (studentError) throw studentError;
+
+      // Generate QR code
+      const qrCode = "EDU-" + (student.lrn || student.id.substring(0, 8)).toUpperCase() + "-" + Date.now().toString(36).toUpperCase();
+
+      // Create student_id record
+      const { error: insertError } = await supabase.from("student_ids").insert({
+        student_id: student.id,
+        qr_code: qrCode,
+        is_active: true
+      });
+
+      if (insertError) throw insertError;
+
+      successBox.innerHTML = "<b>ID Issued Successfully!</b><br>Student: " + escapeHtml(student.full_name) + "<br>QR Code: " + qrCode;
+      successBox.classList.remove("hidden");
+      saveBtn.textContent = "Done!";
+      saveBtn.disabled = true;
+
+      setTimeout(function() {
+        overlay.remove();
+        onSaved();
+      }, 1500);
+
+    } catch (error) {
+      errorBox.textContent = error.message || "Failed to issue ID.";
       errorBox.classList.remove("hidden");
       saveBtn.disabled = false;
-      return;
+      saveBtn.textContent = "Issue ID";
     }
-
-    overlay.remove();
-    await onSaved();
-    if (data) idStatus.textContent = `Issued new ID: ${data}`;
   });
+}
 
-  content.appendChild(form);
-  content.appendChild(errorBox);
-  content.appendChild(actions);
-  const overlay = openModal(content);
+async function reissueId(studentId, studentName, onSaved) {
+  if (!confirm("Re-issue ID for " + studentName + "? This will deactivate the current ID and create a new one.")) return;
+
+  try {
+    // Deactivate old ID
+    await supabase.from("student_ids").update({ is_active: false }).eq("student_id", studentId);
+
+    // Get student info
+    const { data: student, error: studentError } = await supabase
+      .from("students")
+      .select("id,full_name,lrn")
+      .eq("id", studentId)
+      .single();
+    
+    if (studentError) throw studentError;
+
+    // Generate new QR code
+    const qrCode = "EDU-" + (student.lrn || student.id.substring(0, 8)).toUpperCase() + "-" + Date.now().toString(36).toUpperCase();
+
+    // Create new student_id record
+    const { error: insertError } = await supabase.from("student_ids").insert({
+      student_id: student.id,
+      qr_code: qrCode,
+      is_active: true
+    });
+
+    if (insertError) throw insertError;
+
+    idStatus.textContent = "Re-issued ID for " + studentName + ". New QR: " + qrCode;
+    await onSaved();
+
+  } catch (error) {
+    idStatus.textContent = error.message || "Failed to re-issue ID.";
+  }
 }
 
 async function render() {
-  idStatus.textContent = "Loading…";
+  idStatus.textContent = "Loading...";
   idApp.replaceChildren();
 
   const [students, ids] = await Promise.all([loadAllStudents(), loadStudentIds()]);
-  const activeIdsByStudent = new Map(ids.filter((i) => i.is_active).map((i) => [i.student_id, i]));
-  const studentsWithoutId = students.filter((s) => !activeIdsByStudent.has(s.id));
+  const activeIdsByStudent = new Map(ids.filter(function(i) { return i.is_active; }).map(function(i) { return [i.student_id, i]; }));
+  const studentsWithoutId = students.filter(function(s) { return !activeIdsByStudent.has(s.id); });
 
-  const header = el("div", "flex flex-col gap-3 md:flex-row md:items-center md:justify-between");
-  const left = el("div", "flex flex-1 gap-2");
-  const search = textInput({ placeholder: "Search student or QR…" });
+  // Header with search and buttons
+  const header = el("div", "mb-6");
+  const headerRow = el("div", "flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4");
+  
+  const left = el("div", "flex-1 max-w-xl");
+  const search = textInput({ placeholder: "Search by name, LRN, or QR code..." });
+  search.className = "w-full rounded-xl border border-slate-300 px-4 py-3 text-sm";
   left.appendChild(search);
+
+  const filterRow = el("div", "flex gap-2 mt-2");
+  const filterAll = button("All", "secondary");
+  const filterActive = button("Active", "secondary");
+  const filterInactive = button("Inactive", "secondary");
+  filterAll.className = filterActive.className = filterInactive.className = "px-3 py-1 rounded-lg text-xs border border-slate-300";
+  
+  let currentFilter = "all";
+  filterAll.addEventListener("click", function() { currentFilter = "all"; applyFilter(); });
+  filterActive.addEventListener("click", function() { currentFilter = "active"; applyFilter(); });
+  filterInactive.addEventListener("click", function() { currentFilter = "inactive"; applyFilter(); });
+  
+  filterRow.appendChild(filterAll);
+  filterRow.appendChild(filterActive);
+  filterRow.appendChild(filterInactive);
+  left.appendChild(filterRow);
+
   const right = el("div", "flex gap-2");
-  const issueBtn = button("Issue ID", "primary");
-  const printBtn = button("Print 2x3", "secondary");
-  right.appendChild(issueBtn);
-  right.appendChild(printBtn);
-  header.appendChild(left);
-  header.appendChild(right);
-
-  const tableBox = el("div", "mt-4 overflow-x-auto");
-  idApp.appendChild(header);
-  idApp.appendChild(tableBox);
-
-  issueBtn.addEventListener("click", () => {
+  const issueBtn = button("+ Issue New ID", "primary");
+  const printBtn = button("Print Cards", "secondary");
+  issueBtn.addEventListener("click", function() {
     if (!studentsWithoutId.length) {
       idStatus.textContent = "All students already have IDs.";
       return;
     }
-    openIssueModal({ studentsWithoutId, onSaved: render });
+    openIssueModal(studentsWithoutId, render);
   });
-
-  printBtn.addEventListener("click", () => {
+  printBtn.addEventListener("click", function() {
     window.location.href = "./admin-idcards-print.html";
   });
+  right.appendChild(issueBtn);
+  right.appendChild(printBtn);
+
+  headerRow.appendChild(left);
+  headerRow.appendChild(right);
+  header.appendChild(headerRow);
+  idApp.appendChild(header);
+
+  // Stats row
+  const statsRow = el("div", "flex gap-4 mb-4 text-sm");
+  const activeCount = ids.filter(function(i) { return i.is_active; }).length;
+  const inactiveCount = ids.filter(function(i) { return !i.is_active; }).length;
+  statsRow.innerHTML = 
+    '<span class="px-3 py-1 bg-green-100 text-green-700 rounded-full">' + activeCount + ' Active</span>' +
+    '<span class="px-3 py-1 bg-slate-100 text-slate-600 rounded-full">' + inactiveCount + ' Inactive</span>' +
+    '<span class="px-3 py-1 bg-blue-100 text-blue-700 rounded-full">' + studentsWithoutId.length + ' Without ID</span>';
+  idApp.appendChild(statsRow);
+
+  const tableBox = el("div", "overflow-x-auto bg-white rounded-xl border border-slate-200");
+  idApp.appendChild(tableBox);
 
   function applyFilter() {
     const q = search.value.trim().toLowerCase();
-    const rows = ids.filter((i) => {
-      const name = String(i.student?.full_name ?? "").toLowerCase();
-      const qr = String(i.qr_code ?? "").toLowerCase();
+    
+    // Update filter button styles
+    filterAll.className = currentFilter === "all" ? "px-3 py-1 rounded-lg text-xs bg-violet-100 text-violet-700 border border-violet-300" : "px-3 py-1 rounded-lg text-xs border border-slate-300";
+    filterActive.className = currentFilter === "active" ? "px-3 py-1 rounded-lg text-xs bg-green-100 text-green-700 border border-green-300" : "px-3 py-1 rounded-lg text-xs border border-slate-300";
+    filterInactive.className = currentFilter === "inactive" ? "px-3 py-1 rounded-lg text-xs bg-slate-200 text-slate-700 border border-slate-400" : "px-3 py-1 rounded-lg text-xs border border-slate-300";
+
+    const rows = ids.filter(function(i) {
+      // Apply filter
+      if (currentFilter === "active" && !i.is_active) return false;
+      if (currentFilter === "inactive" && i.is_active) return false;
+      
+      // Apply search
       if (!q) return true;
-      return name.includes(q) || qr.includes(q);
+      const name = String(i.student?.full_name || "").toLowerCase();
+      const lrn = String(i.student?.lrn || "").toLowerCase();
+      const qr = String(i.qr_code || "").toLowerCase();
+      return name.includes(q) || lrn.includes(q) || qr.includes(q);
     });
 
     if (!rows.length) {
-      tableBox.replaceChildren(el("div", "text-sm text-slate-600", "No ID records found."));
+      tableBox.replaceChildren(el("div", "p-8 text-center text-slate-600", "No ID records found."));
+      idStatus.textContent = "No results.";
       return;
     }
 
-    const table = el("table", "table");
-    table.innerHTML = "<thead><tr><th>Student</th><th>Grade</th><th>QR code</th><th>Active</th><th></th></tr></thead>";
-    const tbody = el("tbody", "");
+    const table = el("table", "w-full text-sm");
+    table.innerHTML = 
+      '<thead class="bg-slate-50 text-xs uppercase text-slate-500">' +
+      '<tr>' +
+      '<th class="py-3 px-4 text-left">Student</th>' +
+      '<th class="py-3 px-4 text-left">LRN</th>' +
+      '<th class="py-3 px-4 text-left">Grade</th>' +
+      '<th class="py-3 px-4 text-left">QR Code</th>' +
+      '<th class="py-3 px-4 text-center">Status</th>' +
+      '<th class="py-3 px-4 text-right">Actions</th>' +
+      '</tr></thead>';
+      
+    const tbody = el("tbody", "divide-y divide-slate-200");
 
     for (const r of rows) {
-      const tr = document.createElement("tr");
-      const studentName = r.student?.full_name ?? "—";
-      const grade = r.student?.grade_level ?? "—";
-      tr.innerHTML = `
-        <td class="cell-strong">${escapeHtml(studentName)}</td>
-        <td>${escapeHtml(grade)}</td>
-        <td>${escapeHtml(r.qr_code)}</td>
-        <td>${r.is_active ? "Yes" : "No"}</td>
-        <td></td>
-      `;
-      const actions = el("div", "table-actions");
+      const tr = el("tr", "hover:bg-slate-50");
+      const studentName = r.student?.full_name || "—";
+      const studentLrn = r.student?.lrn || "—";
+      const grade = r.student?.grade_level || "—";
+      const statusClass = r.is_active ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-600";
+      const statusText = r.is_active ? "Active" : "Inactive";
+      
+      tr.innerHTML = 
+        '<td class="py-3 px-4 font-medium text-slate-900">' + escapeHtml(studentName) + '</td>' +
+        '<td class="py-3 px-4 font-mono text-xs text-slate-600">' + escapeHtml(studentLrn) + '</td>' +
+        '<td class="py-3 px-4 text-slate-600">' + escapeHtml(grade) + '</td>' +
+        '<td class="py-3 px-4 font-mono text-xs text-violet-600">' + escapeHtml(r.qr_code) + '</td>' +
+        '<td class="py-3 px-4 text-center"><span class="px-2 py-1 rounded-full text-xs font-medium ' + statusClass + '">' + statusText + '</span></td>' +
+        '<td class="py-3 px-4 text-right"></td>';
+
+      const actionsDiv = el("div", "flex gap-1 justify-end");
+      
+      // Re-issue button (only for active IDs)
       if (r.is_active) {
-        const reissue = button("Re-issue", "secondary", "violet");
-        reissue.classList.add("btn-sm");
-        reissue.addEventListener("click", async () => {
-          if (!confirm("Re-issue ID? This will deactivate the current active ID and create a new one.")) return;
-          const { data, error } = await supabase.rpc("issue_student_id", r.student_id);
-          if (error) {
+        const reissueBtn = button("Re-issue", "secondary");
+        reissueBtn.className = "px-3 py-1 rounded-lg text-xs border border-violet-300 text-violet-700 hover:bg-violet-50";
+        reissueBtn.addEventListener("click", function() { reissueId(r.student_id, studentName, render); });
+        actionsDiv.appendChild(reissueBtn);
+      } else {
+        // Re-activate button (for inactive IDs)
+        const reactivateBtn = button("Re-activate", "secondary");
+        reactivateBtn.className = "px-3 py-1 rounded-lg text-xs border border-green-300 text-green-700 hover:bg-green-50";
+        reactivateBtn.addEventListener("click", async function() {
+          try {
+            await supabase.from("student_ids").update({ is_active: true }).eq("id", r.id);
+            idStatus.textContent = "ID re-activated for " + studentName + ".";
+            await render();
+          } catch (error) {
             idStatus.textContent = error.message;
-            return;
           }
-          await render();
-          if (data) idStatus.textContent = `Re-issued ID: ${data}`;
         });
-        actions.appendChild(reissue);
+        actionsDiv.appendChild(reactivateBtn);
       }
-      tr.children[4].appendChild(actions);
+
+      // Print single card button
+      const printBtn2 = button("Print", "ghost");
+      printBtn2.className = "px-3 py-1 rounded-lg text-xs border border-slate-300 hover:bg-slate-50";
+      printBtn2.addEventListener("click", function() {
+        window.open("./admin-idcards-print.html?student_id=" + r.student_id, '_blank');
+      });
+      actionsDiv.appendChild(printBtn2);
+
+      tr.lastChild.appendChild(actionsDiv);
       tbody.appendChild(tr);
     }
 
     table.appendChild(tbody);
     tableBox.replaceChildren(table);
+    idStatus.textContent = "Showing " + rows.length + " of " + ids.length + " ID records.";
   }
 
   search.addEventListener("input", applyFilter);
   applyFilter();
-
-  idStatus.textContent = `Loaded ${ids.length} ID records.`;
 }
 
 async function init() {
@@ -259,7 +414,7 @@ async function init() {
   try {
     await render();
   } catch (e) {
-    idStatus.textContent = e?.message ?? "Failed to load IDs.";
+    idStatus.textContent = e?.message || "Failed to load IDs.";
   }
 }
 

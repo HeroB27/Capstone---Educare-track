@@ -6,8 +6,14 @@ import { SCHOOL_NAME } from "../core/config.js";
 
 initAppShell({ role: "admin", active: "settings" });
 
-const settingsStatus = document.getElementById("settingsStatus");
+// [Date Checked: 2026-02-11] | [Remarks: Added defensive code to prevent null reference errors when DOM elements are missing]
+const settingsStatus = document.getElementById("settingsStatus") ?? document.createElement("div");
 const settingsApp = document.getElementById("settingsApp");
+if (!document.getElementById("settingsStatus") && settingsApp?.parentElement) {
+  settingsStatus.id = "settingsStatus";
+  settingsStatus.className = "text-sm text-slate-600 mb-4";
+  settingsApp.parentElement.insertBefore(settingsStatus, settingsApp);
+}
 
 function numberInput({ value = "", placeholder = "" } = {}) {
   const i = textInput({ value, type: "number", placeholder });
@@ -20,7 +26,11 @@ async function loadRules() {
     .from("attendance_rules")
     .select("id,grade_level,entry_time,grace_until,late_until,min_subject_minutes,created_at")
     .order("grade_level", { ascending: true });
-  if (error) throw error;
+  if (error) {
+    // Table might not exist yet - return empty array
+    console.warn("loadRules: Table may not exist:", error.message);
+    return [];
+  }
   return data ?? [];
 }
 
@@ -36,7 +46,11 @@ async function loadTeachers() {
 
 async function loadGatekeeperSetting() {
   const { data, error } = await supabase.from("system_settings").select("id,key,value").eq("key", "teacher_gatekeepers").maybeSingle();
-  if (error) throw error;
+  if (error) {
+    // Table might not exist yet - return null
+    console.warn("loadGatekeeperSetting: Table may not exist:", error.message);
+    return null;
+  }
   return data ?? null;
 }
 
@@ -45,7 +59,11 @@ async function loadAttendanceSettings() {
     .from("system_settings")
     .select("id,key,value")
     .in("key", ["school_start_time", "late_threshold_minutes"]);
-  if (error) throw error;
+  if (error) {
+    // Table might not exist yet - return defaults
+    console.warn("loadAttendanceSettings: Table may not exist:", error.message);
+    return { schoolStart: null, lateThreshold: null };
+  }
   const map = new Map((data ?? []).map((r) => [r.key, r]));
   return {
     schoolStart: map.get("school_start_time") ?? null,
@@ -114,9 +132,16 @@ function openRuleModal({ mode, rule, onSaved }) {
       return;
     }
 
-    const res = mode === "create" ? await supabase.from("attendance_rules").insert(payload) : await supabase.from("attendance_rules").update(payload).eq("id", rule.id);
+    const res = mode === "create" 
+      ? await supabase.from("attendance_rules").insert(payload) 
+      : await supabase.from("attendance_rules").update(payload).eq("id", rule.id);
     if (res.error) {
-      errorBox.textContent = res.error.message;
+      // Handle table not existing
+      if (res.error.message.includes('does not exist')) {
+        errorBox.textContent = "Database table not set up yet. Please run the SQL migration in Supabase.";
+      } else {
+        errorBox.textContent = res.error.message;
+      }
       errorBox.classList.remove("hidden");
       saveBtn.disabled = false;
       return;
@@ -205,7 +230,12 @@ async function render() {
     ];
     const { error } = await supabase.from("system_settings").upsert(rows, { onConflict: "key" });
     if (error) {
-      settingsStatus.textContent = error.message;
+      // Handle table not existing
+      if (error.message.includes('does not exist')) {
+        settingsStatus.textContent = "Database not set up. Run SQL migration in Supabase.";
+      } else {
+        settingsStatus.textContent = error.message;
+      }
       saveAtt.disabled = false;
       return;
     }
@@ -279,7 +309,12 @@ async function render() {
       .from("system_settings")
       .upsert({ key: "teacher_gatekeepers", value: { teacher_ids: teacherIds } }, { onConflict: "key" });
     if (error) {
-      settingsStatus.textContent = error.message;
+      // Handle table not existing
+      if (error.message.includes('does not exist')) {
+        settingsStatus.textContent = "Database not set up. Run SQL migration in Supabase.";
+      } else {
+        settingsStatus.textContent = error.message;
+      }
       saveBtn.disabled = false;
       return;
     }

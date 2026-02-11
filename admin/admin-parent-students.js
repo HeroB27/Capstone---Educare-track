@@ -4,8 +4,14 @@ import { initAdminPage } from "./admin-common.js";
 
 initAppShell({ role: "admin", active: "people" });
 
-const psStatus = document.getElementById("psStatus");
-const psApp = document.getElementById("psApp");
+// [Date Checked: 2026-02-11] | [Remarks: Added defensive code to prevent null reference errors when DOM elements are missing]
+const psStatus = document.getElementById("psStatus") ?? document.createElement("div");
+const psApp = document.getElementById("psApp") ?? document.getElementById("psTableBody");
+if (!document.getElementById("psStatus") && psApp?.parentElement) {
+  psStatus.id = "psStatus";
+  psStatus.className = "text-sm text-slate-600 mb-4";
+  psApp.parentElement.insertBefore(psStatus, psApp);
+}
 
 function escapeHtml(value) {
   return String(value ?? "")

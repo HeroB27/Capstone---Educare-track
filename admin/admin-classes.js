@@ -4,8 +4,14 @@ import { initAdminPage } from "./admin-common.js";
 
 initAppShell({ role: "admin", active: "academics" });
 
-const classesStatus = document.getElementById("classesStatus");
+// [Date Checked: 2026-02-11] | [Remarks: Added defensive code to prevent null reference errors when DOM elements are missing]
+const classesStatus = document.getElementById("classesStatus") ?? document.createElement("div");
 const classesApp = document.getElementById("classesApp");
+if (!document.getElementById("classesStatus") && classesApp?.parentElement) {
+  classesStatus.id = "classesStatus";
+  classesStatus.className = "text-sm text-slate-600 mb-4";
+  classesApp.parentElement.insertBefore(classesStatus, classesApp);
+}
 
 function escapeHtml(value) {
   return String(value ?? "")

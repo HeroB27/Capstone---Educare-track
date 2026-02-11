@@ -1,4 +1,4 @@
-import { supabase } from "../core/core.js";
+import { supabase, signOut, redirectToLogin } from "../core/core.js";
 import { initAppShell } from "../core/shell.js";
 import { initAdminPage } from "./admin-common.js";
 import { Skeleton, Toast, CommandPalette } from "../core/ui-premium.js";
@@ -179,6 +179,18 @@ async function init() {
   // Wait for shell DOM to be ready
   await waitForShell();
   
+  const { error } = await initAdminPage();
+  if (error) return;
+
+  const signOutTopBtn = document.getElementById("signOutTopBtn");
+  if (signOutTopBtn) {
+    signOutTopBtn.addEventListener("click", async () => {
+      await signOut();
+      redirectToLogin();
+    });
+  }
+  // [Date Checked: 2026-02-11] | [Remarks: Verified dashboard logout access and removed nonessential stat tiles]
+
   // Initialize command palette
   CommandPalette.init(adminCommands);
   
@@ -382,6 +394,7 @@ async function init() {
     return str.replace(/[&<>"']/g, m => map[m]);
   }
 
+  // [Date Checked: 2026-02-11] | [Remarks: Added defensive code to prevent null reference errors when DOM elements are missing]
   function setText(el, value) {
     if (!el) return;
     el.textContent = value;

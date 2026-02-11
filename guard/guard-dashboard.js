@@ -56,7 +56,11 @@ async function loadAttendanceRules(gradeLevel) {
     .select("grade_level,entry_time,grace_until,late_until")
     .eq("grade_level", gradeLevel)
     .single();
-  if (error) return null;
+  if (error) {
+    // Table may not exist - return null
+    console.warn("loadAttendanceRules: Table may not exist:", error.message);
+    return null;
+  }
   return data ?? null;
 }
 

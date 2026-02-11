@@ -5,8 +5,14 @@ import { button, checkbox, el, escapeHtml, formatLocalDateTime, openModal, selec
 
 initAppShell({ role: "admin", active: "communications" });
 
-const announceStatus = document.getElementById("announceStatus");
-const announceApp = document.getElementById("announceApp");
+// [Date Checked: 2026-02-11] | [Remarks: Added defensive code to prevent null reference errors when DOM elements are missing]
+const announceStatus = document.getElementById("announceStatus") ?? document.createElement("div");
+const announceApp = document.getElementById("announceApp") ?? document.getElementById("announcementsList");
+if (!document.getElementById("announceStatus") && announceApp?.parentElement) {
+  announceStatus.id = "announceStatus";
+  announceStatus.className = "text-sm text-slate-600 mb-4";
+  announceApp.parentElement.insertBefore(announceStatus, announceApp);
+}
 
 async function loadAnnouncements() {
   const { data, error } = await supabase

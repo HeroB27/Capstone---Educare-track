@@ -1,0 +1,14 @@
+{
+  "generated_at": "2026-02-11T11:04:01",
+  "today": "2026-02-11",
+  "today_counts": {
+    "present": 0,
+    "late": 0,
+    "absent": 0,
+    "excused": 0
+  },
+  "trend": {
+    "labels": [],
+    "values": []
+  }
+}

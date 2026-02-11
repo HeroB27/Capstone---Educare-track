@@ -150,7 +150,11 @@ export async function loadAttendanceRule(gradeLevel) {
     .select("grade_level,entry_time,grace_until,late_until")
     .eq("grade_level", gradeLevel)
     .single();
-  if (error) return null;
+  if (error) {
+    // Table may not exist - return null
+    console.warn("loadAttendanceRule: Table may not exist:", error.message);
+    return null;
+  }
   return data ?? null;
 }
 
@@ -165,7 +169,11 @@ export async function loadAttendanceSettings() {
     .from("system_settings")
     .select("key,value")
     .in("key", ["school_start_time", "school_dismissal_time", "late_threshold_minutes", "early_exit_threshold_minutes"]);
-  if (error) return null;
+  if (error) {
+    // Table may not exist - return null
+    console.warn("loadAttendanceSettings: Table may not exist:", error.message);
+    return null;
+  }
   const byKey = new Map((data ?? []).map((r) => [r.key, extractSettingValue(r)]));
   const schoolStartTime = byKey.get("school_start_time") ?? null;
   const schoolDismissalTime = byKey.get("school_dismissal_time") ?? null;

@@ -4,6 +4,9 @@ import {
   redirectToDashboard,
   signInWithUserIdPassword,
   signOut,
+  isLoggedIn,
+  getSession,
+  clearCachedProfile,
   supabase,
 } from "../core/core.js";
 import { registerPwa } from "../core/pwa.js";
@@ -13,14 +16,7 @@ const userIdInput = document.getElementById("userId");
 const passwordInput = document.getElementById("password");
 const loginButton = document.getElementById("loginButton");
 const errorBox = document.getElementById("errorBox");
-const forgotBtn = document.getElementById("forgotBtn");
 const signOutBtn = document.getElementById("signOutBtn");
-const forgotModal = document.getElementById("forgotModal");
-const closeForgotModal = document.getElementById("closeForgotModal");
-const forgotUserId = document.getElementById("forgotUserId");
-const forgotNote = document.getElementById("forgotNote");
-const sendForgotBtn = document.getElementById("sendForgotBtn");
-const forgotStatus = document.getElementById("forgotStatus");
 
 function showError(message) {
   errorBox.textContent = message;
@@ -37,64 +33,18 @@ function setLoading(isLoading) {
   loginButton.textContent = isLoading ? "Signing in..." : "Sign in";
 }
 
-forgotBtn.addEventListener("click", () => {
-  forgotUserId.value = userIdInput.value.trim();
-  forgotNote.value = "";
-  forgotStatus.textContent = "";
-  forgotStatus.classList.add("hidden");
-  forgotModal.classList.remove("hidden");
-  forgotModal.classList.add("flex");
-});
-
-closeForgotModal.addEventListener("click", () => {
-  forgotModal.classList.add("hidden");
-  forgotModal.classList.remove("flex");
-});
-
-forgotModal.addEventListener("click", (e) => {
-  if (e.target === forgotModal) {
-    forgotModal.classList.add("hidden");
-    forgotModal.classList.remove("flex");
-  }
-});
-
-sendForgotBtn.addEventListener("click", async () => {
-  const userId = forgotUserId.value.trim();
-  if (!userId) {
-    forgotStatus.textContent = "User ID is required.";
-    forgotStatus.classList.remove("hidden");
-    return;
-  }
-
-  sendForgotBtn.disabled = true;
-  forgotStatus.textContent = "Sending request…";
-  forgotStatus.classList.remove("hidden");
-
-  const { error } = await supabase.from("password_reset_requests").insert({
-    requested_user_id: userId,
-    note: forgotNote.value.trim() || null,
-    status: "pending",
-    requested_by: userId, // Self-requested
-  });
-
-  if (error) {
-    sendForgotBtn.disabled = false;
-    forgotStatus.textContent = error.message;
-    return;
-  }
-
-  forgotStatus.textContent = "Request sent. Please wait for the admin to reset your password.";
-});
-
-signOutBtn.addEventListener("click", async () => {
-  clearError();
-  await signOut();
-  signOutBtn.classList.add("hidden");
-});
-
 async function tryAutoRedirect() {
-  const { profile } = await requireAuthAndProfile();
-  if (profile?.role && profile.is_active) {
+  // Check if already logged in with local session
+  const session = getSession();
+  if (session?.profile?.role && session?.profile?.is_active) {
+    signOutBtn.classList.remove("hidden");
+    redirectToDashboard(session.profile.role);
+    return;
+  }
+  
+  // Try to fetch profile
+  const { profile, error } = await requireAuthAndProfile();
+  if (profile?.role && profile?.is_active) {
     signOutBtn.classList.remove("hidden");
     redirectToDashboard(profile.role);
   }
@@ -103,29 +53,56 @@ async function tryAutoRedirect() {
 tryAutoRedirect();
 registerPwa();
 
+signOutBtn.addEventListener("click", async () => {
+  clearError();
+  await signOut();
+  signOutBtn.classList.add("hidden");
+  userIdInput.value = "";
+  passwordInput.value = "";
+});
+
 loginForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   clearError();
   setLoading(true);
 
-  const userId = userIdInput.value;
+  const userId = userIdInput.value.trim();
   const password = passwordInput.value;
 
-  const { error: signInError } = await signInWithUserIdPassword(userId, password);
-  if (signInError) {
+  if (!userId) {
     setLoading(false);
-    showError(signInError.message || "Sign-in failed.");
+    showError("User ID is required.");
     return;
   }
 
-  // [Date Checked: 2026-02-11] | [Remarks: Login profile fetch validated with updated profiles SELECT policy.]
+  if (!password) {
+    setLoading(false);
+    showError("Password is required.");
+    return;
+  }
+
+  const { error } = await signInWithUserIdPassword(userId, password);
+  
+  if (error) {
+    setLoading(false);
+    showError(error.message || "Sign-in failed.");
+    return;
+  }
+
+  // Get profile and redirect
   const { profile, error: profileError } = await fetchMyProfile();
   if (profileError) {
-    await signOut();
     setLoading(false);
-    showError("Signed in, but no profile is linked. Contact admin to set your role.");
+    showError("Login successful but could not load profile. Please try again.");
     return;
   }
 
-  redirectToDashboard(profile.role);
+  if (!profile?.is_active) {
+    setLoading(false);
+    showError("Account is inactive. Contact admin.");
+    return;
+  }
+
+  // Redirect directly to people page (faster)
+  window.location.href = "/admin/admin-people.html";
 });
