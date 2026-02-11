@@ -31,15 +31,15 @@ C:\Users\Lenovo\Desktop\OFFICIAL EDUCARE TRACK
 4. Open browser: `http://localhost:8000/auth/login.html`
 
 ### Step 3: Login
-Use the default credentials below:
+Use the test credentials below (all use the same password):
 
-| Role    | Email                | Password    |
-|---------|----------------------|-------------|
-| Admin   | admin@educare.edu    | admin123    |
-| Teacher | teacher@educare.edu  | teacher123  |
-| Parent  | parent@educare.edu   | parent123   |
-| Guard   | guard@educare.edu    | guard123    |
-| Clinic  | clinic@educare.edu   | clinic123   |
+| Role    | Email                     | Password    | Username          |
+|---------|---------------------------|-------------|-------------------|
+| Admin   | admin.test@educare.local  | Password123!| ADM-2026-0001-0001|
+| Teacher | teacher.test@educare.local| Password123!| TCH-2026-0001-0001|
+| Parent  | parent.test@educare.local | Password123!| PAR-2026-0001-0001|
+| Guard   | guard.test@educare.local  | Password123!| GRD-2026-0001-0001|
+| Clinic  | clinic.test@educare.local | Password123!| CLC-2026-0001-0001|
 
 ---
 
@@ -100,29 +100,35 @@ The application uses a pre-configured Supabase project. For development:
    ```
 4. Run the database migrations from `supabase_migrations/` folder
 
-## 👥 Default Login Credentials
+## 👥 Test Login Credentials
 
-Use these test accounts (if using the demo Supabase project):
+Use these pre-configured test accounts (all use the same password):
 
 **Admin**:
-- Email: `admin@educare.edu`
-- Password: `admin123`
+- Email: `admin.test@educare.local`
+- Password: `Password123!`
+- Username: `ADM-2026-0001-0001`
 
 **Teacher**: 
-- Email: `teacher@educare.edu`
-- Password: `teacher123`
+- Email: `teacher.test@educare.local`
+- Password: `Password123!`
+- Username: `TCH-2026-0001-0001`
 
 **Parent**:
-- Email: `parent@educare.edu`
-- Password: `parent123`
+- Email: `parent.test@educare.local`
+- Password: `Password123!`
+- Username: `PAR-2026-0001-0001`
+- **Linked Student**: Test Student (LRN: 123456789012, Grade 7 STEM)
 
 **Guard**:
-- Email: `guard@educare.edu`
-- Password: `guard123`
+- Email: `guard.test@educare.local`
+- Password: `Password123!`
+- Username: `GRD-2026-0001-0001`
 
 **Clinic**:
-- Email: `clinic@educare.edu`
-- Password: `clinic123`
+- Email: `clinic.test@educare.local`
+- Password: `Password123!`
+- Username: `CLC-2026-0001-0001`
 
 ## 📁 Project Structure
 
@@ -146,7 +152,10 @@ Use these test accounts (if using the demo Supabase project):
 The system includes scripts to create test users:
 
 ```bash
-# Seed sample users with roles
+# Seed test users with all roles (Admin, Teacher, Parent, Guard, Clinic)
+node scripts/seed-test-users.mjs
+
+# Seed sample users with roles (legacy)
 npm run seed:users
 
 # Provision users from JSON payload
@@ -175,6 +184,22 @@ The app is a Progressive Web App (PWA). To install:
 - **HTTPS**: Required for camera access in production
 - **Browser Support**: Modern browsers with ES6 module support
 - **Local Storage**: User sessions are stored in browser local storage
+
+## ✅ Recent Updates & Bug Fixes
+
+The system has been enhanced with critical bug fixes and new features:
+
+### Fixed Issues:
+- **Parent Excuse Upload**: Fixed HTML/JS element mismatch that prevented form submission
+- **Guard Parent Notifications**: Added real-time notifications to parents when students tap in/out
+- **Teacher Duplicate Clinic Passes**: Implemented prevention for issuing multiple passes to same student
+- **Parent Today's Subject**: Added actual subject display instead of placeholder text
+- **Admin Export Report**: Implemented comprehensive CSV export functionality
+
+### New Testing Infrastructure:
+- **Test Users**: Pre-configured accounts for all roles with consistent password
+- **Testing Guide**: Comprehensive [TESTING_GUIDE.md](TESTING_GUIDE.md) with detailed scenarios
+- **Seed Script**: Easy user provisioning with `scripts/seed-test-users.mjs`
 
 ## 🐛 Troubleshooting
 
