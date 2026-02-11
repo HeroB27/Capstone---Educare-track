@@ -23,6 +23,21 @@ const weekStatus = document.getElementById("weekStatus");
 const pendingExcuse = document.getElementById("pendingExcuse");
 const activityList = document.getElementById("activityList");
 
+// New elements for enhanced features
+const currentStatus = document.getElementById("currentStatus");
+const lastTapTime = document.getElementById("lastTapTime");
+const tapType = document.getElementById("tapType");
+const homeroomTeacher = document.getElementById("homeroomTeacher");
+const todaysSubject = document.getElementById("todaysSubject");
+const classroom = document.getElementById("classroom");
+const gradeLevel = document.getElementById("gradeLevel");
+const strand = document.getElementById("strand");
+const attendanceMonth = document.getElementById("attendanceMonth");
+const exportAttendance = document.getElementById("exportAttendance");
+const attendanceHistoryBody = document.getElementById("attendanceHistoryBody");
+const clinicVisits = document.getElementById("clinicVisits");
+const gateActivity = document.getElementById("gateActivity");
+
 // State management
 let currentProfile = null;
 let subscriptions = [];
@@ -121,12 +136,68 @@ async function loadMonthAttendance(studentId, monthDate) {
   const end = lastDayOfMonth(monthDate);
   const { data, error } = await supabase
     .from("homeroom_attendance")
-    .select("id,student_id,date,status")
+    .select("id,student_id,date,status,remarks")
     .eq("student_id", studentId)
     .gte("date", iso(start))
-    .lte("date", iso(end));
+    .lte("date", iso(end))
+    .order("date", { ascending: false });
   if (error) throw error;
   return data ?? [];
+}
+
+async function loadClassDetails(classId) {
+  if (!classId) return null;
+  const { data, error } = await supabase
+    .from("classes")
+    .select("id,name,homeroom_teacher_id,room")
+    .eq("id", classId)
+    .single();
+  if (error) return null;
+  return data;
+}
+
+async function loadTeacherDetails(teacherId) {
+  if (!teacherId) return null;
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id,full_name")
+    .eq("id", teacherId)
+    .single();
+  if (error) return null;
+  return data;
+}
+
+async function loadClinicVisits(studentId, limit = 10) {
+  const { data, error } = await supabase
+    .from("clinic_visits")
+    .select("id,student_id,reason,findings,disposition,created_at,updated_at")
+    .eq("student_id", studentId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data ?? [];
+}
+
+async function loadDetailedTapLogs(studentId, limit = 20) {
+  const { data, error } = await supabase
+    .from("tap_logs")
+    .select("id,student_id,tap_type,timestamp,status,remarks,scanner_id")
+    .eq("student_id", studentId)
+    .order("timestamp", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data ?? [];
+}
+
+async function loadScannerDetails(scannerId) {
+  if (!scannerId) return null;
+  const { data, error } = await supabase
+    .from("scanners")
+    .select("id,name,location")
+    .eq("id", scannerId)
+    .single();
+  if (error) return null;
+  return data;
 }
 
 function buildLatestTapMap(rows) {
@@ -135,6 +206,179 @@ function buildLatestTapMap(rows) {
     if (!map.has(r.student_id)) map.set(r.student_id, r);
   }
   return map;
+}
+
+// Update Student Overview Card
+async function updateStudentOverview(child, latestTap, classDetails, teacherDetails) {
+  if (currentStatus) {
+    const status = latestTap?.status || "absent";
+    currentStatus.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+    currentStatus.className = `status-indicator status-${status}`;
+  }
+  
+  if (lastTapTime && latestTap?.timestamp) {
+    const date = new Date(latestTap.timestamp);
+    lastTapTime.textContent = date.toLocaleTimeString();
+  } else if (lastTapTime) {
+    lastTapTime.textContent = "—";
+  }
+  
+  if (tapType && latestTap?.tap_type) {
+    tapType.textContent = latestTap.tap_type === "in" ? "Tap In" : "Tap Out";
+  } else if (tapType) {
+    tapType.textContent = "—";
+  }
+  
+  if (homeroomTeacher && teacherDetails) {
+    homeroomTeacher.textContent = teacherDetails.full_name;
+  } else if (homeroomTeacher) {
+    homeroomTeacher.textContent = "Not assigned";
+  }
+  
+  if (todaysSubject) {
+    // TODO: Implement today's subject logic
+    todaysSubject.textContent = "—";
+  }
+  
+  if (classroom && classDetails) {
+    classroom.textContent = classDetails.room_number || "—";
+  } else if (classroom) {
+    classroom.textContent = "—";
+  }
+  
+  if (gradeLevel && child.grade_level) {
+    gradeLevel.textContent = child.grade_level;
+  } else if (gradeLevel) {
+    gradeLevel.textContent = "—";
+  }
+  
+  if (strand && child.strand) {
+    strand.textContent = child.strand;
+  } else if (strand) {
+    strand.textContent = "—";
+  }
+}
+
+// Update Attendance History
+function updateAttendanceHistory(attendanceData) {
+  if (!attendanceHistoryBody) return;
+  
+  if (attendanceData.length === 0) {
+    attendanceHistoryBody.innerHTML = `
+      <tr>
+        <td colspan="4" class="text-center py-8 text-slate-500">No attendance records for selected month</td>
+      </tr>
+    `;
+    return;
+  }
+  
+  let html = '';
+  for (const record of attendanceData) {
+    const date = new Date(record.date);
+    const statusClass = `status-indicator status-${record.status}`;
+    
+    html += `
+      <tr class="border-b border-slate-100 hover:bg-slate-50">
+        <td class="py-3 text-sm text-slate-900">${date.toLocaleDateString()}</td>
+        <td class="py-3"><span class="${statusClass}">${record.status}</span></td>
+        <td class="py-3 text-sm text-slate-600">—</td>
+        <td class="py-3 text-sm text-slate-600">${record.remarks || "—"}</td>
+      </tr>
+    `;
+  }
+  
+  attendanceHistoryBody.innerHTML = html;
+}
+
+// Update Clinic Visits
+async function updateClinicVisits(visits) {
+  if (!clinicVisits) return;
+  
+  if (visits.length === 0) {
+    clinicVisits.innerHTML = '<div class="text-center py-8 text-slate-500">No clinic visits recorded</div>';
+    return;
+  }
+  
+  let html = '';
+  for (const visit of visits) {
+    const date = new Date(visit.created_at);
+    const updated = visit.updated_at ? new Date(visit.updated_at) : null;
+    
+    html += `
+      <div class="p-4 rounded-xl bg-slate-50 border border-slate-200">
+        <div class="flex items-start justify-between mb-2">
+          <div>
+            <h4 class="font-medium text-slate-900">${visit.reason || "Clinic Visit"}</h4>
+            <p class="text-sm text-slate-600">${date.toLocaleDateString()}</p>
+          </div>
+          <span class="status-indicator status-${visit.disposition || 'pending'}">
+            ${visit.disposition || "Pending"}
+          </span>
+        </div>
+        ${visit.findings ? `<p class="text-sm text-slate-700 mb-2">${visit.findings}</p>` : ''}
+        ${updated ? `<p class="text-xs text-slate-500">Updated: ${updated.toLocaleDateString()}</p>` : ''}
+      </div>
+    `;
+  }
+  
+  clinicVisits.innerHTML = html;
+}
+
+// Update Guard & Gate Activity
+async function updateGateActivity(tapLogs) {
+  if (!gateActivity) return;
+  
+  if (tapLogs.length === 0) {
+    gateActivity.innerHTML = '<div class="text-center py-8 text-slate-500">No scan activity recorded</div>';
+    return;
+  }
+  
+  let html = '';
+  for (const log of tapLogs) {
+    const date = new Date(log.timestamp);
+    const scanner = log.scanner_id ? await loadScannerDetails(log.scanner_id) : null;
+    
+    html += `
+      <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-50">
+        <span class="text-xl">${log.tap_type === 'in' ? '🏫' : '🚪'}</span>
+        <div class="flex-1">
+          <p class="text-sm font-medium text-slate-900">
+            ${log.tap_type === 'in' ? 'Tap In' : 'Tap Out'} - 
+            <span class="status-indicator status-${log.status}">${log.status}</span>
+          </p>
+          <p class="text-xs text-slate-500">
+            ${date.toLocaleString()}
+            ${scanner ? ` • ${scanner.name} (${scanner.location})` : ''}
+          </p>
+        </div>
+      </div>
+    `;
+  }
+  
+  gateActivity.innerHTML = html;
+}
+
+// Populate month selector
+function populateMonthSelector() {
+  if (!attendanceMonth) return;
+  
+  const months = [];
+  const currentDate = new Date();
+  
+  // Add 6 months back and 1 month forward
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+    months.push(date);
+  }
+  
+  let html = '<option value="">Select Month</option>';
+  for (const date of months) {
+    const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const label = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    html += `<option value="${value}">${label}</option>`;
+  }
+  
+  attendanceMonth.innerHTML = html;
 }
 
 // Debounced refresh
@@ -187,13 +431,17 @@ async function refresh() {
     const studentIds = children.map((c) => c.id);
     
     // Load data in parallel
-    const [tapRes, notifRes] = await Promise.allSettled([
+    const [tapRes, notifRes, detailedTapRes, clinicRes] = await Promise.allSettled([
       loadTapLogs(studentIds),
       loadNotifications(currentProfile.id),
+      selectedChildId ? loadDetailedTapLogs(selectedChildId) : Promise.resolve([]),
+      selectedChildId ? loadClinicVisits(selectedChildId) : Promise.resolve([]),
     ]);
 
     const taps = buildLatestTapMap(tapRes.status === "fulfilled" ? tapRes.value : []);
     const notifications = notifRes.status === "fulfilled" ? notifRes.value : [];
+    const detailedTaps = detailedTapRes.status === "fulfilled" ? detailedTapRes.value : [];
+    const clinicVisitsData = clinicRes.status === "fulfilled" ? clinicRes.value : [];
     
     // Populate child selector
     if (childSelector) {
@@ -218,27 +466,40 @@ async function refresh() {
     }
     
     // Update selected child's details
-    if (selectedChildId && children.length > 0) {
-      const selectedChild = children.find(c => c.id === selectedChildId) || children[0];
-      if (childInitial) childInitial.textContent = selectedChild.full_name.charAt(0);
-      if (childName) childName.textContent = selectedChild.full_name;
-      if (childGrade) {
-        const grade = selectedChild.grade_level || "";
-        const strand = selectedChild.strand ? ` • ${selectedChild.strand}` : "";
-        childGrade.textContent = (grade + strand).trim() || "—";
-      }
-      
-      // Today's status from taps
-      const todayTap = taps.get(selectedChild.id);
-      if (todayStatus) {
-        if (todayTap?.timestamp) {
-          todayStatus.textContent = "In School";
-          todayStatus.className = "text-lg font-bold text-emerald-600";
-        } else {
-          todayStatus.textContent = "Out of School";
-          todayStatus.className = "text-lg font-bold text-slate-600";
+      if (selectedChildId && children.length > 0) {
+        const selectedChild = children.find(c => c.id === selectedChildId) || children[0];
+        if (childInitial) childInitial.textContent = selectedChild.full_name.charAt(0);
+        if (childName) childName.textContent = selectedChild.full_name;
+        if (childGrade) {
+          const grade = selectedChild.grade_level || "";
+          const strand = selectedChild.strand ? ` • ${selectedChild.strand}` : "";
+          childGrade.textContent = (grade + strand).trim() || "—";
         }
-      }
+        
+        // Load class and teacher details
+        const [classDetails, teacherDetails] = await Promise.all([
+          selectedChild.class_id ? loadClassDetails(selectedChild.class_id) : Promise.resolve(null),
+          selectedChild.class_id ? loadClassDetails(selectedChild.class_id).then(classData => 
+            classData?.homeroom_teacher_id ? loadTeacherDetails(classData.homeroom_teacher_id) : Promise.resolve(null)
+          ) : Promise.resolve(null)
+        ]);
+        
+        // Today's status from taps
+        const todayTap = taps.get(selectedChild.id);
+        if (todayStatus) {
+          if (todayTap?.timestamp) {
+            todayStatus.textContent = "In School";
+            todayStatus.className = "text-lg font-bold text-emerald-600";
+          } else {
+            todayStatus.textContent = "Out of School";
+            todayStatus.className = "text-lg font-bold text-slate-600";
+          }
+        }
+        
+        // Update enhanced features
+        await updateStudentOverview(selectedChild, todayTap, classDetails, teacherDetails);
+        await updateGateActivity(detailedTaps);
+        await updateClinicVisits(clinicVisitsData);
     } else {
       if (childName) childName.textContent = "No children linked";
       if (childGrade) childGrade.textContent = "—";
@@ -347,6 +608,59 @@ async function init() {
     childSelector.addEventListener("change", async () => {
       selectedChildId = childSelector.value;
       await refresh();
+    });
+  }
+
+  // Month selector change handler
+  if (attendanceMonth) {
+    attendanceMonth.addEventListener("change", async () => {
+      const monthValue = attendanceMonth.value;
+      if (monthValue && selectedChildId) {
+        const [year, month] = monthValue.split('-');
+        const monthDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+        const attendanceData = await loadMonthAttendance(selectedChildId, monthDate);
+        updateAttendanceHistory(attendanceData);
+      }
+    });
+  }
+
+  // Export button handler
+  if (exportAttendance) {
+    exportAttendance.addEventListener("click", async () => {
+      if (!selectedChildId) {
+        showError("Please select a child first");
+        return;
+      }
+      
+      const monthValue = attendanceMonth.value;
+      if (!monthValue) {
+        showError("Please select a month first");
+        return;
+      }
+      
+      const [year, month] = monthValue.split('-');
+      const monthDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+      const attendanceData = await loadMonthAttendance(selectedChildId, monthDate);
+      
+      // Create CSV content
+      let csvContent = "Date,Status,Time,Remarks\n";
+      for (const record of attendanceData) {
+        const date = new Date(record.date);
+        csvContent += `"${date.toLocaleDateString()}","${record.status}","—","${record.remarks || ''}"\n`;
+      }
+      
+      // Create download link
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `attendance-${monthValue}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      showSuccess("Attendance data exported successfully");
     });
   }
 

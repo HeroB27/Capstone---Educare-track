@@ -544,6 +544,9 @@ async function init() {
 
     renderAnnouncements(announcements || []);
 
+    // Load Data Analytics widgets
+    await loadDataAnalyticsWidgets();
+
     // Update status
     if (statusBox) {
       statusBox.innerHTML = `
@@ -567,6 +570,183 @@ async function init() {
         </div>
       `;
     }
+  }
+}
+
+// Data Analytics Widgets Functionality
+async function loadDataAnalyticsWidgets() {
+  try {
+    console.log("Loading data analytics widgets...");
+    
+    // Fetch attendance trend data from our analytics view
+    const { data: trendData, error: trendError } = await queryWithTimeout(
+      supabase.from("attendance_trend_7day").select("*")
+    );
+    
+    if (trendError) {
+      console.warn("Trend analytics error:", trendError);
+      return;
+    }
+    
+    // Process trend data for the chart
+    const labels = trendData?.map(item => {
+      const date = new Date(item.date);
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }) || [];
+    
+    const presentData = trendData?.map(item => item.present_count) || [];
+    const lateData = trendData?.map(item => item.late_count) || [];
+    const absentData = trendData?.map(item => item.absent_count) || [];
+    const excusedData = trendData?.map(item => item.excused_count) || [];
+    
+    // Update trend analytics chart
+    const trendCtx = document.getElementById("trendAnalyticsChart");
+    if (trendCtx) {
+      try {
+        const trendChart = new window.Chart(trendCtx, {
+          type: "line",
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: "Present",
+                data: presentData,
+                borderColor: "rgba(52, 211, 153, 1)",
+                backgroundColor: "rgba(52, 211, 153, 0.1)",
+                fill: true,
+                tension: 0.4
+              },
+              {
+                label: "Late",
+                data: lateData,
+                borderColor: "rgba(251, 191, 36, 1)",
+                backgroundColor: "rgba(251, 191, 36, 0.1)",
+                fill: true,
+                tension: 0.4
+              },
+              {
+                label: "Absent",
+                data: absentData,
+                borderColor: "rgba(248, 113, 113, 1)",
+                backgroundColor: "rgba(248, 113, 113, 0.1)",
+                fill: true,
+                tension: 0.4
+              },
+              {
+                label: "Excused",
+                data: excusedData,
+                borderColor: "rgba(96, 165, 250, 1)",
+                backgroundColor: "rgba(96, 165, 250, 0.1)",
+                fill: true,
+                tension: 0.4
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: "bottom",
+                labels: { usePointStyle: true, padding: 20 }
+              }
+            },
+            scales: {
+              x: { grid: { display: false } },
+              y: { 
+                grid: { color: "rgba(0,0,0,0.05)" },
+                beginAtZero: true
+              }
+            }
+          }
+        });
+        
+        // Store chart reference
+        window.trendAnalyticsChart = trendChart;
+      } catch (chartError) {
+        console.error("Trend analytics chart error:", chartError);
+      }
+    }
+    
+    // Update trend statistics
+    if (trendData && trendData.length > 0) {
+      const latest = trendData[trendData.length - 1];
+      setText(document.getElementById("trendPresent"), latest.present_count || 0);
+      setText(document.getElementById("trendLate"), latest.late_count || 0);
+      setText(document.getElementById("trendAbsent"), latest.absent_count || 0);
+      setText(document.getElementById("trendExcused"), latest.excused_count || 0);
+    }
+    
+    // Fetch today's attendance for pie chart
+    const today = toLocalISODate(new Date());
+    const { data: todayData, error: todayError } = await queryWithTimeout(
+      supabase.from("homeroom_attendance")
+        .select("status")
+        .eq("date", today)
+    );
+    
+    if (todayError) {
+      console.warn("Today attendance error:", todayError);
+      return;
+    }
+    
+    // Count status types
+    const statusCounts = { present: 0, late: 0, absent: 0, excused: 0 };
+    for (const rec of todayData || []) {
+      const s = (rec.status || "").toLowerCase();
+      if (["present", "present_in_class"].includes(s)) statusCounts.present++;
+      else if (["late", "late_arrival"].includes(s)) statusCounts.late++;
+      else if (["absent", "absent_unexcused"].includes(s)) statusCounts.absent++;
+      else if (["excused", "absent_excused"].includes(s)) statusCounts.excused++;
+    }
+    
+    const total = statusCounts.present + statusCounts.late + statusCounts.absent + statusCounts.excused;
+    
+    // Update pie analytics chart
+    const pieCtx = document.getElementById("pieAnalyticsChart");
+    if (pieCtx) {
+      try {
+        const pieChart = new window.Chart(pieCtx, {
+          type: "doughnut",
+          data: {
+            labels: ["Present", "Late", "Absent", "Excused"],
+            datasets: [{
+              data: [statusCounts.present, statusCounts.late, statusCounts.absent, statusCounts.excused],
+              backgroundColor: [
+                "rgba(52, 211, 153, 0.9)",
+                "rgba(251, 191, 36, 0.9)",
+                "rgba(248, 113, 113, 0.9)",
+                "rgba(96, 165, 250, 0.9)"
+              ],
+              borderWidth: 0,
+              cutout: "75%"
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } }
+          }
+        });
+        
+        // Store chart reference
+        window.pieAnalyticsChart = pieChart;
+      } catch (chartError) {
+        console.error("Pie analytics chart error:", chartError);
+      }
+    }
+    
+    // Update pie statistics
+    setText(document.getElementById("pieTotal"), total);
+    setText(document.getElementById("piePresent"), Math.round((statusCounts.present / total) * 100) + "%");
+    setText(document.getElementById("pieLate"), Math.round((statusCounts.late / total) * 100) + "%");
+    setText(document.getElementById("pieAbsent"), Math.round((statusCounts.absent / total) * 100) + "%");
+    setText(document.getElementById("pieExcused"), Math.round((statusCounts.excused / total) * 100) + "%");
+    
+    console.log("Data analytics widgets loaded successfully");
+    
+  } catch (error) {
+    console.error("Data analytics widgets error:", error);
   }
 }
 

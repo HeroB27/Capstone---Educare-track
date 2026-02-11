@@ -250,3 +250,26 @@ body.role-teacher {
 .status-active { background: var(--success-100); color: var(--success-700); }
 .status-inactive { background: var(--neutral-100); color: var(--neutral-600); }
 .status-warning { background: var(--warning-100); color: var(--warning-700); }
+
+/* Attendance Status Indicators */
+.status-present { background: var(--success-100); color: var(--success-700); }
+.status-late { background: var(--warning-100); color: var(--warning-700); }
+.status-absent { background: var(--error-100); color: var(--error-700); }
+.status-excused { background: var(--info-100); color: var(--info-700); }
+.status-partial { 
+  background: linear-gradient(135deg, var(--success-100) 50%, var(--warning-100) 50%); 
+  color: var(--success-700); 
+}
+
+.status-excused_absent { background: var(--info-100); color: var(--info-700); }
+.status-morning_absent { background: var(--error-100); color: var(--error-700); }
+
+/* Tap Log Status Indicators */
+.status-success { background: var(--success-100); color: var(--success-700); }
+.status-early { background: var(--warning-100); color: var(--warning-700); }
+.status-invalid { background: var(--error-100); color: var(--error-700); }
+
+/* Clinic Visit Status Indicators */
+.status-in_clinic { background: var(--warning-100); color: var(--warning-700); }
+.status-treated { background: var(--success-100); color: var(--success-700); }
+.status-referred { background: var(--error-100); color: var(--error-700); }

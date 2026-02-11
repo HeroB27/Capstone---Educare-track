@@ -601,6 +601,54 @@ function openProvisionParentWizard() {
         },
       },
       {
+        label: "Photos",
+        render: ({ state }) => {
+          const wrap = el("div", "space-y-4");
+          wrap.appendChild(el("div", "text-sm text-slate-600", "Upload student photos for ID cards (optional)."));
+          
+          const list = el("div", "mt-4 space-y-4");
+          state.students.forEach((s, idx) => {
+            const card = el("div", "rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200");
+            card.appendChild(el("div", "text-sm font-semibold text-slate-900", escapeHtml(s.full_name || `Student ${idx + 1}`)));
+            
+            const photoContainer = el("div", "mt-3");
+            const photoInput = document.createElement("input");
+            photoInput.type = "file";
+            photoInput.accept = "image/jpeg,image/png,image/gif";
+            photoInput.className = "block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-slate-50 file:text-slate-700 hover:file:bg-slate-100";
+            
+            // Store photo file in state
+            photoInput.addEventListener("change", (e) => {
+              const file = e.target.files[0];
+              if (file) {
+                s.photoFile = file;
+                if (photoPreview) {
+                  photoPreview.src = URL.createObjectURL(file);
+                  photoPreview.classList.remove("hidden");
+                }
+              }
+            });
+            
+            const photoPreview = document.createElement("img");
+            photoPreview.className = "mt-2 hidden h-32 w-32 rounded-xl object-cover ring-1 ring-slate-200";
+            photoPreview.alt = "Photo preview";
+            
+            if (s.photoFile) {
+              photoPreview.src = URL.createObjectURL(s.photoFile);
+              photoPreview.classList.remove("hidden");
+            }
+            
+            photoContainer.appendChild(photoInput);
+            photoContainer.appendChild(photoPreview);
+            card.appendChild(photoContainer);
+            list.appendChild(card);
+          });
+          
+          wrap.appendChild(list);
+          return wrap;
+        },
+      },
+      {
         label: "Confirm",
         render: ({ state }) => {
           const wrap = el("div", "space-y-4");
@@ -645,63 +693,140 @@ function openProvisionParentWizard() {
         },
       },
       {
-        label: "Export",
+        label: "Create",
         render: ({ state }) => {
-          const payload = {
-            generated_at: new Date().toISOString(),
-            accounts: [
-              {
-                kind: "parent_bundle",
-                user_id: state.account.user_id.trim(),
-                password: state.account.password,
-                profile: {
-                  full_name: state.parent.full_name.trim(),
-                  phone: state.parent.phone.trim(),
-                  address: state.parent.address.trim() || null,
-                  email: null,
-                  role: "parent",
-                  is_active: true,
-                  parent_type: state.parent.parent_type,
-                },
-                students: state.students.map((s) => ({
-                  full_name: s.full_name.trim(),
-                  lrn: s.lrn.trim() || null,
-                  address: (s.address || state.parent.address || "").trim() || null,
-                  grade_level: s.grade_level.trim(),
-                  strand: s.strand.trim() || null,
-                  qr_code: (s.generated_id || generateStudentUserId(s.lrn)).trim(),
-                })),
-              },
-            ],
-          };
-
           const wrap = el("div", "");
           wrap.appendChild(
             el(
               "div",
               "rounded-2xl bg-slate-50 p-4 text-sm text-slate-700 ring-1 ring-slate-200",
-              "Download the JSON and run the local provisioning script to create Auth + profiles + students + IDs."
+              "Ready to create parent account and student records in the database."
             )
           );
-          const row = el("div", "mt-4 flex flex-wrap gap-2");
-          const downloadBtn = button("Download JSON", "primary");
-          const copyBtn = button("Copy credentials", "secondary");
-          downloadBtn.addEventListener("click", () => {
-            const safe = `provision_parent_${payload.accounts[0].user_id}.json`.replaceAll(/[^a-zA-Z0-9_.-]/g, "_");
-            downloadJson(safe, payload);
+          
+          const createBtn = button("Create Account", "primary");
+          createBtn.className += " mt-4";
+          
+          const statusDiv = el("div", "mt-4 text-sm");
+          
+          createBtn.addEventListener("click", async () => {
+            createBtn.disabled = true;
+            createBtn.textContent = "Creating...";
+            statusDiv.textContent = "Starting account creation...";
+            
+            try {
+              // 1. Create Auth user
+              statusDiv.textContent = "Creating Auth user...";
+              const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+                email: `${state.account.user_id}@educare.local`,
+                password: state.account.password,
+                user_metadata: { 
+                  full_name: state.parent.full_name.trim(),
+                  phone: state.parent.phone.trim()
+                },
+                email_confirm: true
+              });
+              
+              if (authError) throw authError;
+              
+              // 2. Create profile
+              statusDiv.textContent = "Creating profile...";
+              const { error: profileError } = await supabase.from("profiles").insert({
+                id: authData.user.id,
+                full_name: state.parent.full_name.trim(),
+                phone: state.parent.phone.trim(),
+                address: state.parent.address.trim() || null,
+                email: null,
+                role: "parent",
+                is_active: true
+              });
+              
+              if (profileError) throw profileError;
+              
+              // 3. Create parent record
+              statusDiv.textContent = "Creating parent record...";
+              const { error: parentError } = await supabase.from("parents").insert({
+                profile_id: authData.user.id,
+                parent_type: state.parent.parent_type
+              });
+              
+              if (parentError) throw parentError;
+              
+              // 4. Create students and link to parent
+              for (const student of state.students) {
+                statusDiv.textContent = `Creating student: ${student.full_name}...`;
+                
+                let photoPath = null;
+                let photoMime = null;
+                
+                // Upload photo if provided
+                if (student.photoFile) {
+                  statusDiv.textContent = `Uploading photo for ${student.full_name}...`;
+                  const fileName = `${student.generated_id || student.full_name.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.${student.photoFile.name.split('.').pop()}`;
+                  const { error: uploadError } = await supabase.storage
+                    .from('student-photos')
+                    .upload(fileName, student.photoFile);
+                  
+                  if (uploadError) {
+                    console.warn("Photo upload failed:", uploadError);
+                    // Continue without photo if upload fails
+                  } else {
+                    photoPath = fileName;
+                    photoMime = student.photoFile.type;
+                  }
+                }
+                
+                // Create student record
+                const { data: studentData, error: studentError } = await supabase.from("students")
+                  .insert({
+                    full_name: student.full_name.trim(),
+                    lrn: student.lrn.trim() || null,
+                    address: (student.address || state.parent.address || "").trim() || null,
+                    grade_level: student.grade_level.trim(),
+                    strand: student.strand.trim() || null,
+                    photo_path: photoPath,
+                    photo_mime: photoMime
+                  })
+                  .select("id")
+                  .single();
+                
+                if (studentError) throw studentError;
+                
+                // Link student to parent
+                const { error: linkError } = await supabase.from("parent_students").insert({
+                  parent_id: authData.user.id,
+                  student_id: studentData.id
+                });
+                
+                if (linkError) throw linkError;
+                
+                // Create student ID using RPC
+                statusDiv.textContent = `Generating student ID for ${student.full_name}...`;
+                const { data: idData, error: idError } = await supabase.rpc("issue_student_id", studentData.id);
+                
+                if (idError) throw idError;
+              }
+              
+              statusDiv.textContent = "Account creation successful! ✅";
+              createBtn.textContent = "Done";
+              
+              // Refresh the user list
+              setTimeout(() => {
+                render();
+                document.querySelector("#wizardOverlay")?.remove();
+              }, 1500);
+              
+            } catch (error) {
+              console.error("Account creation failed:", error);
+              statusDiv.textContent = `Error: ${error.message}`;
+              statusDiv.className = "mt-4 text-sm text-red-600";
+              createBtn.disabled = false;
+              createBtn.textContent = "Try Again";
+            }
           });
-          copyBtn.addEventListener("click", async () => {
-            await navigator.clipboard.writeText(`user_id: ${payload.accounts[0].user_id}\npassword: ${payload.accounts[0].password}`);
-            copyBtn.textContent = "Copied";
-            setTimeout(() => (copyBtn.textContent = "Copy credentials"), 900);
-          });
-          row.appendChild(downloadBtn);
-          row.appendChild(copyBtn);
-          wrap.appendChild(row);
-
-          const pre = el("pre", "mt-4 max-h-64 overflow-auto rounded-2xl bg-slate-950 p-4 text-xs text-slate-100");
-          pre.textContent = JSON.stringify(payload, null, 2);
-          wrap.appendChild(pre);
+          
+          wrap.appendChild(createBtn);
+          wrap.appendChild(statusDiv);
           return wrap;
         },
       },
@@ -823,54 +948,96 @@ function openProvisionStaffWizard() {
         },
       },
       {
-        label: "Export",
+        label: "Create",
         render: ({ state }) => {
-          const payload = {
-            generated_at: new Date().toISOString(),
-            accounts: [
-              {
-                kind: "staff",
-                user_id: state.account.user_id.trim(),
-                password: state.account.password,
-                profile: {
-                  full_name: state.staff.full_name.trim(),
-                  phone: state.staff.phone.trim(),
-                  address: state.staff.address.trim() || null,
-                  email: state.staff.email.trim() || null,
-                  role: state.staff.role,
-                  is_active: true,
-                },
-              },
-            ],
-          };
-
           const wrap = el("div", "");
           wrap.appendChild(
             el(
               "div",
               "rounded-2xl bg-slate-50 p-4 text-sm text-slate-700 ring-1 ring-slate-200",
-              "Download the JSON and run the local provisioning script to create the Auth user + profile."
+              "Ready to create staff account in the database."
             )
           );
-          const row = el("div", "mt-4 flex flex-wrap gap-2");
-          const downloadBtn = button("Download JSON", "primary");
-          const copyBtn = button("Copy credentials", "secondary");
-          downloadBtn.addEventListener("click", () => {
-            const safe = `provision_staff_${payload.accounts[0].user_id}.json`.replaceAll(/[^a-zA-Z0-9_.-]/g, "_");
-            downloadJson(safe, payload);
+          
+          const createBtn = button("Create Account", "primary");
+          createBtn.className += " mt-4";
+          
+          const statusDiv = el("div", "mt-4 text-sm");
+          
+          createBtn.addEventListener("click", async () => {
+            createBtn.disabled = true;
+            createBtn.textContent = "Creating...";
+            statusDiv.textContent = "Starting account creation...";
+            
+            try {
+              // 1. Create Auth user
+              statusDiv.textContent = "Creating Auth user...";
+              const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+                email: state.staff.email.trim() || `${state.account.user_id}@educare.local`,
+                password: state.account.password,
+                user_metadata: { 
+                  full_name: state.staff.full_name.trim(),
+                  phone: state.staff.phone.trim()
+                },
+                email_confirm: true
+              });
+              
+              if (authError) throw authError;
+              
+              // 2. Create profile
+              statusDiv.textContent = "Creating profile...";
+              const { error: profileError } = await supabase.from("profiles").insert({
+                id: authData.user.id,
+                full_name: state.staff.full_name.trim(),
+                phone: state.staff.phone.trim(),
+                address: state.staff.address.trim() || null,
+                email: state.staff.email.trim() || null,
+                role: state.staff.role,
+                is_active: true
+              });
+              
+              if (profileError) throw profileError;
+              
+              // 3. Create role-specific record
+              statusDiv.textContent = "Creating role-specific record...";
+              if (state.staff.role === "teacher") {
+                const { error: teacherError } = await supabase.from("teachers").insert({
+                  profile_id: authData.user.id,
+                  is_gatekeeper: false
+                });
+                if (teacherError) throw teacherError;
+              } else if (state.staff.role === "guard") {
+                const { error: guardError } = await supabase.from("guards").insert({
+                  profile_id: authData.user.id
+                });
+                if (guardError) throw guardError;
+              } else if (state.staff.role === "clinic") {
+                const { error: clinicError } = await supabase.from("clinic_staff").insert({
+                  profile_id: authData.user.id
+                });
+                if (clinicError) throw clinicError;
+              }
+              
+              statusDiv.textContent = "Account creation successful! ✅";
+              createBtn.textContent = "Done";
+              
+              // Refresh the user list
+              setTimeout(() => {
+                render();
+                document.querySelector("#wizardOverlay")?.remove();
+              }, 1500);
+              
+            } catch (error) {
+              console.error("Account creation failed:", error);
+              statusDiv.textContent = `Error: ${error.message}`;
+              statusDiv.className = "mt-4 text-sm text-red-600";
+              createBtn.disabled = false;
+              createBtn.textContent = "Try Again";
+            }
           });
-          copyBtn.addEventListener("click", async () => {
-            await navigator.clipboard.writeText(`user_id: ${payload.accounts[0].user_id}\npassword: ${payload.accounts[0].password}`);
-            copyBtn.textContent = "Copied";
-            setTimeout(() => (copyBtn.textContent = "Copy credentials"), 900);
-          });
-          row.appendChild(downloadBtn);
-          row.appendChild(copyBtn);
-          wrap.appendChild(row);
-
-          const pre = el("pre", "mt-4 max-h-64 overflow-auto rounded-2xl bg-slate-950 p-4 text-xs text-slate-100");
-          pre.textContent = JSON.stringify(payload, null, 2);
-          wrap.appendChild(pre);
+          
+          wrap.appendChild(createBtn);
+          wrap.appendChild(statusDiv);
           return wrap;
         },
       },

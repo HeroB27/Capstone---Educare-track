@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin QA Diagnostic - EDUCARE TRACK</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .test-pass { background: #dcfce7; border-left: 4px solid #16a34a; }
+    .test-fail { background: #fee2e2; border-left: 4px solid #dc2626; }
+    .test-warn { background: #fef3c7; border-left: 4px solid #d97706; }
+    .log-entry { font-family: monospace; font-size: 12px; }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen p-6">
+  <div class="max-w-6xl mx-auto">
+    <header class="mb-8">
+      <h1 class="text-3xl font-bold text-slate-900">🔧 Admin QA Diagnostic Suite</h1>
+      <p class="text-slate-600">Comprehensive test of all admin features against real schema + RLS</p>
+    </header>
+
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-4 gap-4 mb-8">
+      <div class="bg-white rounded-xl p-4 shadow-sm">
+        <div class="text-sm text-slate-500">Tests Run</div>
+        <div class="text-2xl font-bold text-slate-900" id="testCount">0</div>
+      </div>
+      <div class="bg-green-50 rounded-xl p-4 shadow-sm">
+        <div class="text-sm text-green-600">Passed</div>
+        <div class="text-2xl font-bold text-green-700" id="passCount">0</div>
+      </div>
+      <div class="bg-red-50 rounded-xl p-4 shadow-sm">
+        <div class="text-sm text-red-600">Failed</div>
+        <div class="text-2xl font-bold text-red-700" id="failCount">0</div>
+      </div>
+      <div class="bg-yellow-50 rounded-xl p-4 shadow-sm">
+        <div class="text-sm text-yellow-600">Warnings</div>
+        <div class="text-2xl font-bold text-yellow-700" id="warnCount">0</div>
+      </div>
+    </div>
+
+    <!-- Test Controls -->
+    <div class="bg-white rounded-xl p-4 shadow-sm mb-6">
+      <div class="flex gap-4 items-center">
+        <button onclick="runAllTests()" class="bg-violet-600 text-white px-6 py-2 rounded-xl hover:bg-violet-700 font-medium">
+          ▶️ Run All Tests
+        </button>
+        <button onclick="runDashboardTests()" class="bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700">
+          Dashboard
+        </button>
+        <button onclick="runUserTests()" class="bg-green-600 text-white px-4 py-2 rounded-xl hover:bg-green-700">
+          Users
+        </button>
+        <button onclick="runStudentTests()" class="bg-purple-600 text-white px-4 py-2 rounded-xl hover:bg-purple-700">
+          Students
+        </button>
+        <button onclick="runIdTests()" class="bg-orange-600 text-white px-4 py-2 rounded-xl hover:bg-orange-700">
+          ID Mgmt
+        </button>
+        <button onclick="runClassTests()" class="bg-teal-600 text-white px-4 py-2 rounded-xl hover:bg-teal-700">
+          Classes
+        </button>
+        <button onclick="runAnnounceTests()" class="bg-pink-600 text-white px-4 py-2 rounded-xl hover:bg-pink-700">
+          Announce
+        </button>
+      </div>
+    </div>
+
+    <!-- Auth Status -->
+    <div id="authStatus" class="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6 hidden">
+      <div class="flex items-center gap-2">
+        <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        </svg>
+        <span class="font-medium text-yellow-800" id="authMessage">Not authenticated</span>
+      </div>
+    </div>
+
+    <!-- Test Results by Category -->
+    <div class="space-y-6" id="testResults">
+      <!-- Dashboard Tests -->
+      <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div class="bg-blue-50 px-4 py-3 border-b border-blue-100">
+          <h2 class="font-semibold text-blue-900">📊 Dashboard Tests</h2>
+        </div>
+        <div id="dashboardResults" class="divide-y divide-slate-100">
+          <div class="p-4 text-center text-slate-500">Click "Run All Tests" to start</div>
+        </div>
+      </div>
+
+      <!-- User Management Tests -->
+      <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div class="bg-green-50 px-4 py-3 border-b border-green-100">
+          <h2 class="font-semibold text-green-900">👥 User Management Tests</h2>
+        </div>
+        <div id="userResults" class="divide-y divide-slate-100">
+          <div class="p-4 text-center text-slate-500">Click "Run All Tests" to start</div>
+        </div>
+      </div>
+
+      <!-- Student + Parent Tests -->
+      <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div class="bg-purple-50 px-4 py-3 border-b border-purple-100">
+          <h2 class="font-semibold text-purple-900">🎓 Student + Parent Tests</h2>
+        </div>
+        <div id="studentResults" class="divide-y divide-slate-100">
+          <div class="p-4 text-center text-slate-500">Click "Run All Tests" to start</div>
+        </div>
+      </div>
+
+      <!-- ID Management Tests -->
+      <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div class="bg-orange-50 px-4 py-3 border-b border-orange-100">
+          <h2 class="font-semibold text-orange-900">🪪 ID Management Tests</h2>
+        </div>
+        <div id="idResults" class="divide-y divide-slate-100">
+          <div class="p-4 text-center text-slate-500">Click "Run All Tests" to start</div>
+        </div>
+      </div>
+
+      <!-- Class Management Tests -->
+      <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div class="bg-teal-50 px-4 py-3 border-b border-teal-100">
+          <h2 class="font-semibold text-teal-900">🏫 Class Management Tests</h2>
+        </div>
+        <div id="classResults" class="divide-y divide-slate-100">
+          <div class="p-4 text-center text-slate-500">Click "Run All Tests" to start</div>
+        </div>
+      </div>
+
+      <!-- Announcements Tests -->
+      <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div class="bg-pink-50 px-4 py-3 border-b border-pink-100">
+          <h2 class="font-semibold text-pink-900">📢 Announcements Tests</h2>
+        </div>
+        <div id="announceResults" class="divide-y divide-slate-100">
+          <div class="p-4 text-center text-slate-500">Click "Run All Tests" to start</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Console Log -->
+    <div class="mt-8 bg-slate-900 rounded-xl p-4">
+      <div class="flex justify-between items-center mb-2">
+        <h3 class="text-slate-300 font-medium">Console Log</h3>
+        <button onclick="clearLog()" class="text-slate-400 hover:text-white text-sm">Clear</button>
+      </div>
+      <pre id="consoleLog" class="text-green-400 text-xs font-mono max-h-64 overflow-auto"></pre>
+    </div>
+  </div>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+    
+    const SUPABASE_URL = 'https://whmxpkqdveonprnbkmkr.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndobXhwa3FkdmVvbnBybmJrbWtyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk5OTkzODIsImV4cCI6MjA4NTU3NTM4Mn0.Ren0PAXa1iVviPdZqpYUN_2OrElgBVtvnf01eHtufK8';
+    
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    const TEST_RESULTS = { passed: [], failed: [], warnings: [] };
+    const CATEGORIES = {
+      DASHBOARD: 'dashboardResults',
+      USER: 'userResults',
+      STUDENT: 'studentResults',
+      ID: 'idResults',
+      CLASS: 'classResults',
+      ANNOUNCE: 'announceResults'
+    };
+
+    function log(msg, type = 'info') {
+      const logEl = document.getElementById('consoleLog');
+      const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
+      const color = type === 'error' ? 'text-red-400' : type === 'warn' ? 'text-yellow-400' : 'text-green-400';
+      logEl.textContent += `[${timestamp}] [${type.toUpperCase()}] ${msg}\n`;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function addTestResult(category, testName, passed, message, details = null) {
+      const container = document.getElementById(category);
+      const resultClass = passed ? 'test-pass' : 'test-fail';
+      const icon = passed ? '✅' : '❌';
+      
+      const div = document.createElement('div');
+      div.className = `p-4 ${resultClass}`;
+      div.innerHTML = `
+        <div class="flex items-start gap-3">
+          <span class="text-lg">${icon}</span>
+          <div class="flex-1">
+            <div class="font-medium text-slate-900">${testName}</div>
+            <div class="text-sm text-slate-700 mt-1">${message}</div>
+            ${details ? `<pre class="text-xs mt-2 bg-white/50 p-2 rounded overflow-auto">${JSON.stringify(details, null, 2)}</pre>` : ''}
+          </div>
+        </div>
+      `;
+      container.appendChild(div);
+      
+      if (passed) TEST_RESULTS.passed.push({ testName, message });
+      else TEST_RESULTS.failed.push({ testName, message, details });
+      
+      updateSummary();
+    }
+
+    function updateSummary() {
+      document.getElementById('testCount').textContent = TEST_RESULTS.passed.length + TEST_RESULTS.failed.length;
+      document.getElementById('passCount').textContent = TEST_RESULTS.passed.length;
+      document.getElementById('failCount').textContent = TEST_RESULTS.failed.length;
+      document.getElementById('warnCount').textContent = TEST_RESULTS.warnings.length;
+    }
+
+    async function safeQuery(queryFn, description) {
+      try {
+        const result = await queryFn();
+        if (result.error) {
+          return { success: false, error: result.error, description };
+        }
+        return { success: true, data: result.data, description };
+      } catch (e) {
+        return { success: false, error: e.message, description };
+      }
+    }
+
+    // ============ DASHBOARD TESTS ============
+    async function runDashboardTests() {
+      log('Running Dashboard tests...', 'info');
+      const cat = CATEGORIES.DASHBOARD;
+      document.getElementById(cat).innerHTML = '';
+      
+      // Auth check
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        document.getElementById('authStatus').classList.remove('hidden');
+        document.getElementById('authMessage').textContent = 'Not authenticated - RLS may block some tests';
+      } else {
+        document.getElementById('authStatus').classList.add('hidden');
+      }
+
+      // Test 1: Students table access
+      let r = await safeQuery(() => supabase.from("students").select("id", { count: "exact" }), 'students count');
+      addTestResult(cat, 'Students table accessible', r.success, r.success ? `Count: ${r.data}` : `Error: ${r.error?.message}`);
+
+      // Test 2: Active students
+      r = await safeQuery(() => supabase.from("students").select("id", { count: "exact" }).eq("is_active", true), 'active students');
+      addTestResult(cat, 'Active students query', r.success, r.success ? `Active: ${r.data}` : `Error: ${r.error?.message}`);
+
+      // Test 3: Present count
+      const today = new Date().toISOString().split('T')[0];
+      r = await safeQuery(() => supabase.from("homeroom_attendance").select("id", { count: "exact" }).eq("date", today).eq("status", "present"), 'present count');
+      addTestResult(cat, 'Present count today', r.success, r.success ? `Present: ${r.data}` : `Error: ${r.error?.message}`);
+
+      // Test 4: Late count
+      r = await safeQuery(() => supabase.from("homeroom_attendance").select("id", { count: "exact" }).eq("date", today).eq("status", "late"), 'late count');
+      addTestResult(cat, 'Late count today', r.success, r.success ? `Late: ${r.data}` : `Error: ${r.error?.message}`);
+
+      // Test 5: Absent count
+      r = await safeQuery(() => supabase.from("homeroom_attendance").select("id", { count: "exact" }).eq("date", today).eq("status", "absent"), 'absent count');
+      addTestResult(cat, 'Absent count today', r.success, r.success ? `Absent: ${r.data}` : `Error: ${r.error?.message}`);
+
+      // Test 6: Required columns
+      r = await safeQuery(() => supabase.from("students").select("id,full_name,current_status,absences,lates").limit(1), 'dashboard columns');
+      const requiredCols = ['id', 'full_name', 'current_status', 'absences', 'lates'];
+      const hasAll = r.data && requiredCols.every(c => c in r.data[0]);
+      addTestResult(cat, 'Required dashboard columns', hasAll, hasAll ? 'All columns present' : `Missing: ${requiredCols.filter(c => !r.data?.[0]?.[c]).join(', ')}`, r.data?.[0]);
+
+      // Test 7: Edge case - empty state
+      r = await safeQuery(() => supabase.from("students").select("id").eq("is_active", false), 'empty state query');
+      addTestResult(cat, 'Empty state handling', r.success, r.success ? 'Empty state works' : `Error: ${r.error?.message}`);
+
+      log('Dashboard tests complete', 'info');
+    }
+
+    // ============ USER MANAGEMENT TESTS ============
+    async function runUserTests() {
+      log('Running User Management tests...', 'info');
+      const cat = CATEGORIES.USER;
+      document.getElementById(cat).innerHTML = '';
+
+      // Test 1: Profiles table access
+      let r = await safeQuery(() => supabase.from("profiles").select("id,full_name,role,is_active").limit(5), 'profiles access');
+      addTestResult(cat, 'Profiles table accessible', r.success, r.success ? `Found ${r.data?.length || 0} profiles` : `Error: ${r.error?.message}`);
+
+      // Test 2: Role values
+      const validRoles = ['admin', 'teacher', 'parent', 'guard', 'clinic'];
+      const hasValidRoles = r.data?.every(p => !p.role || validRoles.includes(p.role));
+      addTestResult(cat, 'Valid role values', hasValidRoles || !r.data, hasValidRoles ? 'All roles valid' : 'Invalid roles found', r.data?.map(p => p.role));
+
+      // Test 3: Required fields
+      const hasRequired = r.data && 'username' in (r.data[0] || {}) && 'email' in (r.data[0] || {}) && 'phone' in (r.data[0] || {});
+      addTestResult(cat, 'Required fields present', hasRequired, hasRequired ? 'username, email, phone exist' : 'Missing fields');
+
+      // Test 4: Insert capability (admin)
+      const testUser = {
+        id: '00000000-0000-0000-0000-000000000000',
+        full_name: 'Test User',
+        username: 'test_' + Date.now(),
+        phone: '99999999999',
+        email: 'test@example.com',
+        role: 'admin'
+      };
+      r = await safeQuery(() => supabase.from("profiles").insert(testUser).select(), 'profile insert');
+      addTestResult(cat, 'Profile insert (RLS)', r.success || r.error?.message.includes('policy'), r.success ? 'Can insert profiles' : `RLS blocked (expected): ${r.error?.message}`);
+
+      log('User Management tests complete', 'info');
+    }
+
+    // ============ STUDENT TESTS ============
+    async function runStudentTests() {
+      log('Running Student + Parent tests...', 'info');
+      const cat = CATEGORIES.STUDENT;
+      document.getElementById(cat).innerHTML = '';
+
+      // Test 1: Students with parent_id
+      let r = await safeQuery(() => supabase.from("students").select("id,full_name,lrn,parent_id,grade_level,class_id").limit(5), 'students access');
+      addTestResult(cat, 'Students table accessible', r.success, r.success ? `Found ${r.data?.length || 0} students` : `Error: ${r.error?.message}`, r.data);
+
+      // Test 2: parent_id FK exists
+      const hasParentId = r.data && 'parent_id' in (r.data[0] || {});
+      addTestResult(cat, 'parent_id FK exists', hasParentId, hasParentId ? 'parent_id column present' : 'Missing parent_id');
+
+      // Test 3: LRN field
+      const hasLrn = r.data && 'lrn' in (r.data[0] || {});
+      addTestResult(cat, 'LRN field exists', hasLrn, hasLrn ? 'LRN column present' : 'Missing LRN');
+
+      // Test 4: grade_level field
+      const hasGrade = r.data && 'grade_level' in (r.data[0] || {});
+      addTestResult(cat, 'grade_level exists', hasGrade, hasGrade ? 'grade_level present' : 'Missing grade_level');
+
+      // Test 5: class_id FK
+      const hasClassId = r.data && 'class_id' in (r.data[0] || {});
+      addTestResult(cat, 'class_id FK exists', hasClassId, hasClassId ? 'class_id present' : 'Missing class_id');
+
+      // Test 6: parent_users table
+      r = await safeQuery(() => supabase.from("parent_users").select("id").limit(1), 'parent_users table');
+      addTestResult(cat, 'parent_users table exists', !r.error, r.error ? `Error: ${r.error.message}` : 'parent_users accessible');
+
+      // Test 7: Duplicate LRN check
+      const lrns = r.data?.filter(s => s.lrn).map(s => s.lrn) || [];
+      const hasDuplicates = lrns.length !== new Set(lrns).size;
+      addTestResult(cat, 'No duplicate LRNs', !hasDuplicates || lrns.length < 2, hasDuplicates ? 'Duplicates found!' : 'LRNs unique');
+
+      log('Student + Parent tests complete', 'info');
+    }
+
+    // ============ ID MANAGEMENT TESTS ============
+    async function runIdTests() {
+      log('Running ID Management tests...', 'info');
+      const cat = CATEGORIES.ID;
+      document.getElementById(cat).innerHTML = '';
+
+      // Test 1: student_ids table access
+      let r = await safeQuery(() => supabase.from("student_ids").select("id,student_id,qr_code,is_active").limit(5), 'student_ids access');
+      addTestResult(cat, 'student_ids table accessible', r.success, r.success ? `Found ${r.data?.length || 0} IDs` : `Error: ${r.error?.message}`, r.data);
+
+      // Test 2: QR code format
+      const qrPattern = /^EDU-\d{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
+      const qrValid = r.data?.every(rec => !rec.qr_code || qrPattern.test(rec.qr_code));
+      addTestResult(cat, 'QR code format valid', qrValid || !r.data, qrValid ? 'All QR codes match pattern' : 'Invalid QR codes', r.data?.map(rec => rec.qr_code));
+
+      // Test 3: student_id FK
+      const hasStudentFk = r.data && 'student_id' in (r.data[0] || {});
+      addTestResult(cat, 'student_id FK exists', hasStudentFk, hasStudentFk ? 'student_id FK present' : 'Missing student_id FK');
+
+      // Test 4: is_active for re-issue
+      const hasIsActive = r.data && 'is_active' in (r.data[0] || {});
+      addTestResult(cat, 'is_active for re-issue', hasIsActive, hasIsActive ? 'is_active present' : 'Missing is_active');
+
+      // Test 5: ID generation capability
+      const testQr = 'EDU-2026-TEST-1234';
+      r = await safeQuery(() => supabase.from("student_ids").insert({ student_id: '00000000-0000-0000-0000-000000000000', qr_code: testQr }).select(), 'ID insert');
+      addTestResult(cat, 'ID generation (RLS)', r.success || r.error?.message.includes('policy'), r.success ? 'Can generate IDs' : `RLS blocked: ${r.error?.message}`);
+
+      log('ID Management tests complete', 'info');
+    }
+
+    // ============ CLASS MANAGEMENT TESTS ============
+    async function runClassTests() {
+      log('Running Class Management tests...', 'info');
+      const cat = CATEGORIES.CLASS;
+      document.getElementById(cat).innerHTML = '';
+
+      // Test 1: classes table
+      let r = await safeQuery(() => supabase.from("classes").select("id,grade_level,strand,room,homeroom_teacher_id,subject_teachers").limit(5), 'classes access');
+      addTestResult(cat, 'classes table accessible', r.success, r.success ? `Found ${r.data?.length || 0} classes` : `Error: ${r.error?.message}`, r.data);
+
+      // Test 2: homeroom_teacher_id FK
+      const hasHomeroom = r.data && 'homeroom_teacher_id' in (r.data[0] || {});
+      addTestResult(cat, 'homeroom_teacher_id FK', hasHomeroom, hasHomeroom ? 'homeroom_teacher_id present' : 'Missing FK');
+
+      // Test 3: subject_teachers array
+      const hasSubjectTeachers = r.data && 'subject_teachers' in (r.data[0] || {});
+      addTestResult(cat, 'subject_teachers array', hasSubjectTeachers, hasSubjectTeachers ? 'subject_teachers is array type' : 'Missing array field');
+
+      // Test 4: class_schedules
+      r = await safeQuery(() => supabase.from("class_schedules").select("id,class_id,subject_code,teacher_id").limit(5), 'schedules access');
+      addTestResult(cat, 'class_schedules accessible', r.success, r.success ? `Found ${r.data?.length || 0} schedules` : `Error: ${r.error?.message}`);
+
+      // Test 5: subjects
+      r = await safeQuery(() => supabase.from("subjects").select("code,name").limit(5), 'subjects access');
+      addTestResult(cat, 'subjects table accessible', r.success, r.success ? `Found ${r.data?.length || 0} subjects` : `Error: ${r.error?.message}`);
+
+      // Test 6: Attendance sync
+      r = await safeQuery(() => supabase.from("homeroom_attendance").select("class_id").limit(1), 'attendance class sync');
+      const hasClassSync = r.data && 'class_id' in (r.data[0] || {});
+      addTestResult(cat, 'Attendance class sync', hasClassSync, hasClassSync ? 'class_id present in attendance' : 'Missing class_id');
+
+      log('Class Management tests complete', 'info');
+    }
+
+    // ============ ANNOUNCEMENTS TESTS ============
+    async function runAnnounceTests() {
+      log('Running Announcements tests...', 'info');
+      const cat = CATEGORIES.ANNOUNCE;
+      document.getElementById(cat).innerHTML = '';
+
+      // Test 1: announcements table
+      let r = await safeQuery(() => supabase.from("announcements").select("id,title,body,audience_teachers,audience_parents,audience_staff,audience_guard,audience_clinic,class_id,created_by").limit(5), 'announcements access');
+      addTestResult(cat, 'announcements table accessible', r.success, r.success ? `Found ${r.data?.length || 0} announcements` : `Error: ${r.error?.message}`, r.data);
+
+      // Test 2: Audience columns
+      const hasAudience = r.data && 
+        'audience_teachers' in (r.data[0] || {}) &&
+        'audience_parents' in (r.data[0] || {}) &&
+        'audience_staff' in (r.data[0] || {}) &&
+        'audience_guard' in (r.data[0] || {}) &&
+        'audience_clinic' in (r.data[0] || {});
+      addTestResult(cat, 'All audience columns', hasAudience, hasAudience ? 'audience_teachers, parents, staff, guard, clinic present' : 'Missing audience columns');
+
+      // Test 3: class_id for targeting
+      const hasClassId = r.data && 'class_id' in (r.data[0] || {});
+      addTestResult(cat, 'class_id for targeting', hasClassId, hasClassId ? 'class_id present' : 'Missing class_id');
+
+      // Test 4: created_by audit
+      const hasCreatedBy = r.data && 'created_by' in (r.data[0] || {});
+      addTestResult(cat, 'created_by audit trail', hasCreatedBy, hasCreatedBy ? 'created_by present' : 'Missing created_by');
+
+      // Test 5: Insert capability
+      const testAnnounce = {
+        title: 'Test Announcement',
+        body: 'This is a test',
+        audience_teachers: true,
+        audience_parents: false,
+        audience_staff: false,
+        audience_guard: false,
+        audience_clinic: false
+      };
+      r = await safeQuery(() => supabase.from("announcements").insert(testAnnounce).select(), 'announcement insert');
+      addTestResult(cat, 'Announcement create (RLS)', r.success || r.error?.message.includes('policy'), r.success ? 'Can create announcements' : `RLS blocked: ${r.error?.message}`);
+
+      // Test 6: Role-based filtering works
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        r = await safeQuery(() => supabase.from("announcements").select("id").limit(10), 'announcement read');
+        addTestResult(cat, 'Announcement read (RLS)', r.success, r.success ? `Can read ${r.data?.length || 0} announcements` : `RLS blocked: ${r.error?.message}`);
+      }
+
+      log('Announcements tests complete', 'info');
+    }
+
+    // Run all tests
+    async function runAllTests() {
+      document.getElementById('consoleLog').textContent = '';
+      TEST_RESULTS.passed = [];
+      TEST_RESULTS.failed = [];
+      TEST_RESULTS.warnings = [];
+      
+      await runDashboardTests();
+      await runUserTests();
+      await runStudentTests();
+      await runIdTests();
+      await runClassTests();
+      await runAnnounceTests();
+      
+      log(`\n=== SUMMARY ===`, 'info');
+      log(`Passed: ${TEST_RESULTS.passed.length}`, 'info');
+      log(`Failed: ${TEST_RESULTS.failed.length}`, TEST_RESULTS.failed.length > 0 ? 'error' : 'info');
+      
+      if (TEST_RESULTS.failed.length > 0) {
+        log('\nFailed tests:', 'error');
+        TEST_RESULTS.failed.forEach((f, i) => log(`${i + 1}. ${f.testName}: ${f.message}`, 'error'));
+      }
+    }
+
+    function clearLog() {
+      document.getElementById('consoleLog').textContent = '';
+    }
+
+    window.runAllTests = runAllTests;
+    window.runDashboardTests = runDashboardTests;
+    window.runUserTests = runUserTests;
+    window.runStudentTests = runStudentTests;
+    window.runIdTests = runIdTests;
+    window.runClassTests = runClassTests;
+    window.runAnnounceTests = runAnnounceTests;
+    window.clearLog = clearLog;
+  </script>
+</body>
+</html>

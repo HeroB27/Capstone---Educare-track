@@ -139,7 +139,7 @@ function openIssueModal({ studentsWithoutId, onSaved }) {
       return;
     }
 
-    const { data, error } = await supabase.rpc("issue_student_id", { p_student_id: studentSelect.value, p_force: false });
+    const { data, error } = await supabase.rpc("issue_student_id", studentSelect.value);
     if (error) {
       errorBox.textContent = error.message;
       errorBox.classList.remove("hidden");
@@ -229,7 +229,7 @@ async function render() {
         reissue.classList.add("btn-sm");
         reissue.addEventListener("click", async () => {
           if (!confirm("Re-issue ID? This will deactivate the current active ID and create a new one.")) return;
-          const { data, error } = await supabase.rpc("issue_student_id", { p_student_id: r.student_id, p_force: true });
+          const { data, error } = await supabase.rpc("issue_student_id", r.student_id);
           if (error) {
             idStatus.textContent = error.message;
             return;

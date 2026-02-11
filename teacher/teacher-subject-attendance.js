@@ -162,7 +162,7 @@ function render({ schedulesForDay, selectedScheduleId, dateStr, students, existi
         { value: "present", label: "Present" },
         { value: "late", label: "Late" },
         { value: "absent", label: "Absent" },
-        { value: "excused_absent", label: "Excused" },
+        { value: "excused", label: "Excused" }, // Maps to 'excused' in schema
       ],
       existing?.status ?? "present"
     );
@@ -229,7 +229,7 @@ function render({ schedulesForDay, selectedScheduleId, dateStr, students, existi
           student_id: s.id,
           subject_code: schedule.subject_code,
           date: dateInput.value,
-          status: "excused_absent",
+          status: "excused", // Maps to 'excused' in schema
           remarks: existingRemarks || "Excuse letter approved",
         };
       });

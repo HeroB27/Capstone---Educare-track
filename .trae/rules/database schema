@@ -24,6 +24,7 @@ CREATE TABLE public.profiles (
     email text,
     role text NOT NULL CHECK (role IN ('admin','teacher','parent','guard','clinic')),
     is_active boolean DEFAULT true,
+    is_gatekeeper boolean DEFAULT false,
     created_at timestamptz DEFAULT now(),
     updated_at timestamptz DEFAULT now()
 );

@@ -91,7 +91,7 @@ export async function lookupStudentByQr(qrCode) {
     const { data, error } = await supabase
       .from("student_ids")
       .select("student_id,students(id,full_name,grade_level,strand,class_id,parent_id,current_status)")
-      .eq("student_id", parsed.studentId)
+      .eq("qr_code", parsed.studentId)
       .eq("is_active", true)
       .single();
     
@@ -127,6 +127,22 @@ function minutesFromDate(d) {
   return d.getHours() * 60 + d.getMinutes();
 }
 
+function isMorningTime(minutes) {
+  // Morning session: 6:00 AM to 12:00 PM
+  return minutes >= 360 && minutes < 720;
+}
+
+function isAfternoonTime(minutes) {
+  // Afternoon session: 12:00 PM to 6:00 PM
+  return minutes >= 720 && minutes < 1080;
+}
+
+function getCurrentSession() {
+  const now = new Date();
+  const minutes = minutesFromDate(now);
+  return isMorningTime(minutes) ? "morning" : "afternoon";
+}
+
 
 export async function loadAttendanceRule(gradeLevel) {
   const { data, error } = await supabase
@@ -148,15 +164,20 @@ export async function loadAttendanceSettings() {
   const { data, error } = await supabase
     .from("system_settings")
     .select("key,value")
-    .in("key", ["school_start_time", "late_threshold_minutes"]);
+    .in("key", ["school_start_time", "school_dismissal_time", "late_threshold_minutes", "early_exit_threshold_minutes"]);
   if (error) return null;
   const byKey = new Map((data ?? []).map((r) => [r.key, extractSettingValue(r)]));
   const schoolStartTime = byKey.get("school_start_time") ?? null;
+  const schoolDismissalTime = byKey.get("school_dismissal_time") ?? null;
   const lateThresholdMinutesRaw = byKey.get("late_threshold_minutes") ?? null;
+  const earlyExitThresholdMinutesRaw = byKey.get("early_exit_threshold_minutes") ?? null;
   const lateThresholdMinutes = Number(lateThresholdMinutesRaw);
+  const earlyExitThresholdMinutes = Number(earlyExitThresholdMinutesRaw);
   return {
     schoolStartTime: schoolStartTime ? String(schoolStartTime) : null,
+    schoolDismissalTime: schoolDismissalTime ? String(schoolDismissalTime) : null,
     lateThresholdMinutes: Number.isFinite(lateThresholdMinutes) ? lateThresholdMinutes : null,
+    earlyExitThresholdMinutes: Number.isFinite(earlyExitThresholdMinutes) ? earlyExitThresholdMinutes : null,
   };
 }
 
@@ -179,6 +200,53 @@ export function computeArrivalStatusFromSettings(settings, now = new Date()) {
   return current > start + threshold ? "late" : "present";
 }
 
+export function computeDepartureStatusFromSettings(settings, now = new Date()) {
+  const dismissal = parseTimeToMinutes(settings?.schoolDismissalTime);
+  const threshold = Number(settings?.earlyExitThresholdMinutes);
+  if (dismissal === null || !Number.isFinite(threshold)) return null;
+  const current = minutesFromDate(now);
+  return current < dismissal - threshold ? "early" : "normal";
+}
+
+async function checkMorningAfternoonAbsence(studentId, currentSession) {
+  const today = new Date().toISOString().slice(0, 10);
+  
+  // Check if student has any taps today
+  const { data: taps, error } = await supabase
+    .from("tap_logs")
+    .select("tap_type, timestamp")
+    .eq("student_id", studentId)
+    .gte("timestamp", today)
+    .order("timestamp", { ascending: true });
+  
+  if (error) throw error;
+  
+  if (taps.length === 0) {
+    // No taps today - check if this is afternoon session
+    if (currentSession === "afternoon") {
+      return "morning_absent"; // Internal logic only - maps to 'absent' in schema
+    }
+    return null;
+  }
+  
+  // Check for incomplete day (tap in morning but no afternoon tap)
+  if (currentSession === "afternoon") {
+    const morningTap = taps.find(tap => {
+      const tapTime = new Date(tap.timestamp);
+      return isMorningTime(minutesFromDate(tapTime));
+    });
+    
+    if (morningTap && !taps.some(tap => {
+      const tapTime = new Date(tap.timestamp);
+      return isAfternoonTime(minutesFromDate(tapTime)) && tap.tap_type === "in";
+    })) {
+      return "afternoon_absent"; // Internal logic only - maps to 'absent' in schema
+    }
+  }
+  
+  return null;
+}
+
 async function loadLatestTapToday(studentId) {
   const { data, error } = await supabase
     .from("tap_logs")
@@ -191,15 +259,25 @@ async function loadLatestTapToday(studentId) {
   return data?.[0] ?? null;
 }
 
+// Map internal status values to valid schema values
+function mapStatusToSchema(status) {
+  const s = String(status ?? "").toLowerCase();
+  if (s === "morning_absent" || s === "afternoon_absent") return "absent";
+  if (s === "partial") return "present";
+  if (s === "excused_absent") return "excused";
+  return s; // Return original if it's a valid schema value
+}
+
 async function upsertHomeroomTapIn({ student, status }) {
   const dateStr = new Date().toISOString().slice(0, 10);
+  const mappedStatus = mapStatusToSchema(status);
   const { error } = await supabase.from("homeroom_attendance").upsert(
     {
       student_id: student.id,
       class_id: student.class_id,
       date: dateStr,
       tap_in_time: new Date().toISOString(),
-      status,
+      status: mappedStatus,
     },
     { onConflict: "student_id,date" }
   );
@@ -221,7 +299,7 @@ async function setHomeroomTapOut({ student }) {
     class_id: student.class_id,
     date: dateStr,
     tap_out_time: new Date().toISOString(),
-    status: "partial",
+    status: "present", // Maps from 'partial' to 'present' for schema compliance
   });
   if (insErr) throw insErr;
 }
@@ -236,6 +314,17 @@ async function insertTapLog({ studentId, gatekeeperId, tapType, status, remarks 
     remarks: remarks ?? null,
   });
   if (error) throw error;
+}
+
+async function getHomeroomTeacherId(classId) {
+  if (!classId) return null;
+  const { data, error } = await supabase
+    .from("classes")
+    .select("homeroom_teacher_id")
+    .eq("id", classId)
+    .single();
+  if (error) return null;
+  return data?.homeroom_teacher_id;
 }
 
 async function updateStudentCurrentStatus({ studentId, status }) {
@@ -380,28 +469,68 @@ export async function recordTap({ gatekeeperId, student, tapType, duplicateWindo
     const bySettings = computeArrivalStatusFromSettings(settings);
     const arrival = bySettings ?? computeArrivalStatus(await loadAttendanceRule(student.grade_level));
     
+    // Check for morning/afternoon absence scenarios
+    const currentSession = getCurrentSession();
+    const absenceType = await checkMorningAfternoonAbsence(student.id, currentSession);
+    
+    let finalStatus = arrival;
+    let remarks = arrival;
+    
+    // Handle afternoon-only entry (first tap is PM)
+    if (currentSession === "afternoon" && absenceType === "morning_absent") {
+      finalStatus = "morning_absent";
+      remarks = "Afternoon only entry - Morning absent, excuse letter required";
+      
+      // Notify teacher about morning absence
+      await notify({
+        recipientId: student.class_id ? await getHomeroomTeacherId(student.class_id) : null,
+        actorId: gatekeeperId,
+        verb: "MORNING_ABSENCE",
+        object: { 
+          student_id: student.id, 
+          student_name: student.full_name,
+          timestamp: new Date().toISOString(),
+          message: "Student arrived afternoon only - morning absence recorded"
+        },
+      });
+    }
+    
     console.log("[RecordTap] Recording tap-in", {
       studentId: student.id,
       studentName: student.full_name,
-      arrivalStatus: arrival,
+      arrivalStatus: finalStatus,
+      absenceType,
+      currentSession,
       timestamp: new Date().toISOString()
     });
     
-    await upsertHomeroomTapIn({ student, status: arrival });
+    await upsertHomeroomTapIn({ student, status: finalStatus });
     await updateStudentCurrentStatus({ studentId: student.id, status: "in" });
-    await insertTapLog({ studentId: student.id, gatekeeperId, tapType: "in", status: "ok", remarks: arrival });
+    await insertTapLog({ studentId: student.id, gatekeeperId, tapType: "in", status: "ok", remarks });
     
     // Use standardized notification verb based on arrival status
-    const verb = arrival === "late" ? NOTIFICATION_VERBS.TAP_IN_LATE : NOTIFICATION_VERBS.TAP_IN;
+    const displayStatus = mapStatusToSchema(finalStatus);
+    const verb = displayStatus === "late" ? NOTIFICATION_VERBS.TAP_IN_LATE : NOTIFICATION_VERBS.TAP_IN;
+    
+    // NOTIFY TEACHER FIRST - Teacher must approve before parent notification
+    // This enforces ADMIN → TEACHER → PARENT hierarchy
     await notify({
-      recipientId: student.parent_id,
+      recipientId: await getHomeroomTeacherId(student.class_id),
       actorId: gatekeeperId,
       verb: verb,
-      object: { student_id: student.id, timestamp: new Date().toISOString(), arrival },
+      object: { 
+        student_id: student.id, 
+        student_name: student.full_name,
+        timestamp: new Date().toISOString(), 
+        status: displayStatus, // Use mapped status for display
+        remarks,
+        requires_approval: true, // Teacher must approve before parent notification
+        notification_type: "attendance_tap_in"
+      },
     });
     
     console.log("[RecordTap] Tap-in recorded successfully");
-    return { result: "ok", arrival };
+    return { result: "ok", arrival: finalStatus, absenceType };
   }
 
   console.log("[RecordTap] Recording tap-out", {
@@ -410,19 +539,53 @@ export async function recordTap({ gatekeeperId, student, tapType, duplicateWindo
     timestamp: new Date().toISOString()
   });
   
+  // Check for early exit
+  const settings = await loadAttendanceSettings();
+  const departureStatus = computeDepartureStatusFromSettings(settings);
+  let remarks = "normal";
+  let verb = NOTIFICATION_VERBS.TAP_OUT;
+  
+  if (departureStatus === "early") {
+    remarks = "Early exit - before dismissal time";
+    verb = NOTIFICATION_VERBS.TAP_OUT_EARLY;
+    
+    // Notify teacher about early exit
+    await notify({
+      recipientId: student.class_id ? await getHomeroomTeacherId(student.class_id) : null,
+      actorId: gatekeeperId,
+      verb: NOTIFICATION_VERBS.TAP_OUT_EARLY,
+      object: { 
+        student_id: student.id, 
+        student_name: student.full_name,
+        timestamp: new Date().toISOString(),
+        message: "Student exited early - before dismissal time"
+      },
+    });
+  }
+  
   await setHomeroomTapOut({ student });
   await updateStudentCurrentStatus({ studentId: student.id, status: "out" });
-  await insertTapLog({ studentId: student.id, gatekeeperId, tapType: "out", status: "ok" });
+  await insertTapLog({ studentId: student.id, gatekeeperId, tapType: "out", status: "ok", remarks });
   
+  // NOTIFY TEACHER FIRST - Teacher must approve before parent notification
+  // This enforces ADMIN → TEACHER → PARENT hierarchy
   await notify({
-    recipientId: student.parent_id,
+    recipientId: await getHomeroomTeacherId(student.class_id),
     actorId: gatekeeperId,
-    verb: NOTIFICATION_VERBS.TAP_OUT,
-    object: { student_id: student.id, timestamp: new Date().toISOString() },
+    verb: verb,
+    object: { 
+      student_id: student.id, 
+      student_name: student.full_name,
+      timestamp: new Date().toISOString(), 
+      status: departureStatus, 
+      remarks,
+      requires_approval: true, // Teacher must approve before parent notification
+      notification_type: "attendance_tap_out"
+    },
   });
   
   console.log("[RecordTap] Tap-out recorded successfully");
-  return { result: "ok" };
+  return { result: "ok", departureStatus };
 }
 
 async function loadLatestPass(studentId) {
@@ -437,7 +600,7 @@ async function loadLatestPass(studentId) {
   return data?.[0] ?? null;
 }
 
-export async function createClinicVisit({ clinicId, studentId, reason, notes }) {
+export async function createClinicVisit({ clinicId, studentId, reason, notes, symptoms, severity }) {
   const { data, error } = await supabase
     .from("clinic_visits")
     .insert({
@@ -445,7 +608,10 @@ export async function createClinicVisit({ clinicId, studentId, reason, notes }) 
       reason: reason || null,
       treated_by: clinicId,
       notes: notes || null,
+      symptoms: symptoms || null,
+      severity: severity || null,
       status: "in_clinic",
+      entry_timestamp: new Date().toISOString(),
     })
     .select("id")
     .limit(1);
@@ -463,6 +629,298 @@ export async function updateClinicPass(passId, patch) {
 export async function updateClinicVisit(visitId, patch) {
   const { error } = await supabase.from("clinic_visits").update(patch).eq("id", visitId);
   if (error) throw error;
+}
+
+/**
+ * Complete Clinic Handshake Workflow Functions
+ */
+
+export async function updateClinicFindings({
+  visitId,
+  clinicStaffId,
+  diagnosis,
+  treatmentNotes,
+  followUpRequired,
+  actionTaken,
+  symptoms
+}) {
+  console.log("[ClinicFindings] Updating clinic findings", {
+    visitId,
+    clinicStaffId,
+    diagnosis,
+    actionTaken
+  });
+
+  // Update clinic findings
+  await updateClinicVisit(visitId, {
+    diagnosis: diagnosis || null,
+    treatment_notes: treatmentNotes || null,
+    follow_up_required: followUpRequired || false,
+    action_taken: actionTaken || null,
+    symptoms: symptoms || null,
+    status: "treated",
+    treated_by: clinicStaffId
+  });
+
+  // Get visit details for notification
+  const { data: visit } = await supabase
+    .from("clinic_visits")
+    .select("student_id, reason")
+    .eq("id", visitId)
+    .single();
+
+  if (!visit) throw new Error("Clinic visit not found");
+
+  // Get student and teacher info
+  const { data: student } = await supabase
+    .from("students")
+    .select("full_name, class_id, parent_id")
+    .eq("id", visit.student_id)
+    .single();
+
+  const { data: classInfo } = await supabase
+    .from("classes")
+    .select("homeroom_teacher_id")
+    .eq("id", student.class_id)
+    .single();
+
+  // Request teacher approval for action
+  if (classInfo?.homeroom_teacher_id) {
+    console.log("[ClinicFindings] Requesting teacher approval:", classInfo.homeroom_teacher_id);
+    
+    await notify({
+      recipientId: classInfo.homeroom_teacher_id,
+      actorId: clinicStaffId,
+      verb: "CLINIC_TEACHER_APPROVAL",
+      object: {
+        student_id: visit.student_id,
+        student_name: student.full_name,
+        clinic_visit_id: visitId,
+        diagnosis: diagnosis,
+        action_taken: actionTaken,
+        reason: visit.reason,
+        symptoms: symptoms,
+        timestamp: new Date().toISOString(),
+        requires_approval: true
+      }
+    });
+
+    // Update status to await teacher approval
+    await updateClinicVisit(visitId, { status: "teacher_approval" });
+  } else {
+    // If no teacher, notify parent directly
+    await notifyParentAfterFindings({
+      visitId,
+      clinicStaffId,
+      studentId: visit.student_id,
+      studentName: student.full_name,
+      diagnosis,
+      actionTaken,
+      reason: visit.reason
+    });
+  }
+
+  console.log("[ClinicFindings] Findings updated and teacher approval requested");
+}
+
+export async function teacherApproveClinicAction({
+  visitId,
+  teacherId,
+  approvalNotes
+}) {
+  console.log("[TeacherApproval] Processing teacher approval", { visitId, teacherId });
+
+  // Get visit details
+  const { data: visit } = await supabase
+    .from("clinic_visits")
+    .select("student_id, treated_by, diagnosis, action_taken, reason")
+    .eq("id", visitId)
+    .single();
+
+  if (!visit) throw new Error("Clinic visit not found");
+
+  // Update teacher approval
+  await updateClinicVisit(visitId, {
+    teacher_approved: true,
+    teacher_approval_timestamp: new Date().toISOString(),
+    notes: approvalNotes ? `${visit.notes || ''}\nTeacher Approval: ${approvalNotes}`.trim() : visit.notes
+  });
+
+  // Get student info for parent notification
+  const { data: student } = await supabase
+    .from("students")
+    .select("full_name, parent_id")
+    .eq("id", visit.student_id)
+    .single();
+
+  // Notify parent
+  await notify({
+    recipientId: student.parent_id,
+    actorId: teacherId,
+    verb: "CLINIC_PARENT_NOTIFICATION",
+    object: {
+      student_id: visit.student_id,
+      student_name: student.full_name,
+      clinic_visit_id: visitId,
+      diagnosis: visit.diagnosis,
+      action_taken: visit.action_taken,
+      reason: visit.reason,
+      approved_by_teacher: true,
+      timestamp: new Date().toISOString()
+    }
+  });
+
+  // Notify clinic staff of approval
+  if (visit.treated_by) {
+    await notify({
+      recipientId: visit.treated_by,
+      actorId: teacherId,
+      verb: "CLINIC_TEACHER_APPROVAL_CONFIRMED",
+      object: {
+        student_id: visit.student_id,
+        clinic_visit_id: visitId,
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+
+  // Update final status
+  await updateClinicVisit(visitId, { status: "parent_notified" });
+
+  console.log("[TeacherApproval] Teacher approval processed successfully");
+}
+
+export async function completeClinicVisit({
+  visitId,
+  clinicStaffId,
+  finalStatus,
+  exitNotes
+}) {
+  console.log("[CompleteVisit] Completing clinic visit", { visitId, finalStatus });
+
+  // Get visit details
+  const { data: visit } = await supabase
+    .from("clinic_visits")
+    .select("student_id, action_taken")
+    .eq("id", visitId)
+    .single();
+
+  if (!visit) throw new Error("Clinic visit not found");
+
+  // Update exit timestamp and final status
+  await updateClinicVisit(visitId, {
+    exit_timestamp: new Date().toISOString(),
+    status: finalStatus,
+    notes: exitNotes ? `${visit.notes || ''}\nExit: ${exitNotes}`.trim() : visit.notes
+  });
+
+  // Get student info
+  const { data: student } = await supabase
+    .from("students")
+    .select("full_name, parent_id, class_id")
+    .eq("id", visit.student_id)
+    .single();
+
+  // Get teacher info
+  const { data: classInfo } = await supabase
+    .from("classes")
+    .select("homeroom_teacher_id")
+    .eq("id", student.class_id)
+    .single();
+
+  // Send final notification based on action
+  if (finalStatus === "sent_home") {
+    // Notify parent student was sent home
+    await notify({
+      recipientId: student.parent_id,
+      actorId: clinicStaffId,
+      verb: "CLINIC_SENT_HOME",
+      object: {
+        student_id: visit.student_id,
+        student_name: student.full_name,
+        clinic_visit_id: visitId,
+        action_taken: visit.action_taken,
+        timestamp: new Date().toISOString()
+      }
+    });
+    
+    // Notify teacher student was sent home
+    if (classInfo?.homeroom_teacher_id) {
+      await notify({
+        recipientId: classInfo.homeroom_teacher_id,
+        actorId: clinicStaffId,
+        verb: "CLINIC_SENT_HOME",
+        object: {
+          student_id: visit.student_id,
+          student_name: student.full_name,
+          clinic_visit_id: visitId,
+          action_taken: visit.action_taken,
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+  } else if (finalStatus === "completed") {
+    // Notify parent student returned to class
+    await notify({
+      recipientId: student.parent_id,
+      actorId: clinicStaffId,
+      verb: "CLINIC_RETURNED_CLASS",
+      object: {
+        student_id: visit.student_id,
+        student_name: student.full_name,
+        clinic_visit_id: visitId,
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+
+  // Update student status
+  await updateStudentCurrentStatus({
+    studentId: visit.student_id,
+    status: finalStatus === "sent_home" ? "out" : "in"
+  });
+
+  console.log("[CompleteVisit] Clinic visit completed successfully");
+}
+
+async function notifyParentAfterFindings({
+  visitId,
+  clinicStaffId,
+  studentId,
+  studentName,
+  diagnosis,
+  actionTaken,
+  reason
+}) {
+  // Get parent ID
+  const { data: student } = await supabase
+    .from("students")
+    .select("parent_id")
+    .eq("id", studentId)
+    .single();
+
+  if (student?.parent_id) {
+    await notify({
+      recipientId: student.parent_id,
+      actorId: clinicStaffId,
+      verb: "CLINIC_PARENT_NOTIFICATION",
+      object: {
+        student_id: studentId,
+        student_name: studentName,
+        clinic_visit_id: visitId,
+        diagnosis: diagnosis,
+        action_taken: actionTaken,
+        reason: reason,
+        timestamp: new Date().toISOString()
+      }
+    });
+
+    await updateClinicVisit(visitId, {
+      parent_notified: true,
+      parent_notification_timestamp: new Date().toISOString(),
+      status: "parent_notified"
+    });
+  }
 }
 
 export async function recordClinicArrival({ clinicStaffId, student, notes }) {

@@ -1,5 +1,4 @@
 import { redirectToDashboard, redirectToLogin, requireAuthAndProfile, signOut } from "../core/core.js";
-import { initCameraScanner } from "../core/qr-camera.js";
 import { lookupStudentByQr, recordTap } from "../core/scan-actions.js";
 import { registerPwa } from "../core/pwa.js";
 
@@ -9,11 +8,17 @@ const statusBox = document.getElementById("statusBox");
 const manualQr = document.getElementById("manualQr");
 const manualBtn = document.getElementById("manualBtn");
 const signOutBtn = document.getElementById("signOutBtn");
+const startScanner = document.getElementById("startScanner");
+const stopScanner = document.getElementById("stopScanner");
 
 let currentProfile = null;
 let scanner = null;
 let confirmationOverlay = null;
 let scanningLocked = false;
+let cameraStream = null;
+let scanningActive = false;
+let canvas = null;
+let context = null;
 
 /**
  * Show confirmation overlay with student info after successful scan
@@ -166,6 +171,116 @@ manualQr.addEventListener("keydown", async (e) => {
   }
 });
 
+// Initialize JSQR Scanner
+async function initJsQrScanner() {
+  try {
+    setStatus("Requesting camera permission…");
+    
+    // Create canvas for video processing
+    canvas = document.createElement("canvas");
+    context = canvas.getContext("2d");
+    
+    // Request camera access with low light optimization
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: "environment",
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        // Low light optimization
+        exposureMode: "continuous",
+        whiteBalanceMode: "continuous", 
+        focusMode: "continuous"
+      }
+    });
+    
+    // Set up video element
+    videoEl.srcObject = cameraStream;
+    videoEl.setAttribute("playsinline", true);
+    
+    await new Promise((resolve) => {
+      videoEl.onloadedmetadata = () => {
+        videoEl.play();
+        resolve();
+      };
+    });
+    
+    // Set canvas dimensions to match video
+    canvas.width = videoEl.videoWidth;
+    canvas.height = videoEl.videoHeight;
+    
+    setStatus("Ready. Point camera at a QR code.");
+    scanningActive = true;
+    
+    // Start scanning loop
+    scanLoop();
+    
+  } catch (error) {
+    console.error("Camera error:", error);
+    setStatus("Camera access denied. Use manual input below.");
+    scanningActive = false;
+  }
+}
+
+// Scanning loop using JSQR
+function scanLoop() {
+  if (!scanningActive) return;
+  
+  try {
+    // Draw video frame to canvas
+    context.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+    
+    // Get image data for QR detection
+    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+    
+    // Detect QR code using JSQR
+    const code = jsQR(imageData.data, imageData.width, imageData.height, {
+      inversionAttempts: "dontInvert",
+    });
+    
+    if (code) {
+      // QR code detected!
+      handleQr(code.data);
+    }
+  } catch (error) {
+    console.error("Scan error:", error);
+  }
+  
+  // Continue scanning
+  requestAnimationFrame(scanLoop);
+}
+
+// Stop camera stream
+function stopCamera() {
+  scanningActive = false;
+  
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(track => track.stop());
+    cameraStream = null;
+  }
+  
+  if (videoEl) {
+    videoEl.srcObject = null;
+  }
+  
+  setStatus("Camera stopped.");
+}
+
+// Start/Stop scanner buttons
+startScanner.addEventListener("click", async () => {
+  if (scanningActive) return;
+  
+  startScanner.disabled = true;
+  stopScanner.disabled = false;
+  
+  await initJsQrScanner();
+});
+
+stopScanner.addEventListener("click", () => {
+  stopCamera();
+  startScanner.disabled = false;
+  stopScanner.disabled = true;
+});
+
 async function init() {
   registerPwa();
   const { profile, error } = await requireAuthAndProfile();
@@ -180,25 +295,14 @@ async function init() {
   }
 
   currentProfile = profile;
-  setStatus("Starting camera…");
+  
+  // Initialize scanner buttons
+  startScanner.disabled = false;
+  stopScanner.disabled = true;
+  
+  setStatus("Click 'Start' to begin scanning.");
 
-  try {
-    scanner = await initCameraScanner({
-      videoEl,
-      onCode: async ({ data }) => {
-        await handleQr(data);
-      },
-      onState: (s) => {
-        if (s.status === "requesting_camera") setStatus("Requesting camera permission…");
-        if (s.status === "scanning") setStatus("Ready. Point camera at a QR code.");
-        if (s.status === "stopped") setStatus("Camera stopped.");
-      },
-    });
-  } catch (e) {
-    setStatus((e?.message ?? "Failed to start camera.") + " Use manual fallback below.");
-  }
-
-  window.addEventListener("beforeunload", () => scanner?.stop?.());
+  window.addEventListener("beforeunload", () => stopCamera());
 }
 
 init();

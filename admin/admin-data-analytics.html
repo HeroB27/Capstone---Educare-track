@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EDUCARE COLLEGES INC | Data Analytics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../core/theme.css" />
+    <link rel="stylesheet" href="../core/premium-theme.css" />
+    <link rel="stylesheet" href="../core/vibrant-theme.css" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
+    <link rel="shortcut icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: { sans: ['Inter', 'sans-serif'] },
+            animation: {
+              'float': 'float 6s ease-in-out infinite',
+              'shimmer': 'shimmer 2s infinite',
+              'pulse-slow': 'pulse 3s ease-in-out infinite',
+              'slide-up': 'slideUp 0.5s ease-out',
+              'fade-in': 'fadeIn 0.5s ease-out',
+            },
+            keyframes: {
+              float: { '0%, 100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-10px)' } },
+              shimmer: { '0%': { backgroundPosition: '-200% 0' }, '100%': { backgroundPosition: '200% 0' } },
+              slideUp: { '0%': { opacity: '0', transform: 'translateY(20px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+              fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+            },
+          },
+        },
+      }
+    </script>
+    <style>
+      * { font-family: 'Inter', sans-serif; }
+      
+      /* Premium glass effects */
+      .glass-premium {
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+      }
+      
+      .glass-sidebar {
+        background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+        box-shadow: 4px 0 30px rgba(102, 126, 234, 0.3);
+      }
+      
+      /* Gradient text */
+      .gradient-text {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      
+      /* Premium card styles */
+      .premium-card {
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      
+      .premium-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 25px 50px -12px rgba(102, 126, 234, 0.25);
+      }
+      
+      /* Chart containers */
+      .chart-card {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 24px;
+        padding: 24px;
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+      }
+      
+      /* Analytics specific styles */
+      .analytics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1.5rem;
+      }
+      
+      .analytics-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 20px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+      }
+      
+      .export-btn {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        transition: all 0.2s ease;
+      }
+      
+      .export-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.4);
+      }
+    </style>
+  </head>
+  <body class="bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen">
+    <div id="appShell">
+      <!-- Sidebar will be injected here -->
+    </div>
+
+    <main class="flex-1 lg:ml-72">
+      <div class="p-4 lg:p-8">
+        <!-- Header Section -->
+        <div class="analytics-header animate-fade-in">
+          <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div>
+              <h1 class="text-3xl lg:text-4xl font-bold">
+                Data Analytics Center 📊
+              </h1>
+              <p class="mt-2 text-blue-100">Comprehensive attendance and performance analytics</p>
+            </div>
+            <div class="flex items-center gap-4">
+              <button class="export-btn" onclick="exportToCSV()">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                Export CSV
+              </button>
+              <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/20 backdrop-blur-sm">
+                <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                <span class="text-sm font-medium text-white" id="currentDate">Loading date...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Analytics Filters -->
+        <div class="glass-premium rounded-2xl p-6 mb-8 animate-fade-in" style="animation-delay: 0.1s;">
+          <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <h2 class="text-xl font-bold text-slate-800">Analytics Filters</h2>
+            <div class="flex flex-wrap gap-4">
+              <div>
+                <label class="block text-sm font-medium text-slate-600 mb-1">Date Range</label>
+                <select class="px-4 py-2 rounded-xl border border-slate-200 bg-white" id="dateRange">
+                  <option value="7">Last 7 Days</option>
+                  <option value="30" selected>Last 30 Days</option>
+                  <option value="90">Last 90 Days</option>
+                  <option value="custom">Custom Range</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-slate-600 mb-1">Grade Level</label>
+                <select class="px-4 py-2 rounded-xl border border-slate-200 bg-white" id="gradeLevel">
+                  <option value="">All Grades</option>
+                  <option value="7">Grade 7</option>
+                  <option value="8">Grade 8</option>
+                  <option value="9">Grade 9</option>
+                  <option value="10">Grade 10</option>
+                  <option value="11">Grade 11</option>
+                  <option value="12">Grade 12</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-slate-600 mb-1">Class</label>
+                <select class="px-4 py-2 rounded-xl border border-slate-200 bg-white" id="classFilter">
+                  <option value="">All Classes</option>
+                  <!-- Classes will be populated dynamically -->
+                </select>
+              </div>
+              <button class="px-6 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold mt-6 lg:mt-0" onclick="applyFilters()">
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts Grid -->
+        <div class="analytics-grid mb-8">
+          <!-- Trend Analytics Chart -->
+          <div class="chart-card lg:col-span-2 animate-fade-in" style="animation-delay: 0.2s;">
+            <div class="flex items-center justify-between mb-6">
+              <div>
+                <h3 class="text-lg font-bold text-slate-900">Attendance Trend Analysis</h3>
+                <p class="text-sm text-slate-500">Present, Late, Absent, Excused trends over time</p>
+              </div>
+            </div>
+            <div class="h-80">
+              <canvas id="detailedTrendChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Pie Distribution Chart -->
+          <div class="chart-card animate-fade-in" style="animation-delay: 0.3s;">
+            <div class="flex items-center justify-between mb-6">
+              <div>
+                <h3 class="text-lg font-bold text-slate-900">Attendance Distribution</h3>
+                <p class="text-sm text-slate-500">Percentage breakdown by status</p>
+              </div>
+            </div>
+            <div class="relative h-64 flex items-center justify-center">
+              <canvas id="detailedPieChart"></canvas>
+              <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div class="text-center">
+                  <p class="text-3xl font-bold text-slate-900" id="detailedTotal">—</p>
+                  <p class="text-xs text-slate-500">Total</p>
+                </div>
+              </div>
+            </div>
+            <div class="mt-4 space-y-3">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-3 h-3 rounded-full bg-emerald-400"></div>
+                  <span class="text-sm text-slate-600">Present</span>
+                </div>
+                <span class="text-sm font-semibold text-slate-900" id="detailedPresent">—</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-3 h-3 rounded-full bg-amber-400"></div>
+                  <span class="text-sm text-slate-600">Late</span>
+                </div>
+                <span class="text-sm font-semibold text-slate-900" id="detailedLate">—</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-3 h-3 rounded-full bg-red-400"></div>
+                  <span class="text-sm text-slate-600">Absent</span>
+                </div>
+                <span class="text-sm font-semibold text-slate-900" id="detailedAbsent">—</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-3 h-3 rounded-full bg-blue-400"></div>
+                  <span class="text-sm text-slate-600">Excused</span>
+                </div>
+                <span class="text-sm font-semibold text-slate-900" id="detailedExcused">—</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Class Performance Chart -->
+          <div class="chart-card lg:col-span-2 animate-fade-in" style="animation-delay: 0.4s;">
+            <div class="flex items-center justify-between mb-6">
+              <div>
+                <h3 class="text-lg font-bold text-slate-900">Class Performance</h3>
+                <p class="text-sm text-slate-500">Attendance rates by class</p>
+              </div>
+            </div>
+            <div class="h-80">
+              <canvas id="classPerformanceChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Clinic Visit Reasons -->
+          <div class="chart-card animate-fade-in" style="animation-delay: 0.5s;">
+            <div class="flex items-center justify-between mb-6">
+              <div>
+                <h3 class="text-lg font-bold text-slate-900">Clinic Visit Reasons</h3>
+                <p class="text-sm text-slate-500">Top reasons for clinic visits</p>
+              </div>
+            </div>
+            <div class="h-64">
+              <canvas id="clinicReasonsChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Critical Analytics Sections -->
+        <div class="grid lg:grid-cols-2 gap-6 mb-8">
+          <!-- Critical Absences -->
+          <div class="chart-card animate-fade-in" style="animation-delay: 0.6s;">
+            <div class="flex items-center justify-between mb-6">
+              <div>
+                <h3 class="text-lg font-bold text-slate-900">Critical Absences ⚠️</h3>
+                <p class="text-sm text-slate-500">Students with 10+ absences (half of critical threshold)</p>
+              </div>
+              <span class="px-3 py-1 rounded-full bg-red-100 text-xs font-semibold text-red-600" id="criticalAbsencesCount">0</span>
+            </div>
+            <div class="max-h-64 overflow-y-auto" id="criticalAbsencesList">
+              <!-- Critical absences list will be populated here -->
+            </div>
+          </div>
+
+          <!-- Frequent Late Students -->
+          <div class="chart-card animate-fade-in" style="animation-delay: 0.7s;">
+            <div class="flex items-center justify-between mb-6">
+              <div>
+                <h3 class="text-lg font-bold text-slate-900">Frequent Late Arrivals ⏰</h3>
+                <p class="text-sm text-slate-500">Students with 5+ late arrivals in 30 days</p>
+              </div>
+              <span class="px-3 py-1 rounded-full bg-amber-100 text-xs font-semibold text-amber-600" id="frequentLateCount">0</span>
+            </div>
+            <div class="max-h-64 overflow-y-auto" id="frequentLateList">
+              <!-- Frequent late list will be populated here -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Summary Statistics -->
+        <div class="glass-premium rounded-2xl p-6 animate-fade-in" style="animation-delay: 0.8s;">
+          <h3 class="text-xl font-bold text-slate-800 mb-6">Summary Statistics</h3>
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="text-center">
+              <div class="text-3xl font-bold text-emerald-600" id="totalStudents">—</div>
+              <div class="text-sm text-slate-600">Total Students</div>
+            </div>
+            <div class="text-center">
+              <div class="text-3xl font-bold text-blue-600" id="avgAttendance">—%</div>
+              <div class="text-sm text-slate-600">Avg Attendance</div>
+            </div>
+            <div class="text-center">
+              <div class="text-3xl font-bold text-amber-600" id="totalLates">—</div>
+              <div class="text-sm text-slate-600">Total Lates</div>
+            </div>
+            <div class="text-center">
+              <div class="text-3xl font-bold text-red-600" id="totalAbsences">—</div>
+              <div class="text-sm text-slate-600">Total Absences</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script type="module">
+      import { supabase } from "../core/core.js";
+      import { initAppShell } from "../core/shell.js";
+      import { initAdminPage } from "./admin-common.js";
+      import { Toast } from "../core/ui-premium.js";
+
+      let appShellInitialized = false;
+
+      async function init() {
+        await initAppShell({ role: "admin", active: "analytics" });
+        appShellInitialized = true;
+        
+        // Set current date
+        document.getElementById("currentDate").textContent = new Date().toLocaleDateString('en-US', { 
+          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+        });
+        
+        // Load analytics data
+        await loadAnalyticsData();
+        
+        console.log("Data Analytics page loaded successfully");
+      }
+
+      async function loadAnalyticsData() {
+        try {
+          console.log("Loading comprehensive analytics data...");
+          
+          // Load all analytics data here
+          await loadTrendAnalytics();
+          await loadPieChartData();
+          await loadClassPerformance();
+          await loadClinicReasons();
+          await loadCriticalAnalytics();
+          await loadSummaryStatistics();
+          
+        } catch (error) {
+          console.error("Analytics data loading error:", error);
+          Toast.error("Failed to load analytics data");
+        }
+      }
+
+      async function loadTrendAnalytics() {
+        // Implementation for trend analytics chart
+        const { data, error } = await supabase.from("attendance_trend_7day").select("*");
+        if (error) throw error;
+        
+        // Create trend chart
+        const ctx = document.getElementById("detailedTrendChart");
+        if (ctx && window.Chart) {
+          new window.Chart(ctx, {
+            type: "line",
+            data: {
+              labels: data.map(item => new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+              datasets: [
+                { label: "Present", data: data.map(item => item.present_count), borderColor: "rgba(52, 211, 153, 1)", backgroundColor: "rgba(52, 211, 153, 0.1)", fill: true },
+                { label: "Late", data: data.map(item => item.late_count), borderColor: "rgba(251, 191, 36, 1)", backgroundColor: "rgba(251, 191, 36, 0.1)", fill: true },
+                { label: "Absent", data: data.map(item => item.absent_count), borderColor: "rgba(248, 113, 113, 1)", backgroundColor: "rgba(248, 113, 113, 0.1)", fill: true },
+                { label: "Excused", data: data.map(item => item.excused_count), borderColor: "rgba(96, 165, 250, 1)", backgroundColor: "rgba(96, 165, 250, 0.1)", fill: true }
+              ]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { position: "bottom" } }
+            }
+          });
+        }
+      }
+
+      async function loadPieChartData() {
+        // Implementation for pie chart data
+        const today = new Date().toISOString().split('T')[0];
+        const { data, error } = await supabase.from("homeroom_attendance")
+          .select("status")
+          .eq("date", today);
+        
+        if (error) throw error;
+        
+        const counts = { present: 0, late: 0, absent: 0, excused: 0 };
+        data.forEach(record => {
+          const status = (record.status || "").toLowerCase();
+          if (["present", "present_in_class"].includes(status)) counts.present++;
+          else if (["late", "late_arrival"].includes(status)) counts.late++;
+          else if (["absent", "absent_unexcused"].includes(status)) counts.absent++;
+          else if (["excused", "absent_excused"].includes(status)) counts.excused++;
+        });
+        
+        const total = Object.values(counts).reduce((sum, count) => sum + count, 0);
+        
+        // Update pie chart
+        const ctx = document.getElementById("detailedPieChart");
+        if (ctx && window.Chart) {
+          new window.Chart(ctx, {
+            type: "doughnut",
+            data: {
+              labels: ["Present", "Late", "Absent", "Excused"],
+              datasets: [{
+                data: [counts.present, counts.late, counts.absent, counts.excused],
+                backgroundColor: ["rgba(52, 211, 153, 0.9)", "rgba(251, 191, 36, 0.9)", "rgba(248, 113, 113, 0.9)", "rgba(96, 165, 250, 0.9)"],
+                borderWidth: 0
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } }
+            }
+          });
+        }
+        
+        // Update statistics
+        document.getElementById("detailedTotal").textContent = total;
+        document.getElementById("detailedPresent").textContent = Math.round((counts.present / total) * 100) + "%";
+        document.getElementById("detailedLate").textContent = Math.round((counts.late / total) * 100) + "%";
+        document.getElementById("detailedAbsent").textContent = Math.round((counts.absent / total) * 100) + "%";
+        document.getElementById("detailedExcused").textContent = Math.round((counts.excused / total) * 100) + "%";
+      }
+
+      async function loadClassPerformance() {
+        // Implementation for class performance chart
+        const { data, error } = await supabase.from("class_performance_analytics").select("*");
+        if (error) throw error;
+        
+        const ctx = document.getElementById("classPerformanceChart");
+        if (ctx && window.Chart) {
+          new window.Chart(ctx, {
+            type: "bar",
+            data: {
+              labels: data.map(item => `Grade ${item.grade_level} - ${item.room}`),
+              datasets: [{
+                label: "Attendance Rate %",
+                data: data.map(item => item.avg_attendance_score),
+                backgroundColor: "rgba(102, 126, 234, 0.8)",
+                borderRadius: 8
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: { y: { beginAtZero: true, max: 100 } }
+            }
+          });
+        }
+      }
+
+      async function loadClinicReasons() {
+        // Implementation for clinic reasons chart
+        const { data, error } = await supabase.from("clinic_visit_analytics").select("*");
+        if (error) throw error;
+        
+        const ctx = document.getElementById("clinicReasonsChart");
+        if (ctx && window.Chart) {
+          new window.Chart(ctx, {
+            type: "bar",
+            data: {
+              labels: data.map(item => item.reason),
+              datasets: [{
+                label: "Visit Count",
+                data: data.map(item => item.visit_count),
+                backgroundColor: "rgba(249, 115, 22, 0.8)",
+                borderRadius: 8
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } }
+            }
+          });
+        }
+      }
+
+      async function loadCriticalAnalytics() {
+        // Implementation for critical absences and frequent late lists
+        const [{ data: criticalAbsences }, { data: frequentLate }] = await Promise.all([
+          supabase.from("critical_absences").select("*"),
+          supabase.from("frequent_late_students").select("*")
+        ]);
+        
+        // Update critical absences
+        if (criticalAbsences) {
+          document.getElementById("criticalAbsencesCount").textContent = criticalAbsences.length;
+          const list = document.getElementById("criticalAbsencesList");
+          list.innerHTML = criticalAbsences.map(student => `
+            <div class="flex items-center justify-between py-2 border-b border-slate-100">
+              <div class="flex-1">
+                <div class="font-medium text-slate-800">${student.full_name}</div>
+                <div class="text-sm text-slate-500">Grade ${student.grade_level} - ${student.class_room}</div>
+              </div>
+              <div class="text-right">
+                <div class="font-bold text-red-600">${student.total_absences} absences</div>
+                <div class="text-xs text-slate-400">${student.total_lates} lates</div>
+              </div>
+            </div>
+          `).join('');
+        }
+        
+        // Update frequent late students
+        if (frequentLate) {
+          document.getElementById("frequentLateCount").textContent = frequentLate.length;
+          const list = document.getElementById("frequentLateList");
+          list.innerHTML = frequentLate.map(student => `
+            <div class="flex items-center justify-between py-2 border-b border-slate-100">
+              <div class="flex-1">
+                <div class="font-medium text-slate-800">${student.full_name}</div>
+                <div class="text-sm text-slate-500">Grade ${student.grade_level} - ${student.class_room}</div>
+              </div>
+              <div class="text-right">
+                <div class="font-bold text-amber-600">${student.total_lates} lates</div>
+                <div class="text-xs text-slate-400">${student.total_absences} absences</div>
+              </div>
+            </div>
+          `).join('');
+        }
+      }
+
+      async function loadSummaryStatistics() {
+        // Implementation for summary statistics
+        const [{ count: totalStudents }, { data: trendData }] = await Promise.all([
+          supabase.from("students").select("id", { count: "exact", head: true }),
+          supabase.from("attendance_trend_7day").select("attendance_rate")
+        ]);
+        
+        if (totalStudents !== null) {
+          document.getElementById("totalStudents").textContent = totalStudents;
+        }
+        
+        if (trendData && trendData.length > 0) {
+          const avgRate = trendData.reduce((sum, item) => sum + (item.attendance_rate || 0), 0) / trendData.length;
+          document.getElementById("avgAttendance").textContent = Math.round(avgRate) + "%";
+        }
+        
+        // Additional statistics can be added here
+      }
+
+      function applyFilters() {
+        Toast.info("Filters applied - reloading data...");
+        loadAnalyticsData();
+      }
+
+      function exportToCSV() {
+        Toast.info("Preparing CSV export...");
+        // This would trigger the Python script or generate CSV directly
+        window.open("/exports/attendance_export.csv", "_blank");
+      }
+
+      // Initialize the page
+      init();
+    </script>
+  </body>
+</html>

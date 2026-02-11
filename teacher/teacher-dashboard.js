@@ -33,8 +33,8 @@ function statusBadgeClass(status) {
   if (s === "unmarked") return "bg-slate-100 text-slate-700";
   if (s === "present") return "bg-green-100 text-green-700";
   if (s === "late") return "bg-yellow-100 text-yellow-800";
-  if (s === "partial") return "bg-amber-100 text-amber-800";
-  if (s === "excused_absent") return "bg-slate-200 text-slate-700";
+  if (s === "partial") return "bg-amber-100 text-amber-800"; // Maps to 'present' in schema
+  if (s === "excused_absent") return "bg-slate-200 text-slate-700"; // Maps to 'excused' in schema
   return "bg-red-100 text-red-700";
 }
 
@@ -285,9 +285,9 @@ function openManualOverrideModal({ teacherId, students, subjects, onSaved }) {
     [
       { value: "present", label: "Present" },
       { value: "late", label: "Late" },
-      { value: "partial", label: "Partial" },
+      { value: "present", label: "Partial" }, // Maps to 'present' in schema
       { value: "absent", label: "Absent" },
-      { value: "excused_absent", label: "Excused absent" },
+      { value: "excused", label: "Excused absent" }, // Maps to 'excused' in schema
     ],
     "present"
   );
@@ -501,30 +501,24 @@ function buildLatestTapMap(rows) {
   return map;
 }
 
-// DEBUG: Log analytics elements check
-function debugAnalyticsElements() {
-  const elements = ['totalStudents', 'presentCount', 'lateCount', 'classesToday'];
-  console.log('[DEBUG] Checking analytics DOM elements:');
-  elements.forEach(id => {
-    const el = document.getElementById(id);
-    console.log(`[DEBUG] ${id}: ${el ? 'FOUND' : 'NOT FOUND'} - Current value: ${el?.textContent ?? 'N/A'}`);
-  });
-}
-
-// DEBUG: Calculate analytics from loaded data
+// Analytics calculation for dashboard widgets
 function calculateAnalytics({ students, attendanceRows, schedules, dateStr }) {
   const analytics = {
     totalStudents: students.length,
     presentCount: 0,
     lateCount: 0,
-    classesToday: 0
+    classesToday: 0,
+    absentCount: 0,
+    excusedCount: 0
   };
   
-  // Count present and late from attendance rows
+  // Count attendance statuses from attendance rows
   for (const att of attendanceRows) {
     const status = String(att.status ?? '').toLowerCase();
     if (status === 'present') analytics.presentCount++;
     if (status === 'late') analytics.lateCount++;
+    if (status === 'absent') analytics.absentCount++;
+    if (status === 'excused') analytics.excusedCount++; // Maps from 'excused_absent'
   }
   
   // Calculate classes today based on day of week
@@ -534,26 +528,42 @@ function calculateAnalytics({ students, attendanceRows, schedules, dateStr }) {
     String(s.day_of_week ?? '').toLowerCase() === today
   ).length;
   
-  console.log('[DEBUG] Calculated analytics:', analytics);
   return analytics;
 }
 
-// DEBUG: Update analytics DOM elements
+// Update analytics DOM elements
 function updateAnalyticsDisplay(analytics) {
-  const elements = ['totalStudents', 'presentCount', 'lateCount', 'classesToday'];
+  const elements = ['totalStudents', 'presentCount', 'lateCount', 'classesToday', 'absentCount'];
   elements.forEach(id => {
     const el = document.getElementById(id);
     if (el) {
       const value = analytics[id] ?? '—';
       el.textContent = value;
-      console.log(`[DEBUG] Updated ${id} to: ${value}`);
     }
   });
+  
+  // Update attendance percentages if needed
+  updateAttendancePercentages(analytics);
+}
+
+// Calculate and update attendance percentages
+function updateAttendancePercentages(analytics) {
+  const total = analytics.totalStudents || 1;
+  const presentPercent = Math.round((analytics.presentCount / total) * 100);
+  const latePercent = Math.round((analytics.lateCount / total) * 100);
+  const absentPercent = Math.round(((analytics.absentCount + analytics.excusedCount) / total) * 100);
+  
+  // Update percentage elements if they exist
+  const presentPercentEl = document.getElementById('presentPercent');
+  const latePercentEl = document.getElementById('latePercent');
+  const absentPercentEl = document.getElementById('absentPercent');
+  
+  if (presentPercentEl) presentPercentEl.textContent = `${presentPercent}%`;
+  if (latePercentEl) latePercentEl.textContent = `${latePercent}%`;
+  if (absentPercentEl) absentPercentEl.textContent = `${absentPercent}%`;
 }
 
 function renderDashboard({ teacherId, homeroomClasses, schedules, students, attendanceRows, tapRows, clinicPasses, unreadCount, dateStr }) {
-  // DEBUG: Check analytics elements
-  debugAnalyticsElements();
   
   teacherApp?.replaceChildren();
 
@@ -769,7 +779,7 @@ async function refresh() {
 
     teacherStatus.textContent = `Loaded ${students.length} student(s). Ready.`;
 
-    // DEBUG: Calculate and update analytics (dateStr is available from refresh function scope)
+    // Calculate and update analytics
     const analytics = calculateAnalytics({ students, attendanceRows, schedules, dateStr });
     updateAnalyticsDisplay(analytics);
     

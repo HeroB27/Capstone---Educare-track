@@ -278,6 +278,97 @@
             </div>
           </section>
 
+          <!-- Student Overview Card -->
+          <div class="glass-card rounded-3xl p-6 soft-shadow mb-8">
+            <h3 class="text-lg font-bold text-slate-900 mb-4">Student Overview</h3>
+            <div id="studentOverview" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                  <span class="text-sm text-slate-600">Current Status</span>
+                  <span id="currentStatus" class="status-indicator status-neutral">Loading...</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-sm text-slate-600">Last Tap Time</span>
+                  <span id="lastTapTime" class="text-sm font-medium text-slate-900">—</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-sm text-slate-600">Tap Type</span>
+                  <span id="tapType" class="text-sm font-medium text-slate-900">—</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-sm text-slate-600">Homeroom Teacher</span>
+                  <span id="homeroomTeacher" class="text-sm font-medium text-slate-900">Loading...</span>
+                </div>
+              </div>
+              <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                  <span class="text-sm text-slate-600">Today's Subject</span>
+                  <span id="todaysSubject" class="text-sm font-medium text-slate-900">—</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-sm text-slate-600">Classroom</span>
+                  <span id="classroom" class="text-sm font-medium text-slate-900">Loading...</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-sm text-slate-600">Grade Level</span>
+                  <span id="gradeLevel" class="text-sm font-medium text-slate-900">Loading...</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-sm text-slate-600">Strand</span>
+                  <span id="strand" class="text-sm font-medium text-slate-900">—</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Attendance History -->
+          <div class="glass-card rounded-3xl p-6 soft-shadow mb-8">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-bold text-slate-900">Attendance History</h3>
+              <div class="flex items-center gap-2">
+                <select id="attendanceMonth" class="rounded-xl border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500">
+                  <option value="">Select Month</option>
+                </select>
+                <button id="exportAttendance" class="rounded-xl bg-emerald-500 px-4 py-2 text-sm text-white hover:bg-emerald-600 transition-colors">
+                  Export CSV
+                </button>
+              </div>
+            </div>
+            <div id="attendanceHistory" class="overflow-x-auto">
+              <table class="w-full">
+                <thead>
+                  <tr class="border-b border-slate-200">
+                    <th class="text-left py-3 text-sm text-slate-600">Date</th>
+                    <th class="text-left py-3 text-sm text-slate-600">Status</th>
+                    <th class="text-left py-3 text-sm text-slate-600">Time</th>
+                    <th class="text-left py-3 text-sm text-slate-600">Remarks</th>
+                  </tr>
+                </thead>
+                <tbody id="attendanceHistoryBody">
+                  <tr>
+                    <td colspan="4" class="text-center py-8 text-slate-500">Select a month to view attendance history</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Clinic Visits -->
+          <div class="glass-card rounded-3xl p-6 soft-shadow mb-8">
+            <h3 class="text-lg font-bold text-slate-900 mb-4">Clinic Visits</h3>
+            <div id="clinicVisits" class="space-y-4">
+              <div class="text-center py-8 text-slate-500">No clinic visits recorded</div>
+            </div>
+          </div>
+
+          <!-- Guard & Gate Activity -->
+          <div class="glass-card rounded-3xl p-6 soft-shadow mb-8">
+            <h3 class="text-lg font-bold text-slate-900 mb-4">Recent Scans</h3>
+            <div id="gateActivity" class="space-y-3">
+              <div class="text-center py-8 text-slate-500">No scan activity recorded</div>
+            </div>
+          </div>
+
           <!-- Recent Activity -->
           <div class="glass-card rounded-3xl p-6 soft-shadow">
             <h3 class="text-lg font-bold text-slate-900 mb-4">Recent Activity</h3>

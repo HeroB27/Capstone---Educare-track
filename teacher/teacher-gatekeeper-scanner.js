@@ -24,22 +24,60 @@ function setStatus(message) {
 }
 
 async function isTeacherGatekeeper(profileId) {
-  // Check the teachers table for gatekeeper_role boolean
-  const { data, error } = await supabase
-    .from("teachers")
-    .select("gatekeeper_role")
-    .eq("id", profileId)
-    .single();
-  
-  if (error) {
-    console.error("[Gatekeeper] Error checking gatekeeper_role:", error.message);
-    // Fallback: check system_settings if teachers lookup fails
-    return checkSystemSettingsFallback(profileId);
+  // First try: Check profiles table for is_gatekeeper boolean (new schema)
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("is_gatekeeper")
+      .eq("id", profileId)
+      .single();
+    
+    if (!error && data) {
+      const hasRole = data?.is_gatekeeper === true;
+      console.log("[Gatekeeper] Teacher", profileId, "is_gatekeeper (profiles):", hasRole);
+      return hasRole;
+    }
+  } catch (e) {
+    console.log("[Gatekeeper] profiles table check failed, trying teachers table");
   }
   
-  const hasRole = data?.gatekeeper_role === true;
-  console.log("[Gatekeeper] Teacher", profileId, "gatekeeper_role:", hasRole);
-  return hasRole;
+  // Second try: Check teachers table for is_gatekeeper boolean (old schema)
+  try {
+    const { data, error } = await supabase
+      .from("teachers")
+      .select("is_gatekeeper")
+      .eq("id", profileId)
+      .single();
+    
+    if (!error && data) {
+      const hasRole = data?.is_gatekeeper === true;
+      console.log("[Gatekeeper] Teacher", profileId, "is_gatekeeper (teachers):", hasRole);
+      return hasRole;
+    }
+  } catch (e) {
+    console.log("[Gatekeeper] teachers table check failed, trying legacy gatekeeper_role");
+  }
+  
+  // Third try: Check teachers table for legacy gatekeeper_role column
+  try {
+    const { data, error } = await supabase
+      .from("teachers")
+      .select("gatekeeper_role")
+      .eq("id", profileId)
+      .single();
+    
+    if (!error && data) {
+      const hasRole = data?.gatekeeper_role === true;
+      console.log("[Gatekeeper] Teacher", profileId, "gatekeeper_role (legacy):", hasRole);
+      return hasRole;
+    }
+  } catch (e) {
+    console.log("[Gatekeeper] Legacy gatekeeper_role check failed");
+  }
+  
+  // Final fallback: check system_settings
+  console.error("[Gatekeeper] All table checks failed, using system_settings fallback");
+  return checkSystemSettingsFallback(profileId);
 }
 
 /**

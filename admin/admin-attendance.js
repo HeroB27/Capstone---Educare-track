@@ -20,9 +20,8 @@ function toLocalISODate(date) {
 const STATUS_OPTIONS = [
   { value: "present", label: "Present" },
   { value: "late", label: "Late" },
-  { value: "partial", label: "Partial" },
   { value: "absent", label: "Absent" },
-  { value: "excused_absent", label: "Excused absent" },
+  { value: "excused", label: "Excused" },
 ];
 
 async function loadClasses() {
