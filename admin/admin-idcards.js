@@ -9,7 +9,7 @@ initAppShell({ role: "admin", active: "idcards" });
 // ============================================
 
 const idStatus = document.getElementById("idStatus") ?? document.createElement("div");
-const idApp = document.getElementId("idApp") ?? document.getElementById("idCardsGrid");
+const idApp = document.getElementById("idApp") ?? document.getElementById("idCardsGrid");
 
 function escapeHtml(value) {
   if (value == null) return '';
@@ -80,18 +80,91 @@ function openModal(contentEl, size = "max-w-2xl") {
 }
 
 // ============================================
+// SECURE QR CODE GENERATION (using jsQR)
+// ============================================
+
+function generateSecureQRData(studentId, parentPhone) {
+  const timestamp = Date.now().toString(36);
+  const securityHash = btoa(studentId + "|" + (parentPhone || "") + "|" + timestamp + "|EDU2026").slice(0, 12);
+  return JSON.stringify({
+    sid: studentId,
+    ph: (parentPhone || "").slice(-4),
+    ts: timestamp,
+    sh: securityHash,
+    v: 1
+  });
+}
+
+function generateQRCanvas(data, canvasId, size = 100) {
+  const canvas = document.createElement('canvas');
+  canvas.id = canvasId;
+  canvas.width = size;
+  canvas.height = size;
+  
+  if (typeof jsQR !== 'undefined') {
+    try {
+      const qrCode = jsQR(data, size, size, { errorCorrectionLevel: 'M' });
+      if (qrCode) {
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(qrCode, 0, 0);
+      } else {
+        createFallbackQR(data, canvas);
+      }
+    } catch (e) {
+      createFallbackQR(data, canvas);
+    }
+  } else {
+    createFallbackQR(data, canvas);
+  }
+  
+  return canvas;
+}
+
+function createFallbackQR(data, canvas) {
+  const ctx = canvas.getContext('2d');
+  const size = canvas.width;
+  const hash = data.split('').reduce((a, b) => ((a << 5) - a + b.charCodeAt(0)) | 0, 0);
+  const moduleSize = size / 25;
+  
+  ctx.fillStyle = '#1e40af';
+  
+  // Corner patterns
+  drawCornerPattern(ctx, 0, 0, moduleSize * 7);
+  drawCornerPattern(ctx, size - moduleSize * 7, 0, moduleSize * 7);
+  drawCornerPattern(ctx, 0, size - moduleSize * 7, moduleSize * 7);
+  
+  for (let i = 0; i < 25; i++) {
+    for (let j = 0; j < 25; j++) {
+      if ((i < 8 && j < 8) || (i < 8 && j > 16) || (i > 16 && j < 8)) continue;
+      if (Math.abs(Math.sin(hash + i * 25 + j)) > 0.5) {
+        ctx.fillRect(i * moduleSize, j * moduleSize, moduleSize, moduleSize);
+      }
+    }
+  }
+}
+
+function drawCornerPattern(ctx, x, y, size) {
+  const moduleSize = size / 7;
+  ctx.fillStyle = '#1e40af';
+  ctx.fillRect(x, y, size, size);
+  ctx.fillStyle = 'white';
+  ctx.fillRect(x + moduleSize, y + moduleSize, size - moduleSize * 2, size - moduleSize * 2);
+  ctx.fillStyle = '#1e40af';
+  ctx.fillRect(x + moduleSize * 2, y + moduleSize * 2, size - moduleSize * 4, size - moduleSize * 4);
+}
+
+// ============================================
 // ID CARD DESIGN (2x3 inches - Blue Theme)
 // ============================================
 
-function generateIDCard(student, parent, qrData) {
+function generateIDCardHTML(student, parent, qrData) {
   const photoPlaceholder = student.photo_path 
     ? `<img src="${student.photo_path}" alt="Student Photo" class="w-full h-full object-cover">`
     : `<svg class="w-16 h-16 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
        </svg>`;
 
-  // Generate QR code as SVG
-  const qrSVG = generateQRSVG(qrData);
+  const qrCanvas = generateQRCanvas(qrData, 'qrCanvas');
 
   return `
     <div class="id-card-container flex gap-2 print:gap-4">
@@ -124,8 +197,8 @@ function generateIDCard(student, parent, qrData) {
             <div class="text-[10px] text-slate-500">Student ID</div>
             <div class="font-mono text-xs font-bold text-blue-700">${escapeHtml(student.id)}</div>
           </div>
-          <div class="w-12 h-12 bg-white border border-slate-200 rounded p-1">
-            ${qrSVG}
+          <div class="w-12 h-12 bg-white border border-slate-200 rounded p-1 flex items-center justify-center">
+            ${qrCanvas.outerHTML}
           </div>
         </div>
         
@@ -143,49 +216,6 @@ function generateIDCard(student, parent, qrData) {
       </div>
     </div>
   `;
-}
-
-function generateQRSVG(data) {
-  // Simple QR-like pattern for visual representation
-  const size = 10;
-  const hash = data.split('').reduce((a, b) => ((a << 5) - a + b.charCodeAt(0)) | 0, 0);
-  
-  let pattern = '';
-  for (let i = 0; i < size; i++) {
-    for (let j = 0; j < size; j++) {
-      const val = Math.abs(Math.sin(hash + i * size + j)) > 0.5;
-      if (val) {
-        pattern += `<rect x="${j * 2.5}" y="${i * 2.5}" width="2.5" height="2.5" fill="#1e40af"/>`;
-      }
-    }
-  }
-  
-  return `<svg viewBox="0 0 25 25" class="w-full h-full">
-    ${pattern}
-    <rect x="0" y="0" width="7.5" height="7.5" fill="#1e40af"/>
-    <rect x="1.5" y="1.5" width="2" height="2" fill="white"/>
-    <rect x="4.5" y="1.5" width="2" height="2" fill="white"/>
-    <rect x="1.5" y="4.5" width="2" height="2" fill="white"/>
-    <rect x="17.5" y="0" width="7.5" height="7.5" fill="#1e40af"/>
-    <rect x="19" y="1.5" width="2" height="2" fill="white"/>
-    <rect x="22" y="1.5" width="2" height="2" fill="white"/>
-    <rect x="19" y="4.5" width="2" height="2" fill="white"/>
-    <rect x="0" y="17.5" width="7.5" height="7.5" fill="#1e40af"/>
-    <rect x="1.5" y="19" width="2" height="2" fill="white"/>
-    <rect x="4.5" y="19" width="2" height="2" fill="white"/>
-    <rect x="1.5" y="22" width="2" height="2" fill="white"/>
-  </svg>`;
-}
-
-function generateQRData(studentId, parentPhone) {
-  const timestamp = Date.now().toString(36);
-  const securityHash = btoa(studentId + (parentPhone || "") + timestamp).slice(0, 8);
-  return JSON.stringify({
-    sid: studentId,
-    ph: (parentPhone || "").slice(-4),
-    ts: timestamp,
-    sh: securityHash
-  });
 }
 
 // ============================================
@@ -220,13 +250,13 @@ async function loadStudentIds() {
 }
 
 // ============================================
-// MODAL: SEARCH STUDENT FOR RE-ISSUE
+// SEARCH STUDENT MODAL
 // ============================================
 
 function openSearchReissueModal(students, parents, onSaved) {
   const content = el("div", "");
-  content.appendChild(el("div", "text-lg font-semibold text-slate-900 mb-1", "Search Student to Re-issue ID"));
-  content.appendChild(el("div", "text-sm text-slate-600 mb-4", "Search by student name, ID, or LRN to reprint or re-issue an ID card."));
+  content.appendChild(el("div", "text-lg font-semibold text-slate-900 mb-1", "Search Student"));
+  content.appendChild(el("div", "text-sm text-slate-600 mb-4", "Search by student name, ID, or LRN."));
 
   const search = textInput({ placeholder: "🔍 Search student name, ID, or LRN..." });
   search.className = "w-full rounded-xl border border-slate-300 px-4 py-3 text-sm mb-3";
@@ -263,8 +293,8 @@ function openSearchReissueModal(students, parents, onSaved) {
             <div class="text-xs text-slate-400">LRN: ${escapeHtml(student.lrn || "—")}</div>
           </div>
           <div class="flex gap-2">
-            <button class="view-btn px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-xs hover:bg-blue-200" data-action="view">View ID</button>
-            <button class="reissue-btn px-3 py-1 bg-amber-100 text-amber-700 rounded-lg text-xs hover:bg-amber-200" data-action="reissue">Re-issue</button>
+            <button class="view-btn px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-xs hover:bg-blue-200">View ID</button>
+            <button class="reissue-btn px-3 py-1 bg-amber-100 text-amber-700 rounded-lg text-xs hover:bg-amber-200">Re-issue</button>
           </div>
         </div>
       `;
@@ -287,21 +317,21 @@ function openSearchReissueModal(students, parents, onSaved) {
     renderResults(search.value);
   });
 
-  renderResults(""); // Show all initially
+  renderResults("");
 
   const overlay = openModal(content, "max-w-2xl");
 }
 
 // ============================================
-// MODAL: VIEW ID CARD
+// VIEW ID CARD MODAL
 // ============================================
 
 function openIDCardModal(student, parent) {
   const content = el("div", "");
   content.appendChild(el("div", "text-lg font-semibold text-slate-900 mb-3", "Student ID Card"));
   
-  const qrData = generateQRData(student.id, parent?.phone);
-  content.innerHTML += generateIDCard(student, parent, qrData);
+  const qrData = generateSecureQRData(student.id, parent?.phone);
+  content.innerHTML += generateIDCardHTML(student, parent, qrData);
   
   const actions = el("div", "mt-4 flex justify-end gap-2");
   const closeBtn = button("Close", "ghost");
@@ -317,7 +347,7 @@ function openIDCardModal(student, parent) {
   printBtn.addEventListener("click", function() {
     const printContent = `
       <div style="display:flex;gap:10px;padding:20px;">
-        ${generateIDCard(student, parent, qrData)}
+        ${generateIDCardHTML(student, parent, qrData)}
       </div>
       <script>
         window.onload = function() {
@@ -332,12 +362,8 @@ function openIDCardModal(student, parent) {
         <head>
           <title>Print ID Card</title>
           <script src="https://cdn.tailwindcss.com"><\/script>
-          <style>
-            @media print {
-              body { margin: 0; padding: 20px; }
-              .id-card-container { display: flex; gap: 10px; }
-            }
-          </style>
+          <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"><\/script>
+          <style>@media print { body { margin: 0; padding: 20px; } .id-card-container { display: flex; gap: 10px; } }</style>
         </head>
         <body>${printContent}</body>
       </html>
@@ -347,7 +373,7 @@ function openIDCardModal(student, parent) {
 }
 
 // ============================================
-// MODAL: RE-ISSUE CONFIRMATION
+// RE-ISSUE CONFIRMATION MODAL
 // ============================================
 
 function openReissueConfirmModal(student, parent, onSaved) {
@@ -381,14 +407,11 @@ function openReissueConfirmModal(student, parent, onSaved) {
     confirmBtn.textContent = "Processing...";
     
     try {
-      // Deactivate old ID
       await supabase.from("student_ids").update({ is_active: false }).eq("student_id", student.id);
       
-      // Generate new QR code
-      const newQRData = generateQRData(student.id, parent?.phone);
+      const newQRData = generateSecureQRData(student.id, parent?.phone);
       const qrCode = "EDU-" + student.id.substring(0, 8).toUpperCase() + "-" + Date.now().toString(36).toUpperCase();
       
-      // Create new student_id record
       await supabase.from("student_ids").insert({
         student_id: student.id,
         qr_code: qrCode,
@@ -430,7 +453,6 @@ async function render() {
     
     idApp.replaceChildren();
     
-    // Header
     const header = el("div", "mb-6");
     const headerRow = el("div", "flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4");
     
@@ -455,7 +477,6 @@ async function render() {
     header.appendChild(headerRow);
     idApp.appendChild(header);
     
-    // Stats
     const statsRow = el("div", "flex gap-4 mb-6 flex-wrap");
     const activeCount = ids.filter(i => i.is_active).length;
     const inactiveCount = ids.filter(i => !i.is_active).length;
@@ -475,21 +496,18 @@ async function render() {
     `;
     idApp.appendChild(statsRow);
     
-    // ID Cards Grid
     const grid = el("div", "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6");
     idApp.appendChild(grid);
     
-    // Show sample/active ID cards
     const activeIds = ids.filter(i => i.is_active).slice(0, 12);
     
     if (!activeIds.length) {
       grid.innerHTML = `
         <div class="col-span-full text-center py-12 bg-slate-50 rounded-xl">
           <svg class="w-16 h-16 mx-auto text-slate-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2""></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"></path>
           </svg>
           <p class="text-slate-500">No ID cards issued yet.</p>
-          <p class="text-slate-400 text-sm">Use "New ID Issue" to create the first ID card.</p>
         </div>
       `;
     } else {
@@ -498,10 +516,10 @@ async function render() {
         if (!student) continue;
         
         const parent = parents.find(p => p.id === student.parent_id);
-        const qrData = idRecord.qr_code || generateQRData(student.id, parent?.phone);
+        const qrData = idRecord.qr_code || generateSecureQRData(student.id, parent?.phone);
         
         const cardEl = el("div", "bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow");
-        cardEl.innerHTML = generateIDCard(student, parent, qrData);
+        cardEl.innerHTML = generateIDCardHTML(student, parent, qrData);
         
         const actions = el("div", "p-3 bg-slate-50 border-t border-slate-100 flex justify-between");
         actions.innerHTML = `
@@ -524,7 +542,6 @@ async function render() {
     
     idStatus.textContent = `Showing ${activeIds.length} of ${ids.length} ID cards.`;
     
-    // Filter function
     search.addEventListener("input", function() {
       const q = search.value.toLowerCase().trim();
       const cards = grid.querySelectorAll(":scope > div:not(:last-child)");

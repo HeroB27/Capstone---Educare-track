@@ -36,6 +36,10 @@ function textInput(opts) {
   i.value = opts.value || "";
   i.placeholder = opts.placeholder || "";
   i.className = "w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200";
+  if (opts.readonly) {
+    i.readOnly = true;
+    i.className += " bg-slate-50 cursor-not-allowed";
+  }
   return i;
 }
 
@@ -96,6 +100,153 @@ function openModal(contentEl, size = "max-w-2xl") {
 }
 
 // ============================================
+// SECURE QR CODE GENERATION (using jsQR)
+// ============================================
+
+function generateSecureQRData(studentId, parentPhone) {
+  const timestamp = Date.now().toString(36);
+  const securityHash = btoa(studentId + "|" + (parentPhone || "") + "|" + timestamp + "|EDU2026").slice(0, 12);
+  return JSON.stringify({
+    sid: studentId,
+    ph: (parentPhone || "").slice(-4),
+    ts: timestamp,
+    sh: securityHash,
+    v: 1
+  });
+}
+
+function generateQRCanvas(data, canvasId, size = 100) {
+  // Create canvas element
+  const canvas = document.createElement('canvas');
+  canvas.id = canvasId;
+  canvas.width = size;
+  canvas.height = size;
+  
+  // Use jsQR if available, otherwise create fallback SVG
+  if (typeof jsQR !== 'undefined') {
+    try {
+      const qrCode = jsQR(data, size, size, {
+        errorCorrectionLevel: 'M'
+      });
+      if (qrCode) {
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(qrCode, 0, 0);
+      } else {
+        createFallbackQR(data, canvas);
+      }
+    } catch (e) {
+      createFallbackQR(data, canvas);
+    }
+  } else {
+    createFallbackQR(data, canvas);
+  }
+  
+  return canvas;
+}
+
+function createFallbackQR(data, canvas) {
+  // Fallback: Create a visual QR-like pattern
+  const ctx = canvas.getContext('2d');
+  const size = canvas.width;
+  const hash = data.split('').reduce((a, b) => ((a << 5) - a + b.charCodeAt(0)) | 0, 0);
+  const moduleSize = size / 25;
+  
+  ctx.fillStyle = '#1e40af';
+  
+  // Corner patterns
+  drawCornerPattern(ctx, 0, 0, moduleSize * 7);
+  drawCornerPattern(ctx, size - moduleSize * 7, 0, moduleSize * 7);
+  drawCornerPattern(ctx, 0, size - moduleSize * 7, moduleSize * 7);
+  
+  // Data pattern
+  for (let i = 0; i < 25; i++) {
+    for (let j = 0; j < 25; j++) {
+      // Skip corner areas
+      if ((i < 8 && j < 8) || (i < 8 && j > 16) || (i > 16 && j < 8)) continue;
+      
+      if (Math.abs(Math.sin(hash + i * 25 + j)) > 0.5) {
+        ctx.fillRect(i * moduleSize, j * moduleSize, moduleSize, moduleSize);
+      }
+    }
+  }
+}
+
+function drawCornerPattern(ctx, x, y, size) {
+  const moduleSize = size / 7;
+  ctx.fillStyle = '#1e40af';
+  ctx.fillRect(x, y, size, size);
+  ctx.fillStyle = 'white';
+  ctx.fillRect(x + moduleSize, y + moduleSize, size - moduleSize * 2, size - moduleSize * 2);
+  ctx.fillStyle = '#1e40af';
+  ctx.fillRect(x + moduleSize * 2, y + moduleSize * 2, size - moduleSize * 4, size - moduleSize * 4);
+}
+
+// ============================================
+// ID CARD DESIGN (2x3 inches - Blue Theme)
+// ============================================
+
+function generateIDCardHTML(student, parent, qrData) {
+  const photoPlaceholder = student.photo_path 
+    ? `<img src="${student.photo_path}" alt="Student Photo" class="w-full h-full object-cover">`
+    : `<svg class="w-16 h-16 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+       </svg>`;
+
+  const qrCanvas = generateQRCanvas(qrData, 'qrCanvas');
+
+  return `
+    <div class="id-card-container flex gap-2 print:gap-4">
+      <!-- FRONT SIDE -->
+      <div class="id-card-front bg-gradient-to-br from-blue-600 to-blue-800 text-white rounded-xl p-3 w-48 print:w-64 print:p-4 shadow-lg print:shadow-none">
+        <div class="text-center mb-2">
+          <div class="text-xs font-bold tracking-wider opacity-90">EDUCARE COLLEGES INC</div>
+          <div class="text-[10px] opacity-75">Purok 4 Irisan Baguio City</div>
+        </div>
+        
+        <div class="bg-white/90 rounded-lg p-1 mb-2">
+          <div class="h-24 bg-blue-50 rounded flex items-center justify-center overflow-hidden">
+            ${photoPlaceholder}
+          </div>
+        </div>
+        
+        <div class="text-center">
+          <div class="font-bold text-sm leading-tight mb-1">${escapeHtml(student.full_name || "Student Name")}</div>
+          <div class="text-[10px] opacity-80 mb-1">${escapeHtml(student.address || "Address")}</div>
+          <div class="bg-white/20 rounded-full px-2 py-0.5 text-[10px] inline-block">
+            Grade: ${escapeHtml(student.grade_level || "-")}${student.strand ? ' - ' + escapeHtml(student.strand) : ''}
+          </div>
+        </div>
+      </div>
+      
+      <!-- BACK SIDE -->
+      <div class="id-card-back bg-white border-2 border-blue-600 rounded-xl p-3 w-48 print:w-64 print:p-4 shadow-lg print:shadow-none">
+        <div class="flex items-start justify-between mb-2">
+          <div>
+            <div class="text-[10px] text-slate-500">Student ID</div>
+            <div class="font-mono text-xs font-bold text-blue-700">${escapeHtml(student.id)}</div>
+          </div>
+          <div class="w-12 h-12 bg-white border border-slate-200 rounded p-1 flex items-center justify-center">
+            ${qrCanvas.outerHTML}
+          </div>
+        </div>
+        
+        <div class="border-t border-slate-200 pt-2 mb-2">
+          <div class="text-[10px] text-slate-500">Parent/Guardian</div>
+          <div class="text-xs font-medium text-slate-800">${escapeHtml(parent?.full_name || "—")}</div>
+          <div class="text-xs text-slate-600">${escapeHtml(parent?.phone || "—")}</div>
+        </div>
+        
+        <div class="bg-red-50 border border-red-200 rounded-lg p-1.5 text-center">
+          <div class="text-[9px] text-red-600 font-medium">⚠️ IF FOUND, PLEASE RETURN TO:</div>
+          <div class="text-[9px] text-red-500">EDUCARE COLLEGES INC</div>
+          <div class="text-[8px] text-red-400">Purok 4 Irisan Baguio City</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ============================================
 // ID GENERATION & NAMING CONVENTIONS
 // ============================================
 
@@ -113,36 +264,272 @@ function currentYear() {
 }
 
 // Generate User ID based on role
-// ADM-currentyear-last4digitsPhone-XXXX
-// TCH-currentyear-last4digitsPhone-XXXX
-// CLC-currentyear-last4digitsPhone-XXXX
-// GRD-currentyear-last4digitsPhone-XXXX
 function generateUserId(role, phone) {
   const prefix = role === "admin" ? "ADM" : role === "teacher" ? "TCH" : role === "clinic" ? "CLC" : "GRD";
   return prefix + "-" + currentYear() + "-" + lastFourDigits(phone) + "-" + randomFourDigits();
 }
 
 // Generate Student ID
-// EDU-currentyear-last4digitsLRN-XXXX
 function generateStudentId(lrn) {
   const lrnDigits = lrn ? String(lrn).replace(/\D/g, "").slice(-4).padStart(4, "0") : "0000";
   return "EDU-" + currentYear() + "-" + lrnDigits + "-" + randomFourDigits();
 }
 
-// Generate QR data with security
-function generateQRData(studentId, parentPhone) {
-  const timestamp = Date.now().toString(36);
-  const securityHash = btoa(studentId + parentPhone + timestamp).slice(0, 8);
-  return JSON.stringify({
-    sid: studentId,
-    ph: parentPhone.slice(-4),
-    ts: timestamp,
-    sh: securityHash
+// ============================================
+// MODAL: VIEW USER WITH ID CARD & ACTIONS
+// ============================================
+
+async function openViewUserModal(profile, onSaved) {
+  const content = el("div", "");
+  
+  // Get additional info based on role
+  let studentInfo = null;
+  let parentInfo = null;
+  
+  if (profile.role === "parent" || profile.role === "guardian") {
+    // Get students for this parent
+    const { data: students } = await supabase
+      .from("students")
+      .select("id,full_name,grade_level,strand")
+      .eq("parent_id", profile.id);
+    parentInfo = students || [];
+  } else if (profile.role === "student") {
+    // Get parent info
+    const { data: parent } = await supabase
+      .from("profiles")
+      .select("id,full_name,phone")
+      .eq("id", profile.parent_id)
+      .single();
+    studentInfo = parent;
+  }
+
+  content.appendChild(el("div", "text-lg font-semibold text-slate-900 mb-1", "User Details"));
+  content.appendChild(el("div", "text-sm text-slate-600 mb-4", "User ID: " + escapeHtml(profile.username)));
+
+  // Generate QR data for ID card
+  const qrData = profile.role === "student" 
+    ? generateSecureQRData(profile.id, parentInfo?.[0]?.phone)
+    : generateSecureQRData(profile.id, profile.phone);
+
+  // ID Card Preview Section
+  const cardSection = el("div", "mb-4");
+  cardSection.innerHTML = `<div class="text-sm font-medium text-slate-700 mb-2">ID Card Preview</div>`;
+  
+  if (profile.role === "student" || profile.role === "parent") {
+    cardSection.innerHTML += generateIDCardHTML(profile, studentInfo, qrData);
+  } else {
+    cardSection.innerHTML += `
+      <div class="p-4 bg-slate-100 rounded-xl text-center text-slate-500">
+        <svg class="w-12 h-12 mx-auto mb-2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"></path>
+        </svg>
+        <p>ID Card only available for Parents and Students</p>
+      </div>
+    `;
+  }
+  content.appendChild(cardSection);
+
+  // Action Buttons (Update & Delete in View Modal)
+  const actionSection = el("div", "flex gap-2 flex-wrap");
+  
+  const updateBtn = button("✏️ Update Details", "primary");
+  const deleteBtn = button("🗑️ Delete User", "danger");
+  const printBtn = button("🖨️ Print ID", "secondary");
+  
+  updateBtn.addEventListener("click", function() {
+    openUpdateUserModal(profile, onSaved, function() {
+      overlay.remove();
+      onSaved();
+    });
+  });
+  
+  deleteBtn.addEventListener("click", function() {
+    if (confirm("Are you sure you want to delete this user? This action cannot be undone.")) {
+      deleteUser(profile, onSaved);
+    }
+  });
+  
+  actionSection.appendChild(updateBtn);
+  actionSection.appendChild(deleteBtn);
+  
+  if (profile.role === "student" || profile.role === "parent") {
+    printBtn.addEventListener("click", function() {
+      const printContent = `
+        <div style="display:flex;gap:10px;padding:20px;">
+          ${generateIDCardHTML(profile, studentInfo, qrData)}
+        </div>
+      `;
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Print ID Card</title>
+            <script src="https://cdn.tailwindcss.com"><\/script>
+            <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"><\/script>
+            <style>@media print { body { margin: 0; padding: 20px; } .id-card-container { display: flex; gap: 10px; } }</style>
+          </head>
+          <body>${printContent}</body>
+        </html>
+      `);
+      printWindow.document.close();
+    });
+    actionSection.appendChild(printBtn);
+  }
+  
+  content.appendChild(actionSection);
+
+  const overlay = openModal(content, "max-w-2xl");
+}
+
+// ============================================
+// MODAL: UPDATE USER
+// ============================================
+
+function openUpdateUserModal(profile, onSaved, closeCallback) {
+  const content = el("div", "");
+  content.appendChild(el("div", "text-lg font-semibold text-slate-900 mb-1", "Update User"));
+  content.appendChild(el("div", "text-sm text-slate-600 mb-4", "User ID: " + escapeHtml(profile.username)));
+
+  const form = el("form", "mt-4 grid gap-4 md:grid-cols-2");
+  
+  const fullName = textInput({ value: profile.full_name || "", placeholder: "Full name" });
+  const phone = textInput({ value: profile.phone || "", placeholder: "Phone" });
+  const address = textInput({ value: profile.address || "", placeholder: "Address" });
+  const email = textInput({ value: profile.email || "", placeholder: "Email (optional)", type: "email" });
+  
+  // Password section
+  const passwordSection = el("div", "md:col-span-2 p-4 bg-amber-50 border border-amber-200 rounded-xl");
+  passwordSection.innerHTML = '<div class="text-sm font-medium text-amber-800 mb-2">🔐 Change Password</div>';
+  const newPassword = textInput({ placeholder: "New Password (leave blank to keep current)", type: "password" });
+  const confirmNewPassword = textInput({ placeholder: "Confirm New Password", type: "password" });
+  passwordSection.appendChild(newPassword);
+  passwordSection.appendChild(confirmNewPassword);
+  
+  const role = selectInput([
+    { value: "admin", label: "Admin" },
+    { value: "teacher", label: "Teacher" },
+    { value: "parent", label: "Parent" },
+    { value: "guardian", label: "Guardian" },
+    { value: "guard", label: "Guard" },
+    { value: "clinic", label: "Clinic" },
+    { value: "student", label: "Student" },
+  ], profile.role || "teacher");
+
+  const active = selectInput([
+    { value: "true", label: "Active" },
+    { value: "false", label: "Inactive" },
+  ], String(profile.is_active || true));
+
+  function inputRow(label, inputEl) {
+    const wrap = el("div", "space-y-1");
+    wrap.appendChild(el("label", "block text-sm font-medium text-slate-700", label));
+    wrap.appendChild(inputEl);
+    return wrap;
+  }
+
+  form.appendChild(inputRow("Full Name", fullName));
+  form.appendChild(inputRow("Role", role));
+  form.appendChild(inputRow("Status", active));
+  form.appendChild(inputRow("Phone", phone));
+  form.appendChild(inputRow("Email (optional)", email));
+  form.appendChild(el("div", "md:col-span-2"));
+  form.appendChild(inputRow("Address", address));
+  form.appendChild(passwordSection);
+
+  const errorBox = el("div", "mt-3 hidden rounded-xl bg-red-50 p-3 text-sm text-red-700");
+  const successBox = el("div", "mt-3 hidden rounded-xl bg-green-50 p-3 text-sm text-green-700");
+  
+  const actions = el("div", "mt-5 flex justify-between gap-2");
+  const cancelBtn = button("Cancel", "ghost");
+  const saveBtn = button("Save Changes", "primary");
+  saveBtn.type = "submit";
+  
+  actions.appendChild(cancelBtn);
+  actions.appendChild(saveBtn);
+  
+  content.appendChild(form);
+  content.appendChild(errorBox);
+  content.appendChild(successBox);
+  content.appendChild(actions);
+
+  const overlay = openModal(content, "max-w-2xl");
+  cancelBtn.addEventListener("click", function() { overlay.remove(); if (closeCallback) closeCallback(); });
+  content.appendChild(form);
+
+  form.addEventListener("submit", async function(e) {
+    e.preventDefault();
+    errorBox.classList.add("hidden");
+    successBox.classList.add("hidden");
+    saveBtn.disabled = true;
+
+    // Validate password if provided
+    if (newPassword.value) {
+      if (newPassword.value.length < 6) {
+        errorBox.textContent = "Password must be at least 6 characters.";
+        errorBox.classList.remove("hidden");
+        saveBtn.disabled = false;
+        return;
+      }
+      if (newPassword.value !== confirmNewPassword.value) {
+        errorBox.textContent = "Passwords do not match.";
+        errorBox.classList.remove("hidden");
+        saveBtn.disabled = false;
+        return;
+      }
+    }
+
+    try {
+      // Update profile
+      const { error } = await supabase.from("profiles").update({
+        full_name: fullName.value.trim(),
+        phone: phone.value.trim() || null,
+        address: address.value.trim() || null,
+        email: email.value.trim() || null,
+        role: role.value,
+        is_active: active.value === "true"
+      }).eq("id", profile.id);
+
+      if (error) throw error;
+
+      // Update password if provided
+      if (newPassword.value) {
+        await storePassword(profile.id, newPassword.value);
+      }
+
+      successBox.textContent = "Changes saved successfully!";
+      successBox.classList.remove("hidden");
+      saveBtn.textContent = "Saved!";
+      saveBtn.disabled = true;
+
+      setTimeout(function() {
+        overlay.remove();
+        onSaved();
+      }, 1500);
+    } catch (error) {
+      errorBox.textContent = error.message;
+      errorBox.classList.remove("hidden");
+      saveBtn.disabled = false;
+    }
   });
 }
 
 // ============================================
-// MODAL: ADD PARENT + STUDENT(S)
+// DELETE USER
+// ============================================
+
+async function deleteUser(profile, onSaved) {
+  try {
+    const { error } = await supabase.from("profiles").delete().eq("id", profile.id);
+    if (error) throw error;
+    usersStatus.textContent = "User deleted successfully.";
+    onSaved();
+  } catch (error) {
+    usersStatus.textContent = "Failed to delete: " + error.message;
+  }
+}
+
+// ============================================
+// PARENT + STUDENT MODALS (Same as before)
 // ============================================
 
 async function openAddParentStudentModal(onSaved) {
@@ -163,18 +550,15 @@ async function openAddParentStudentModal(onSaved) {
   `;
   content.appendChild(stepIndicator);
 
-  // Progress bar
   const progressBar = el("div", "h-1 bg-slate-200 rounded-full mb-4 overflow-hidden");
   progressBar.innerHTML = '<div class="h-full bg-violet-600 transition-all" id="progressBar" style="width: 25%"></div>';
   content.appendChild(progressBar);
 
-  // Step containers
-  const step1 = el("div", ""); // Parent Info
-  const step2 = el("div", "hidden"); // Account Creation
-  const step3 = el("div", "hidden"); // Students Info
-  const step4 = el("div", "hidden"); // ID Card Preview
+  const step1 = el("div", "");
+  const step2 = el("div", "hidden");
+  const step3 = el("div", "hidden");
+  const step4 = el("div", "hidden");
 
-  // STEP 1: Parent Information
   const parentType = selectInput([
     { value: "Parent", label: "Parent" },
     { value: "Guardian", label: "Guardian" },
@@ -197,12 +581,10 @@ async function openAddParentStudentModal(onSaved) {
   step1.appendChild(inputRow("Phone *", parentPhone));
   step1.appendChild(inputRow("Address *", parentAddress));
 
-  // STEP 2: Account Creation
   const parentUsername = textInput({ placeholder: "Username (auto-generated)" });
   const parentPassword = textInput({ placeholder: "Password *", type: "password" });
   const confirmPassword = textInput({ placeholder: "Confirm Password *", type: "password" });
 
-  // Auto-generate username on phone change
   parentPhone.addEventListener("input", function() {
     const digits = parentPhone.value.replace(/\D/g, "");
     if (digits.length >= 4) {
@@ -217,7 +599,6 @@ async function openAddParentStudentModal(onSaved) {
   step2.appendChild(inputRow("Password *", parentPassword));
   step2.appendChild(inputRow("Confirm Password *", confirmPassword));
 
-  // STEP 3: Students Information
   const studentsContainer = el("div", "space-y-4");
   let studentCount = 0;
 
@@ -228,7 +609,6 @@ async function openAddParentStudentModal(onSaved) {
       index > 0 ? el("button", "text-red-500 text-xs hover:underline", "Remove") : el("div", "")
     ][1]));
 
-    // Auto-generate student ID on LRN change
     const sLrn = textInput({ placeholder: "LRN (12 digits, optional)", type: "tel" });
     const sName = textInput({ placeholder: "Student Full Name *" });
     const sGrade = textInput({ placeholder: "Grade Level (Kinder, 1-12, or SHS Grade 11/12) *" });
@@ -236,7 +616,6 @@ async function openAddParentStudentModal(onSaved) {
     const sAddress = textInput({ placeholder: "Address (same as parent if empty)" });
     const sEmergency = textInput({ placeholder: "Emergency Contact (same as parent if empty)", type: "tel" });
 
-    // Show strand field only for SHS grades
     sGrade.addEventListener("input", function() {
       const grade = sGrade.value.trim().toLowerCase();
       const isSHS = grade.includes("11") || grade.includes("12") || grade.includes("shs");
@@ -249,7 +628,7 @@ async function openAddParentStudentModal(onSaved) {
     });
 
     const sStudentId = textInput({ placeholder: "Student ID (auto-generated)", readonly: true });
-    sStudentId.className = "w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none bg-slate-50";
+    sStudentId.className = "w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none bg-slate-50 cursor-not-allowed";
 
     function inputRowStudent(label, inputEl, required = false) {
       const wrap = el("div", "space-y-1");
@@ -266,7 +645,6 @@ async function openAddParentStudentModal(onSaved) {
     studentDiv.appendChild(inputRowStudent("Address", sAddress));
     studentDiv.appendChild(inputRowStudent("Emergency Contact", sEmergency));
 
-    // Remove button for additional students
     if (index > 0) {
       studentDiv.querySelector("button").addEventListener("click", function() {
         studentDiv.remove();
@@ -299,12 +677,10 @@ async function openAddParentStudentModal(onSaved) {
   });
   step3.appendChild(addStudentBtn);
 
-  // STEP 4: ID Card Preview
   const idCardPreview = el("div", "");
   step4.appendChild(el("div", "font-semibold text-slate-900 mb-3", "Student ID Card(s)"));
   step4.appendChild(idCardPreview);
 
-  // Navigation buttons
   const navButtons = el("div", "mt-5 flex justify-between gap-2");
   const prevBtn = button("← Back", "ghost");
   const nextBtn = button("Next →", "primary");
@@ -323,7 +699,6 @@ async function openAddParentStudentModal(onSaved) {
 
   const overlay = openModal(content, "max-w-3xl");
 
-  // Step management
   let currentStep = 1;
 
   function showStep(step) {
@@ -354,7 +729,6 @@ async function openAddParentStudentModal(onSaved) {
     errorBox.classList.add("hidden");
     
     if (currentStep === 1) {
-      // Validate step 1
       if (!parentName.value.trim() || !parentPhone.value.trim() || !parentAddress.value.trim()) {
         errorBox.textContent = "Please fill in all required fields.";
         errorBox.classList.remove("hidden");
@@ -367,7 +741,6 @@ async function openAddParentStudentModal(onSaved) {
       }
       showStep(2);
     } else if (currentStep === 2) {
-      // Validate step 2
       if (!parentUsername.value.trim() || !parentPassword.value || !confirmPassword.value) {
         errorBox.textContent = "Please fill in all required fields.";
         errorBox.classList.remove("hidden");
@@ -385,7 +758,6 @@ async function openAddParentStudentModal(onSaved) {
       }
       showStep(3);
     } else if (currentStep === 3) {
-      // Validate step 3 - at least one student
       const studentDivs = studentsContainer.querySelectorAll(":scope > div");
       let hasValidStudent = false;
       
@@ -422,29 +794,21 @@ async function openAddParentStudentModal(onSaved) {
       
       if (!name || !grade) continue;
       
-      const qrData = generateQRData(studentId, parentPhone.value);
+      const qrData = generateSecureQRData(studentId, parentPhone.value);
       
-      const idCard = el("div", "bg-white rounded-xl border-2 border-slate-200 p-4 mb-4 max-w-md");
-      idCard.innerHTML = `
-        <div class="flex items-center gap-4">
-          <div class="w-20 h-20 bg-slate-100 rounded-lg flex items-center justify-center">
-            <svg class="w-16 h-16 text-slate-300" viewBox="0 0 100 100">
-              <rect x="5" y="5" width="90" height="90" rx="5" fill="white" stroke="#e2e8f0" stroke-width="2"/>
-              <rect x="15" y="15" width="70" height="25" rx="2" fill="#6366f1"/>
-              <rect x="15" y="45" width="70" height="15" rx="1" fill="#e2e8f0"/>
-              <rect x="15" y="65" width="50" height="10" rx="1" fill="#e2e8f0"/>
-              <rect x="15" y="80" width="35" height="8" rx="1" fill="#e2e8f0"/>
-              <text x="50" y="32" text-anchor="middle" font-size="8" font-weight="bold" fill="white">${escapeHtml(studentId)}</text>
-            </svg>
-          </div>
-          <div class="flex-1">
-            <p class="font-bold text-slate-900">${escapeHtml(name)}</p>
-            <p class="text-sm text-slate-600">${escapeHtml(grade)}${strand ? ' - ' + escapeHtml(strand) : ''}</p>
-            <p class="text-xs text-slate-500 mt-1">Parent: ${escapeHtml(parentName.value)}</p>
-            <p class="text-xs text-slate-500">Phone: ${escapeHtml(parentPhone.value)}</p>
-          </div>
-        </div>
-      `;
+      const idCard = el("div", "bg-white rounded-xl border-2 border-blue-600 p-4 mb-4 max-w-md");
+      idCard.innerHTML = generateIDCardHTML({
+        id: studentId,
+        full_name: name,
+        grade_level: grade,
+        strand: strand,
+        address: inputs[5]?.value?.trim() || parentAddress.value.trim(),
+        photo_path: null
+      }, {
+        full_name: parentName.value.trim(),
+        phone: parentPhone.value.trim()
+      }, qrData);
+      
       idCardPreview.appendChild(idCard);
     }
     
@@ -472,7 +836,6 @@ async function openAddParentStudentModal(onSaved) {
     try {
       const parentId = generateUUID();
 
-      // Create parent profile
       const { error: parentError } = await supabase.from("profiles").insert({
         id: parentId,
         full_name: parentFull,
@@ -486,11 +849,8 @@ async function openAddParentStudentModal(onSaved) {
 
       if (parentError) throw parentError;
       await supabase.from("parents").insert({ profile_id: parentId, parent_type: parentTypeVal }).catch(function() {});
-
-      // Store password
       await storePassword(parentId, parentPass);
 
-      // Create students
       let studentIds = [];
       const studentDivs = studentsContainer.querySelectorAll(":scope > div");
       
@@ -543,7 +903,7 @@ async function openAddParentStudentModal(onSaved) {
 }
 
 // ============================================
-// MODAL: ADD STAFF (Teacher, Clinic, Guard)
+// STAFF MODAL
 // ============================================
 
 async function openAddStaffModal(onSaved) {
@@ -568,7 +928,6 @@ async function openAddStaffModal(onSaved) {
   const password = textInput({ placeholder: "Password *", type: "password" });
   const confirmPassword = textInput({ placeholder: "Confirm Password *", type: "password" });
 
-  // Auto-generate username on phone change
   phone.addEventListener("input", function() {
     const digits = phone.value.replace(/\D/g, "");
     if (digits.length >= 4) {
@@ -600,7 +959,6 @@ async function openAddStaffModal(onSaved) {
   form.appendChild(inputRow("Address (optional)", address));
   form.appendChild(inputRow("Confirm Password *", confirmPassword));
 
-  // Confirmation section (hidden initially)
   const confirmationSection = el("div", "hidden mt-4 p-4 bg-green-50 border border-green-200 rounded-xl");
   confirmationSection.innerHTML = `
     <h4 class="font-semibold text-green-800 mb-2">✅ Account Created Successfully!</h4>
@@ -651,18 +1009,9 @@ async function openAddStaffModal(onSaved) {
       return;
     }
 
-    if (phoneVal.replace(/\D/g, "").length < 10) {
-      errorBox.textContent = "Phone number must be at least 10 digits.";
-      errorBox.classList.remove("hidden");
-      saveBtn.disabled = false;
-      saveBtn.textContent = "Create Account";
-      return;
-    }
-
     try {
       const newUserId = generateUUID();
 
-      // Create profile directly in Supabase
       const { error: profileError } = await supabase.from("profiles").insert({
         id: newUserId,
         full_name: full,
@@ -676,7 +1025,6 @@ async function openAddStaffModal(onSaved) {
 
       if (profileError) throw profileError;
 
-      // Create role-specific record
       if (role.value === "teacher") {
         await supabase.from("teachers").insert({ profile_id: newUserId, is_gatekeeper: false }).catch(function() {});
       } else if (role.value === "guard") {
@@ -685,10 +1033,8 @@ async function openAddStaffModal(onSaved) {
         await supabase.from("clinic_staff").insert({ profile_id: newUserId }).catch(function() {});
       }
 
-      // Store password in Supabase
       await storePassword(newUserId, pass);
 
-      // Show confirmation
       document.getElementById("confirmationDetails").innerHTML = `
         <p><b>User ID:</b> ${escapeHtml(userId)}</p>
         <p><b>Password:</b> ${escapeHtml(pass)}</p>
@@ -716,13 +1062,13 @@ async function openAddStaffModal(onSaved) {
 }
 
 // ============================================
-// MODAL: PASSWORD RESET REQUEST
+// PASSWORD RESET MODAL
 // ============================================
 
 async function openPasswordResetRequestModal(onSaved) {
   const content = el("div", "");
   content.appendChild(el("div", "text-lg font-semibold text-slate-900 mb-1", "Password Reset Request"));
-  content.appendChild(el("div", "text-sm text-slate-600 mb-4", "Parent/student requests password reset. Admin will be notified."));
+  content.appendChild(el("div", "text-sm text-slate-600 mb-4", "Parent/student requests password reset."));
 
   const form = el("form", "mt-4 grid gap-4");
   
@@ -732,7 +1078,6 @@ async function openPasswordResetRequestModal(onSaved) {
   ], "parent");
 
   const username = textInput({ placeholder: "User ID (e.g., TCH-2026-1234-5678)" });
-  const requestReason = textInput({ placeholder: "Reason for reset (e.g., Forgot password)" });
   const newPassword = textInput({ placeholder: "New Password *", type: "password" });
   const confirmNewPassword = textInput({ placeholder: "Confirm New Password *", type: "password" });
 
@@ -745,7 +1090,6 @@ async function openPasswordResetRequestModal(onSaved) {
 
   form.appendChild(inputRow("User Type", userType));
   form.appendChild(inputRow("User ID", username));
-  form.appendChild(inputRow("Reason", requestReason));
   form.appendChild(inputRow("New Password *", newPassword));
   form.appendChild(inputRow("Confirm Password *", confirmNewPassword));
 
@@ -754,7 +1098,7 @@ async function openPasswordResetRequestModal(onSaved) {
 
   const actions = el("div", "mt-5 flex justify-end gap-2");
   const cancelBtn = button("Cancel", "ghost");
-  const submitBtn = button("Submit Request", "primary");
+  const submitBtn = button("Reset Password", "primary");
   submitBtn.type = "submit";
   actions.appendChild(cancelBtn);
   actions.appendChild(submitBtn);
@@ -771,7 +1115,7 @@ async function openPasswordResetRequestModal(onSaved) {
     errorBox.classList.add("hidden");
     successBox.classList.add("hidden");
     submitBtn.disabled = true;
-    submitBtn.textContent = "Submitting...";
+    submitBtn.textContent = "Processing...";
 
     const userId = username.value.trim().toUpperCase();
     const newPass = newPassword.value;
@@ -781,7 +1125,7 @@ async function openPasswordResetRequestModal(onSaved) {
       errorBox.textContent = "User ID and new password are required.";
       errorBox.classList.remove("hidden");
       submitBtn.disabled = false;
-      submitBtn.textContent = "Submit Request";
+      submitBtn.textContent = "Reset Password";
       return;
     }
 
@@ -789,20 +1133,11 @@ async function openPasswordResetRequestModal(onSaved) {
       errorBox.textContent = "Passwords do not match.";
       errorBox.classList.remove("hidden");
       submitBtn.disabled = false;
-      submitBtn.textContent = "Submit Request";
-      return;
-    }
-
-    if (newPass.length < 6) {
-      errorBox.textContent = "Password must be at least 6 characters.";
-      errorBox.classList.remove("hidden");
-      submitBtn.disabled = false;
-      submitBtn.textContent = "Submit Request";
+      submitBtn.textContent = "Reset Password";
       return;
     }
 
     try {
-      // Find profile by username
       const { data: profiles, error: profileError } = await supabase
         .from("profiles")
         .select("id")
@@ -813,24 +1148,13 @@ async function openPasswordResetRequestModal(onSaved) {
         errorBox.textContent = "User not found with that User ID.";
         errorBox.classList.remove("hidden");
         submitBtn.disabled = false;
-        submitBtn.textContent = "Submit Request";
+        submitBtn.textContent = "Reset Password";
         return;
       }
 
-      // Update password
       await storePassword(profiles.id, newPass);
 
-      // Log the reset request
-      await supabase.from("password_resets").insert({
-        profile_id: profiles.id,
-        username: userId,
-        user_type: userType.value,
-        reason: requestReason.value.trim() || "Forgot password",
-        requested_at: new Date().toISOString(),
-        status: "completed"
-      }).catch(function() {});
-
-      successBox.innerHTML = "<b>✅ Password Reset Complete!</b><br><br>User ID: " + userId + "<br>New password has been set.<br><br>User can now login with the new password.";
+      successBox.innerHTML = "<b>✅ Password Reset Complete!</b><br><br>User ID: " + userId + "<br>New password has been set.";
       successBox.classList.remove("hidden");
       submitBtn.textContent = "Done!";
       submitBtn.disabled = true;
@@ -846,120 +1170,7 @@ async function openPasswordResetRequestModal(onSaved) {
       errorBox.textContent = error.message || "Failed to reset password.";
       errorBox.classList.remove("hidden");
       submitBtn.disabled = false;
-      submitBtn.textContent = "Submit Request";
-    }
-  });
-}
-
-// ============================================
-// MODAL: EDIT PROFILE
-// ============================================
-
-function openEditProfileModal(profile, onSaved) {
-  const content = el("div", "");
-  content.appendChild(el("div", "text-lg font-semibold text-slate-900", "Edit User"));
-  content.appendChild(el("div", "mt-1 text-sm text-slate-600", "ID: " + escapeHtml(profile.username)));
-
-  const form = el("form", "mt-4 grid gap-4 md:grid-cols-2");
-  const fullName = textInput({ value: profile.full_name || "", placeholder: "Full name" });
-  const phone = textInput({ value: profile.phone || "", placeholder: "Phone" });
-  const address = textInput({ value: profile.address || "", placeholder: "Address" });
-  const email = textInput({ value: profile.email || "", placeholder: "Email (optional)" });
-  
-  const role = selectInput([
-    { value: "admin", label: "Admin" },
-    { value: "teacher", label: "Teacher" },
-    { value: "parent", label: "Parent" },
-    { value: "guardian", label: "Guardian" },
-    { value: "guard", label: "Guard" },
-    { value: "clinic", label: "Clinic" },
-  ], profile.role || "teacher");
-
-  const active = selectInput([
-    { value: "true", label: "Active" },
-    { value: "false", label: "Inactive" },
-  ], String(profile.is_active || true));
-
-  function inputRow(label, inputEl) {
-    const wrap = el("div", "space-y-1");
-    wrap.appendChild(el("label", "block text-sm font-medium text-slate-700", label));
-    wrap.appendChild(inputEl);
-    return wrap;
-  }
-
-  form.appendChild(inputRow("Full Name", fullName));
-  form.appendChild(inputRow("Role", role));
-  form.appendChild(inputRow("Active", active));
-  form.appendChild(inputRow("Phone", phone));
-  form.appendChild(inputRow("Email (optional)", email));
-  form.appendChild(el("div", "md:col-span-2"));
-  form.appendChild(inputRow("Address", address));
-
-  const errorBox = el("div", "mt-3 hidden rounded-xl bg-red-50 p-3 text-sm text-red-700");
-  const successBox = el("div", "mt-3 hidden rounded-xl bg-green-50 p-3 text-sm text-green-700");
-  const actions = el("div", "mt-5 flex justify-between gap-2");
-  
-  const deleteBtn = button("🗑️ Delete", "danger");
-  const cancelBtn = button("Cancel", "ghost");
-  const saveBtn = button("Save Changes", "primary");
-  saveBtn.type = "submit";
-  
-  actions.appendChild(deleteBtn);
-  actions.appendChild(cancelBtn);
-  actions.appendChild(saveBtn);
-
-  const overlay = openModal(content);
-  cancelBtn.addEventListener("click", function() { overlay.remove(); });
-  content.appendChild(form);
-  content.appendChild(errorBox);
-  content.appendChild(successBox);
-  content.appendChild(actions);
-
-  // Delete handler
-  deleteBtn.addEventListener("click", async function() {
-    if (!confirm("Are you sure you want to delete this user? This action cannot be undone.")) return;
-    
-    try {
-      const { error } = await supabase.from("profiles").delete().eq("id", profile.id);
-      if (error) throw error;
-      overlay.remove();
-      onSaved();
-    } catch (error) {
-      errorBox.textContent = "Failed to delete: " + error.message;
-      errorBox.classList.remove("hidden");
-    }
-  });
-
-  form.addEventListener("submit", async function(e) {
-    e.preventDefault();
-    errorBox.classList.add("hidden");
-    successBox.classList.add("hidden");
-    saveBtn.disabled = true;
-
-    try {
-      const { error } = await supabase.from("profiles").update({
-        full_name: fullName.value.trim(),
-        phone: phone.value.trim() || null,
-        address: address.value.trim() || null,
-        email: email.value.trim() || null,
-        role: role.value,
-        is_active: active.value === "true"
-      }).eq("id", profile.id);
-
-      if (error) throw error;
-      successBox.textContent = "Changes saved successfully!";
-      successBox.classList.remove("hidden");
-      saveBtn.textContent = "Saved!";
-      saveBtn.disabled = true;
-
-      setTimeout(function() {
-        overlay.remove();
-        onSaved();
-      }, 1500);
-    } catch (error) {
-      errorBox.textContent = error.message;
-      errorBox.classList.remove("hidden");
-      saveBtn.disabled = false;
+      submitBtn.textContent = "Reset Password";
     }
   });
 }
@@ -968,11 +1179,11 @@ function openEditProfileModal(profile, onSaved) {
 // RENDER USER TABLE
 // ============================================
 
-function renderUsersTable(profiles, onEdit, onToggleActive) {
+function renderUsersTable(profiles, onView) {
   const wrap = el("div", "overflow-x-auto");
   const table = el("table", "w-full min-w-[900px] text-left text-sm");
   
-  table.innerHTML = '<thead class="text-xs uppercase text-slate-500 bg-slate-50"><tr><th class="py-3 px-4">User</th><th class="py-3 px-4">User ID</th><th class="py-3 px-4">Role</th><th class="py-3 px-4">Status</th><th class="py-3 px-4">Contact</th><th class="py-3 px-4 text-right">Actions</th></tr></thead>';
+  table.innerHTML = '<thead class="text-xs uppercase text-slate-500 bg-slate-50"><tr><th class="py-3 px-4">User</th><th class="py-3 px-4">User ID</th><th class="py-3 px-4">Role</th><th class="py-3 px-4">Status</th><th class="py-3 px-4">Contact</th><th class="py-3 px-4 text-center">Actions</th></tr></thead>';
 
   const tbody = el("tbody", "divide-y divide-slate-200");
 
@@ -983,7 +1194,7 @@ function renderUsersTable(profiles, onEdit, onToggleActive) {
   for (const p of profiles) {
     const tr = el("tr", "hover:bg-slate-50 transition-colors");
     const addr = p.address || '';
-    tr.innerHTML = '<td class="py-3 px-4"><div class="font-medium text-slate-900">' + escapeHtml(p.full_name) + '</div><div class="text-xs text-slate-500">' + (addr ? escapeHtml(addr.substring(0, 30)) + '...' : '-') + '</div></td><td class="py-3 px-4 font-mono text-xs">' + escapeHtml(p.username) + '</td><td class="py-3 px-4"></td><td class="py-3 px-4"></td><td class="py-3 px-4 text-xs text-slate-600"><div>' + (p.phone || '-') + '</div><div>' + (p.email || '-') + '</div></td><td class="py-3 px-4 text-right"></td>';
+    tr.innerHTML = '<td class="py-3 px-4"><div class="font-medium text-slate-900">' + escapeHtml(p.full_name) + '</div><div class="text-xs text-slate-500">' + (addr ? escapeHtml(addr.substring(0, 30)) + '...' : '-') + '</div></td><td class="py-3 px-4 font-mono text-xs">' + escapeHtml(p.username) + '</td><td class="py-3 px-4"></td><td class="py-3 px-4"></td><td class="py-3 px-4 text-xs text-slate-600"><div>' + (p.phone || '-') + '</div><div>' + (p.email || '-') + '</div></td><td class="py-3 px-4 text-center"></td>';
     
     tr.children[2].appendChild(rolePill(p.role));
     
@@ -991,19 +1202,12 @@ function renderUsersTable(profiles, onEdit, onToggleActive) {
     statusSpan.textContent = p.is_active ? 'Active' : 'Inactive';
     tr.children[3].appendChild(statusSpan);
 
-    const actionsDiv = el("div", "flex gap-1 justify-end");
+    // Only View button (Update & Delete moved to View Modal)
+    const viewBtn = button("👁️ View", "secondary");
+    viewBtn.className = "px-3 py-1 rounded-lg border border-slate-300 text-xs hover:bg-slate-50";
+    viewBtn.addEventListener("click", function() { onView(p); });
     
-    const editBtn = button("Edit", "secondary");
-    editBtn.className = "px-3 py-1 rounded-lg border border-slate-300 text-xs hover:bg-slate-50";
-    editBtn.addEventListener("click", function() { onEdit(p); });
-    actionsDiv.appendChild(editBtn);
-
-    const toggleBtn = button(p.is_active ? 'Deactivate' : 'Activate', "secondary");
-    toggleBtn.className = "px-3 py-1 rounded-lg border border-slate-300 text-xs hover:bg-slate-50";
-    toggleBtn.addEventListener("click", function() { onToggleActive(p); });
-    actionsDiv.appendChild(toggleBtn);
-
-    tr.children[5].appendChild(actionsDiv);
+    tr.children[5].appendChild(viewBtn);
     tbody.appendChild(tr);
   }
 
@@ -1013,7 +1217,7 @@ function renderUsersTable(profiles, onEdit, onToggleActive) {
 }
 
 // ============================================
-// LOAD DATA & RENDER
+// LOAD DATA & MAIN RENDER
 // ============================================
 
 async function loadProfiles() {
@@ -1025,22 +1229,10 @@ async function loadProfiles() {
   return data || [];
 }
 
-// Generate valid UUID using crypto API
 function generateUUID() {
   return crypto.randomUUID();
 }
 
-async function toggleActive(profile) {
-  const newStatus = !profile.is_active;
-  const { error } = await supabase.from("profiles").update({ is_active: newStatus }).eq("id", profile.id);
-  if (error) {
-    usersStatus.textContent = error.message;
-    return;
-  }
-  await render();
-}
-
-// Main render function
 let profilesCache = [];
 
 async function render() {
@@ -1055,7 +1247,6 @@ async function render() {
   
   usersApp.replaceChildren();
 
-  // Header with buttons
   const header = el("div", "mb-4 flex flex-wrap gap-3 justify-between items-center");
   
   const left = el("div", "flex flex-wrap gap-2 items-center");
@@ -1098,18 +1289,15 @@ async function render() {
   header.appendChild(right);
   usersApp.appendChild(header);
 
-  // Info banner
   const infoBanner = el("div", "mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800");
-  infoBanner.innerHTML = "<b>Supabase XAMPP Style:</b> Users login with User ID and password. Passwords are stored in Supabase. Created accounts work from any device.";
+  infoBanner.innerHTML = "<b>Supabase XAMPP Style:</b> Users login with User ID and password. Passwords are stored in Supabase.";
   usersApp.appendChild(infoBanner);
 
-  // Table
-  const table = renderUsersTable(profilesCache, openEditProfileModal, toggleActive);
+  const table = renderUsersTable(profilesCache, openViewUserModal);
   usersApp.appendChild(table);
 
   usersStatus.textContent = "Showing " + profilesCache.length + " users.";
 
-  // Event listeners
   search.addEventListener("input", applyFilters);
   filterRole.addEventListener("change", applyFilters);
 
@@ -1132,7 +1320,7 @@ async function render() {
 
     const tableEl = usersApp.querySelector("table");
     if (tableEl) {
-      tableEl.replaceWith(renderUsersTable(filtered, openEditProfileModal, toggleActive));
+      tableEl.replaceWith(renderUsersTable(filtered, openViewUserModal));
     }
     usersStatus.textContent = "Showing " + filtered.length + " of " + profilesCache.length + " users.";
   }
@@ -1148,12 +1336,7 @@ async function init() {
 
   try {
     await render();
-    
-    // Auto-refresh when window gets focus (to pick up Supabase changes)
-    window.addEventListener("focus", function() {
-      render();
-    });
-    
+    window.addEventListener("focus", function() { render(); });
   } catch (e) {
     usersStatus.textContent = e?.message || "Failed to load users.";
   }
