@@ -1,4 +1,4 @@
--- Password Reset Requests Table
+-- Password Reset Requests Table (XAMPP Style - No RLS)
 -- Track password reset requests from users
 
 CREATE TABLE IF NOT EXISTS password_resets (
@@ -12,29 +12,8 @@ CREATE TABLE IF NOT EXISTS password_resets (
     admin_note TEXT
 );
 
--- Enable RLS for password_resets
-ALTER TABLE password_resets ENABLE ROW LEVEL SECURITY;
-
--- Allow admin to manage password resets
-GRANT ALL ON password_resets TO postgres, anon, authenticated, admin_role;
-
--- Create policy for admins
-CREATE POLICY "Admins can manage password resets" ON password_resets
-    FOR ALL
-    USING (
-        EXISTS (
-            SELECT 1 FROM profiles
-            WHERE profiles.id = auth.uid()
-            AND profiles.role = 'admin'
-        )
-    );
-
--- Allow authenticated users to create reset requests
-CREATE POLICY "Users can create reset requests" ON password_resets
-    FOR INSERT
-    WITH CHECK (auth.uid() = profile_id OR EXISTS (
-        SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
-    ));
+-- Grant permissions (XAMPP style - no RLS)
+GRANT ALL ON password_resets TO postgres, anon, authenticated;
 
 COMMENT ON TABLE password_resets IS 'Tracks password reset requests from users';
 COMMENT ON COLUMN password_resets.profile_id IS 'The user requesting password reset';
