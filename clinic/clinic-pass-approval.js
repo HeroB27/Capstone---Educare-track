@@ -15,9 +15,9 @@ async function loadPendingPasses() {
   console.log('[DEBUG] Loading pending clinic passes...');
   const { data, error } = await supabase
     .from("clinic_passes")
-    .select("id,student_id,clinic_visit_id,issued_by,reason,status,issued_at,students(full_name,grade_level,strand,parent_id)")
+    .select("id,student_id,issued_by,status,created_at,teacher_notes,urgency,students(full_name,grade_level,strand,parent_id)")
     .eq("status", "pending")
-    .order("issued_at", { ascending: false })
+    .order("created_at", { ascending: false })
     .limit(100);
   if (error) {
     console.error('[DEBUG] Error loading pending passes:', error);
@@ -32,8 +32,8 @@ async function loadAllPassesForStats() {
   // Load all passes to calculate stats (pending, approved, rejected)
   const { data, error } = await supabase
     .from("clinic_passes")
-    .select("id,status,issued_at")
-    .order("issued_at", { ascending: false })
+    .select("id,status,created_at")
+    .order("created_at", { ascending: false })
     .limit(200);
   if (error) {
     console.error('[DEBUG] Error loading all passes:', error);
@@ -67,22 +67,22 @@ function openApproveModal({ clinicId, pass, onSaved }) {
       const visitId = await createVisit({
         clinicId,
         studentId: pass.student_id,
-        reason: pass.reason,
+        reason: pass.teacher_notes || pass.urgency,
         notes: notes.value.trim(),
       });
-      await updatePass(pass.id, { status: "approved", clinic_visit_id: visitId });
+      await updatePass(pass.id, { status: "approved" });
       // Notify teacher who issued the pass
       await notify({
         recipientId: pass.issued_by,
         actorId: clinicId,
         verb: NOTIFICATION_VERBS.CLINIC_PASS_APPROVED,
-        object: { pass_id: pass.id, student_id: pass.student_id, clinic_visit_id: visitId },
+        object: { pass_id: pass.id, student_id: pass.student_id },
       });
       await notify({
         recipientId: pass.students?.parent_id,
         actorId: clinicId,
         verb: "clinic_pass_approved",
-        object: { pass_id: pass.id, student_id: pass.student_id, clinic_visit_id: visitId, timestamp: new Date().toISOString() },
+        object: { pass_id: pass.id, student_id: pass.student_id, timestamp: new Date().toISOString() },
       });
       overlay.remove();
       await onSaved();
@@ -97,7 +97,7 @@ function openApproveModal({ clinicId, pass, onSaved }) {
     el(
       "div",
       "mt-3 rounded-2xl bg-slate-50 p-4 text-sm text-slate-700 ring-1 ring-slate-200",
-      `Student: ${escapeHtml(pass.students?.full_name ?? "Student")} • Reason: ${escapeHtml(pass.reason ?? "—")}`
+      `Student: ${escapeHtml(pass.students?.full_name ?? "Student")} • Reason: ${escapeHtml(pass.teacher_notes ?? "—")}`
     )
   );
   content.appendChild(el("div", "mt-4 text-sm font-medium text-slate-700", "Notes"));
@@ -178,7 +178,7 @@ function openRejectModal({ clinicId, pass, onSaved }) {
     el(
       "div",
       "mt-3 rounded-2xl bg-slate-50 p-4 text-sm text-slate-700 ring-1 ring-slate-200",
-      `Student: ${escapeHtml(pass.students?.full_name ?? "Student")} • Reason: ${escapeHtml(pass.reason ?? "—")}`
+      `Student: ${escapeHtml(pass.students?.full_name ?? "Student")} • Reason: ${escapeHtml(pass.teacher_notes ?? "—")}`
     )
   );
   content.appendChild(el("div", "mt-4 text-sm font-medium text-slate-700", "Rejection Reason *"));
@@ -223,7 +223,7 @@ async function render(profile) {
   const list = el("div", "space-y-3");
   for (const p of passes) {
     const student = p.students?.full_name ?? "Student";
-    const meta = `${formatLocalDateTime(p.issued_at)} • ${p.reason ? escapeHtml(p.reason) : "—"}`;
+    const meta = `${formatLocalDateTime(p.created_at)} • ${p.teacher_notes || p.urgency ? escapeHtml(p.teacher_notes || p.urgency) : "—"}`;
     const card = el("div", "rounded-2xl bg-slate-50 p-4");
     card.innerHTML = `
       <div class="flex items-start justify-between gap-3">

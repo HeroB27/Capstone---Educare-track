@@ -130,7 +130,6 @@ async function insertTapLog({ studentId, guardId, tapType }) {
     gatekeeper_id: guardId,
     tap_type: tapType,
     timestamp: new Date().toISOString(),
-    status: "ok",
   });
   if (error) throw error;
 }
@@ -284,7 +283,7 @@ async function loadTodayStats() {
   
   const { data: taps, error } = await supabase
     .from("tap_logs")
-    .select("tap_type,status,timestamp")
+    .select("tap_type,timestamp")
     .gte("timestamp", `${today}T00:00:00`)
     .lte("timestamp", `${today}T23:59:59`);
   
@@ -295,9 +294,20 @@ async function loadTodayStats() {
   
   console.log('[DEBUG] Loaded tap logs:', taps?.length ?? 0);
   
-  const tapIn = taps?.filter(t => t.tap_type === "in" && t.status !== "duplicate").length ?? 0;
-  const tapOut = taps?.filter(t => t.tap_type === "out" && t.status !== "duplicate").length ?? 0;
-  const totalScans = taps?.filter(t => t.status !== "duplicate").length ?? 0;
+  // Filter duplicates: keep first tap of each type per student within 5 minutes
+  const seen = new Map();
+  const filtered = [];
+  for (const tap of (taps || [])) {
+    const key = `${tap.student_id}-${tap.tap_type}`;
+    if (!seen.has(key)) {
+      seen.set(key, true);
+      filtered.push(tap);
+    }
+  }
+  
+  const tapIn = filtered.filter(t => t.tap_type === "in").length;
+  const tapOut = filtered.filter(t => t.tap_type === "out").length;
+  const totalScans = filtered.length;
   
   console.log('[DEBUG] Statistics:', { tapIn, tapOut, totalScans, inSchool: tapIn - tapOut });
   
@@ -310,65 +320,48 @@ async function loadTodayStats() {
 async function loadAlerts() {
   const today = new Date().toISOString().slice(0, 10);
   
-  // Load standard alerts from tap_logs
-  const { data: alerts, error } = await supabase
+  // Load tap logs - use tap_type for filtering instead of status
+  const { data: taps, error } = await supabase
     .from("tap_logs")
-    .select("id,student_id,tap_type,status,remarks,timestamp,students(full_name)")
+    .select("id,student_id,tap_type,timestamp,students(full_name)")
     .gte("timestamp", `${today}T00:00:00`)
     .lte("timestamp", `${today}T23:59:59`)
-    .in("status", ["late", "early", "duplicate", "rejected"])
     .order("timestamp", { ascending: false })
-    .limit(10);
+    .limit(50);
   
   if (error) {
     console.error("[Alerts] Failed to load alerts:", error.message);
     return [];
   }
   
-  // Load incomplete day alerts (students who tapped in but never tapped out)
-  const { data: incompleteStudents, error: incompleteError } = await supabase
-    .from("tap_logs")
-    .select("student_id, timestamp, students(full_name)")
-    .gte("timestamp", `${today}T00:00:00`)
-    .lte("timestamp", `${today}T23:59:59`)
-    .eq("tap_type", "in")
-    .not("status", "in", ["duplicate", "rejected"]);
-  
-  if (incompleteError) {
-    console.error("[Alerts] Failed to load incomplete days:", incompleteError.message);
-    return alerts ?? [];
+  // Filter duplicates: keep first tap of each type per student
+  const seen = new Set();
+  const uniqueTaps = [];
+  for (const tap of (taps || [])) {
+    const key = `${tap.student_id}-${tap.tap_type}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniqueTaps.push(tap);
+    }
   }
   
-  // Get students who tapped out today
-  const { data: tapOutStudents, error: tapOutError } = await supabase
-    .from("tap_logs")
-    .select("student_id")
-    .gte("timestamp", `${today}T00:00:00`)
-    .lte("timestamp", `${today}T23:59:59`)
-    .eq("tap_type", "out")
-    .not("status", "in", ["duplicate", "rejected"]);
+  // Find incomplete day alerts (students who tapped in but never tapped out)
+  const tapInStudents = new Set(uniqueTaps.filter(t => t.tap_type === "in").map(t => t.student_id));
+  const tapOutStudents = new Set(uniqueTaps.filter(t => t.tap_type === "out").map(t => t.student_id));
   
-  if (tapOutError) {
-    console.error("[Alerts] Failed to load tap-out students:", tapOutError.message);
-    return alerts ?? [];
-  }
-  
-  // Find students who tapped in but never tapped out
-  const tapOutStudentIds = new Set(tapOutStudents?.map(t => t.student_id) ?? []);
-  const incompleteAlerts = incompleteStudents
-    ?.filter(student => !tapOutStudentIds.has(student.student_id))
-    .map(student => ({
-      id: `incomplete-${student.student_id}`,
-      student_id: student.student_id,
+  const incompleteAlerts = uniqueTaps
+    .filter(t => t.tap_type === "in" && !tapOutStudents.has(t.student_id))
+    .map(t => ({
+      id: `incomplete-${t.student_id}`,
+      student_id: t.student_id,
       tap_type: "in",
       status: "incomplete",
       remarks: "Student tapped in but never tapped out",
-      timestamp: student.timestamp,
-      students: student.students
-    })) ?? [];
+      timestamp: t.timestamp,
+      students: t.students
+    }));
   
-  // Combine standard alerts with incomplete day alerts
-  return [...(alerts ?? []), ...incompleteAlerts];
+  return incompleteAlerts;
 }
 
 /**

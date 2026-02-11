@@ -18,11 +18,12 @@ signOutBtn?.addEventListener("click", async () => {
 
 async function loadPasses() {
   console.log('[DEBUG] Loading clinic passes from database...');
-  const { data, error } = await supabase
+  const query = supabase
     .from("clinic_passes")
-    .select("id,student_id,clinic_visit_id,issued_by,reason,status,issued_at,students(full_name,grade_level,strand,parent_id)")
-    .order("issued_at", { ascending: false })
+    .select("id,student_id,issued_by,status,created_at,teacher_notes,urgency,students(full_name,grade_level,strand,parent_id)")
+    .order("created_at", { ascending: false })
     .limit(50);
+  const { data, error } = await query;
   if (error) {
     console.error('[DEBUG] Error loading passes:', error);
     throw error;
@@ -33,12 +34,13 @@ async function loadPasses() {
 
 async function loadActiveVisits() {
   console.log('[DEBUG] Loading active clinic visits...');
-  const { data, error } = await supabase
+  const query = supabase
     .from("clinic_visits")
-    .select("id,student_id,treated_by,status,visit_time,notes,students(full_name,grade_level,strand,parent_id)")
+    .select("id,student_id,status,entry_timestamp,notes,reason,students(full_name,grade_level,strand,parent_id)")
     .eq("status", "in_clinic")
-    .order("visit_time", { ascending: false })
+    .order("entry_timestamp", { ascending: false })
     .limit(50);
+  const { data, error } = await query;
   if (error) {
     console.error('[DEBUG] Error loading visits:', error);
     throw error;
@@ -91,10 +93,10 @@ function openApproveModal({ clinicId, pass, onSaved }) {
       const visitId = await createVisit({
         clinicId,
         studentId: pass.student_id,
-        reason: pass.reason,
+        reason: pass.teacher_notes || pass.urgency,
         notes: notes.value.trim(),
       });
-      await updatePass(pass.id, { status: "approved", clinic_visit_id: visitId });
+      await updatePass(pass.id, { status: "approved" });
       await notifyTeacher({
         clinicId,
         teacherId: pass.issued_by,
@@ -120,7 +122,7 @@ function openApproveModal({ clinicId, pass, onSaved }) {
     el(
       "div",
       "mt-3 rounded-2xl bg-slate-50 p-4 text-sm text-slate-700 ring-1 ring-slate-200",
-      `Student: ${escapeHtml(pass.students?.full_name ?? "Student")} • Reason: ${escapeHtml(pass.reason ?? "—")}`
+      `Student: ${escapeHtml(pass.students?.full_name ?? "Student")} • Reason: ${escapeHtml(pass.teacher_notes ?? "—")}`
     )
   );
   content.appendChild(el("div", "mt-4 text-sm font-medium text-slate-700", "Notes"));
@@ -148,15 +150,13 @@ function openDoneModal({ clinicId, pass, onSaved }) {
     errorBox.classList.add("hidden");
     doneBtn.disabled = true;
     try {
-      if (pass.clinic_visit_id) {
-        await updateVisit(pass.clinic_visit_id, { status: "done", notes: notes.value.trim() || null });
-      }
+      await updateVisit(pass.id, { status: "done", notes: notes.value.trim() || null });
       await updatePass(pass.id, { status: "done" });
       await notifyTeacher({
         clinicId,
         teacherId: pass.issued_by,
         verb: "clinic_visit_done",
-        object: { pass_id: pass.id, student_id: pass.student_id, clinic_visit_id: pass.clinic_visit_id },
+        object: { pass_id: pass.id, student_id: pass.student_id },
       });
       await notify({
         recipientId: pass.students?.parent_id,
@@ -165,7 +165,6 @@ function openDoneModal({ clinicId, pass, onSaved }) {
         object: {
           pass_id: pass.id,
           student_id: pass.student_id,
-          clinic_visit_id: pass.clinic_visit_id,
           timestamp: new Date().toISOString(),
           notes: notes.value.trim() || null,
         },
@@ -204,13 +203,12 @@ async function render(profileId) {
   
   // Calculate statistics
   const today = new Date().toISOString().slice(0, 10);
-  // clinic_passes uses issued_at (no created_at/updated_at in schema)
-  const visitsToday = passes.filter(v => v.issued_at?.startsWith(today)).length;
+  const visitsToday = passes.filter(v => v.created_at?.startsWith(today)).length;
   const activeVisitsCount = visits.length;
   const pendingCount = passes.filter(p => String(p.status ?? "pending").toLowerCase() === "pending").length;
   const approvedCount = passes.filter(p => String(p.status ?? "pending").toLowerCase() === "approved").length;
   const completedToday = passes.filter(p => 
-    p.status?.toLowerCase() === "done" && p.issued_at?.startsWith(today)
+    p.status?.toLowerCase() === "done" && p.created_at?.startsWith(today)
   ).length;
 
   console.log('[DEBUG] Statistics calculated:', { visitsToday, activeVisitsCount, pendingCount, approvedCount, completedToday });
@@ -260,7 +258,7 @@ async function render(profileId) {
   top.appendChild(controls);
   clinicApp.appendChild(top);
 
-  const passByVisitId = new Map(passes.filter((p) => p.clinic_visit_id).map((p) => [p.clinic_visit_id, p]));
+  const passByVisitId = new Map(); // No clinic_visit_id link in current schema
 
   const visitsSection = el("div", "mt-4");
   visitsSection.appendChild(el("div", "text-sm font-semibold text-slate-900", "Active clinic visits"));
@@ -270,8 +268,7 @@ async function render(profileId) {
   } else {
     for (const v of visits) {
       const student = v.students?.full_name ?? "Student";
-      const meta = `${formatLocalDateTime(v.visit_time)}${v.notes ? ` • ${escapeHtml(v.notes)}` : ""}`;
-      const linkedPass = passByVisitId.get(v.id) ?? null;
+      const meta = `${formatLocalDateTime(v.entry_timestamp)}${v.notes ? ` • ${escapeHtml(v.notes)}` : ""}`;
       const card = el("div", "rounded-2xl bg-slate-50 p-4");
       card.innerHTML = `
         <div class="flex items-start justify-between gap-3">
@@ -287,10 +284,6 @@ async function render(profileId) {
       `;
       const doneBtn = card.querySelector('button[data-action="done"]');
       doneBtn.addEventListener("click", async () => {
-        if (linkedPass) {
-          openDoneModal({ clinicId: profileId, pass: linkedPass, onSaved: () => render(profileId) });
-          return;
-        }
         try {
           await updateVisit(v.id, { status: "done" });
           await render(profileId);
@@ -313,7 +306,7 @@ async function render(profileId) {
   } else {
     for (const p of pending) {
       const student = p.students?.full_name ?? "Student";
-      const meta = `${formatLocalDateTime(p.issued_at)} • ${p.reason ? escapeHtml(p.reason) : "—"}`;
+      const meta = `${formatLocalDateTime(p.created_at)} • ${p.teacher_notes || p.urgency ? escapeHtml(p.teacher_notes || p.urgency) : "—"}`;
       const card = el("div", "rounded-2xl bg-slate-50 p-4");
       card.innerHTML = `
         <div class="flex items-start justify-between gap-3">
