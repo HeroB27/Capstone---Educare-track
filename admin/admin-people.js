@@ -65,6 +65,7 @@ async function loadPeople() {
     // Combine profiles with student details
     allPeople = [];
 
+    // Add profiles (adult users - parents, teachers, admins, etc.)
     if (profiles) {
       for (const p of profiles) {
         const person = {
@@ -78,19 +79,30 @@ async function loadPeople() {
           current_status: null
         };
 
-        // Try to find matching student
-        const student = students?.find(s => s.id === p.id);
-        if (student) {
-          person.full_name = student.full_name;
-          person.grade_level = student.grade_level;
-          person.current_status = student.current_status;
-        }
-
+        // Students don't have matching profiles - they are children
+        // No match needed, students are added separately
         allPeople.push(person);
       }
     }
 
-    console.log("Loaded people:", allPeople.length);
+    // Add students as separate entries with role = 'student'
+    if (students) {
+      for (const s of students) {
+        const person = {
+          id: s.id,
+          username: null,
+          role: 'student',
+          is_active: true, // Students are always active; use current_status for actual status
+          created_at: s.created_at,
+          full_name: s.full_name,
+          grade_level: s.grade_level,
+          current_status: s.current_status
+        };
+        allPeople.push(person);
+      }
+    }
+
+    console.log("Loaded people:", allPeople.length, "(profiles:", profiles?.length || 0, ", students:", students?.length || 0, ")");
     applyFilters();
 
   } catch (err) {
